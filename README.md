@@ -1,4 +1,4 @@
-# Global Compliance Management Platform (GCMP) — blank template
+# LMW Compliance Management Platform (GCMP)
 
 A live, evidence-based compliance monitoring platform for a group and its
 subsidiaries. This copy ships as a **blank template**: the schema, roles,
