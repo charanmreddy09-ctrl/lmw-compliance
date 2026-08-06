@@ -1,25 +1,60 @@
 import Link from 'next/link';
+import { Ic } from '@/components/ui';
 
 /* The landing page deliberately carries no credential fields. Signing in is a
    separate route so the front door stays a plain description of the platform. */
 
 const MODULES = [
-  { t: 'Dashboard', d: 'Group and country compliance score, exposure and workload in one view, scoped to the role that is signed in.' },
-  { t: 'Entities', d: 'Every legal entity and division with its own scorecard, applicable jurisdictions and full obligation register.' },
-  { t: 'Compliance library', d: 'The statutory master list. Maintained in the application or imported from Excel, per country and per state.' },
-  { t: 'Compliance calendar', d: 'Entity-specific due dates. Upload revised dates from Excel and every dashboard, task and report updates at once.' },
-  { t: 'Reviews', d: 'Uploaded filings arrive in the reviewer’s queue. Approve, reject, raise a query, reassign or escalate — all recorded.' },
-  { t: 'Reports', d: 'Country, entity, division, overdue, delay, evidence and reviewer reports. Export to Excel or print to PDF.' },
-  { t: 'Administration', d: 'Create logins by email address, approve them, assign entities, delegate review authority, inspect the audit trail.' },
+  { t: 'Dashboard', icon: 'report', tint: 'navy',
+    d: 'Group and country compliance score, exposure and workload in one view, scoped to the role that is signed in.' },
+  { t: 'Entities', icon: 'building', tint: 'info',
+    d: 'Every legal entity and division with its own scorecard, applicable jurisdictions and full obligation register.' },
+  { t: 'Compliance Library', icon: 'book', tint: 'ok',
+    d: 'The master list of statutory obligations applicable to each entity, organised by country and by state.' },
+  { t: 'Compliance Calendar', icon: 'cal', tint: 'warn',
+    d: 'Entity-specific statutory due dates, kept current as filing deadlines are notified or revised.' },
+  { t: 'Reviews', icon: 'review', tint: 'red',
+    d: 'Filed returns arrive in the reviewer’s queue. Approve, reject, raise a query, reassign or escalate — every decision recorded.' },
+  { t: 'Reports', icon: 'sheet', tint: 'navy',
+    d: 'Country, entity, division, overdue, delay and evidence reports, exportable to Excel or PDF for the Board.' },
+  { t: 'Administration', icon: 'gear', tint: 'info',
+    d: 'User access, entity assignment, delegated review authority and the complete audit trail, in one place.' },
 ];
 
+const TINTS: Record<string, { bg: string; fg: string }> = {
+  navy: { bg: 'var(--navy-100)', fg: 'var(--navy-700)' },
+  red:  { bg: 'var(--red-100)',  fg: 'var(--red-700)' },
+  ok:   { bg: 'var(--ok-100)',   fg: 'var(--ok-700)' },
+  info: { bg: 'var(--info-100)', fg: 'var(--info-700)' },
+  warn: { bg: 'var(--warn-100)', fg: 'var(--warn-700)' },
+};
+
 const FLOW = [
-  { n: '01', t: 'Obligation raised', d: 'The library and the entity’s registered jurisdictions decide what applies. Nothing is typed twice.' },
-  { n: '02', t: 'Filed with evidence', d: 'The responsible person uploads the filing and its supporting documents against the specific period.' },
-  { n: '03', t: 'Validated automatically', d: 'Period, filing date against due date, delay, penalty exposure, required documents and duplicates are all checked before a human looks.' },
-  { n: '04', t: 'Reviewed', d: 'It lands in the reviewer’s portal. A query returns it to the preparer with the reason attached.' },
-  { n: '05', t: 'Scored', d: 'Only approved, evidence-backed obligations lift the compliance score. The number cannot be self-declared.' },
+  { n: '01', t: 'Obligation identified', d: 'Every statutory filing applicable to an entity is identified automatically from its country, state and registration details.' },
+  { n: '02', t: 'Filed with evidence', d: 'The responsible officer files the return and attaches the supporting document for that specific period.' },
+  { n: '03', t: 'Validated automatically', d: 'Filing period, due date, delay and required supporting documents are checked before a reviewer ever sees it.' },
+  { n: '04', t: 'Reviewed', d: 'The filing moves into the reviewer’s queue. A query is returned to the preparer with the reason recorded.' },
+  { n: '05', t: 'Scored', d: 'Only approved filings, each backed by evidence, count toward the compliance score — the number cannot be self-declared.' },
 ];
+
+/* A restrained, brand-coloured abstract mark for the hero — a shield of
+   compliance built from the same document/checkmark motifs used through the
+   product, so the landing page reads as considered rather than bare text. */
+function HeroMark() {
+  return (
+    <svg width={280} height={280} viewBox="0 0 280 280" fill="none" aria-hidden="true">
+      <circle cx="140" cy="140" r="132" fill="var(--navy-050)" />
+      <circle cx="140" cy="140" r="104" fill="var(--surface)" stroke="var(--line)" />
+      <g transform="translate(72,54)">
+        <rect x="0" y="14" width="92" height="118" rx="6" fill="var(--info-100)" stroke="var(--info-700)" strokeWidth="1.4" />
+        <rect x="18" y="0" width="92" height="118" rx="6" fill="var(--surface)" stroke="var(--navy-700)" strokeWidth="1.6" />
+        <path d="M30 26h68M30 42h68M30 58h44" stroke="var(--line)" strokeWidth="4" strokeLinecap="round" />
+        <circle cx="98" cy="98" r="30" fill="var(--red-600)" />
+        <path d="M85 98l9 9 18-18" stroke="#fff" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </g>
+    </svg>
+  );
+}
 
 export default function Landing() {
   return (
@@ -44,8 +79,8 @@ export default function Landing() {
         </nav>
       </header>
 
-      <section className="land-hero">
-        <div style={{ maxWidth: 720 }}>
+      <section className="land-hero row g24 wrap" style={{ alignItems: 'center' }}>
+        <div style={{ maxWidth: 640, flex: '1 1 480px' }}>
           <div className="cap mb12" style={{ color: 'var(--red-600)' }}>Version 1.0</div>
           <h1 style={{ fontSize: 34, lineHeight: 1.18, letterSpacing: '-0.02em' }}>
             Statutory compliance the Board can rely on, because every entry is
@@ -53,7 +88,7 @@ export default function Landing() {
           </h1>
           <p className="mt16" style={{ fontSize: 14.5, color: 'var(--ink-2)', lineHeight: 1.6 }}>
             The platform replaces the representation letter. Instead of asking each
-            country to confirm that it complied, it holds the filing, the evidence and
+            entity to confirm that it complied, it holds the filing, the evidence and
             the reviewer’s decision — and derives a live compliance score for every
             entity from that record.
           </p>
@@ -63,26 +98,32 @@ export default function Landing() {
           </div>
         </div>
 
-        <div className="grid g-4 mt24" style={{ marginTop: 40 }}>
+        <div className="no-print" style={{ flex: '0 0 auto', display: 'flex', justifyContent: 'center', minWidth: 260 }}>
+          <HeroMark />
+        </div>
+      </section>
+
+      <div className="land-hero" style={{ paddingTop: 0 }}>
+        <div className="grid g-4">
           {[
             ['Entities in scope', '2', 'LMW Limited (India) and LMW Global FZE (UAE)'],
-            ['Statutory obligations', '40+', 'National plus Tamil Nadu / UAE free-zone level — starting baseline'],
+            ['Statutory obligations', '95+', 'National plus Tamil Nadu / UAE free-zone level'],
             ['Evidence held', 'Every filing', 'Versioned, checksummed, downloadable'],
             ['Score basis', 'Approved only', 'Self-declaration does not count'],
           ].map(([l, v, s]) => (
             <div className="card kpi" key={l}>
               <div className="kl">{l}</div>
-              <div className="kv">{v}</div>
+              <div className="kv-num">{v}</div>
               <div className="ks">{s}</div>
             </div>
           ))}
         </div>
-      </section>
+      </div>
 
       <section id="how" style={{ background: 'var(--canvas)', borderTop: '1px solid var(--line)', padding: '44px 26px' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto' }}>
-          <div className="cap mb8">How a compliance moves through the platform</div>
-          <h2 style={{ fontSize: 22, marginBottom: 22 }}>From obligation to score, with an audit trail at every step</h2>
+          <div className="cap mb8">How a filing moves through the platform</div>
+          <h2 style={{ fontSize: 22, marginBottom: 22 }}>From obligation to Board-level score, with a full audit trail</h2>
           <div className="grid g-5">
             {FLOW.map(f => (
               <div className="card card-b" key={f.n}>
@@ -97,15 +138,26 @@ export default function Landing() {
 
       <section id="modules" style={{ padding: '44px 26px' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto' }}>
-          <div className="cap mb8">Modules</div>
-          <h2 style={{ fontSize: 22, marginBottom: 22 }}>Seven modules. Nothing that is not used.</h2>
+          <div className="cap mb8">Platform capabilities</div>
+          <h2 style={{ fontSize: 22, marginBottom: 22 }}>Everything the compliance function needs, in one system of record</h2>
           <div className="grid g-3">
-            {MODULES.map(m => (
-              <div className="card card-b" key={m.t}>
-                <h3>{m.t}</h3>
-                <p className="small muted mt4 mb0" style={{ lineHeight: 1.55 }}>{m.d}</p>
-              </div>
-            ))}
+            {MODULES.map(m => {
+              const tint = TINTS[m.tint];
+              return (
+                <div className="card card-b" key={m.t}>
+                  <div className="row g10" style={{ alignItems: 'center', marginBottom: 10 }}>
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      width: 34, height: 34, borderRadius: '50%', background: tint.bg, flexShrink: 0,
+                    }}>
+                      <Ic n={m.icon} s={17} c={tint.fg} />
+                    </span>
+                    <h3 style={{ margin: 0 }}>{m.t}</h3>
+                  </div>
+                  <p className="small muted mt0 mb0" style={{ lineHeight: 1.55 }}>{m.d}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -117,8 +169,8 @@ export default function Landing() {
           <p className="small muted mb16" style={{ maxWidth: 720 }}>
             A state or free-zone obligation applies to an entity only where that entity is
             actually registered, so a Tamil Nadu filing never appears against an entity that
-            does not operate there. Add further countries, states or entities at any time from
-            Administration — no code change is required.
+            does not operate there. Additional countries, states or entities can be added as
+            the group’s footprint grows.
           </p>
           <div className="card">
             <div className="tw">
@@ -142,10 +194,9 @@ export default function Landing() {
             </div>
           </div>
           <p className="tiny muted mt12" style={{ maxWidth: 760 }}>
-            The library ships as a working baseline drawn from published statutory
-            frameworks. Each record carries a verification flag so the local adviser
-            signs it off inside the platform, which stamps who verified it and when.
-            It is not a substitute for local professional advice.
+            Every statutory reference is reviewed and signed off by a qualified local adviser
+            before it is relied upon. This platform supports, and does not replace,
+            professional legal and tax advice.
           </p>
         </div>
       </section>
@@ -153,7 +204,7 @@ export default function Landing() {
       <footer style={{ borderTop: '1px solid var(--line)', padding: '18px 26px' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto' }} className="row between wrap g12">
           <span className="tiny muted">
-            Global Compliance Management Platform · Version 1.0 · Internal use only
+            LMW Compliance Management Platform · Version 1.0 · Internal use only
           </span>
           <Link href="/signin" className="tiny strong">Sign in</Link>
         </div>
