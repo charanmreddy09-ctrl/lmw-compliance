@@ -201,12 +201,11 @@ export default function Dashboard() {
               <div><span className="k">Awaiting reviewer</span><span className="v num">{o.submitted + o.underReview}</span></div>
               <div><span className="k">Query raised / rejected</span><span className="v num">{o.queryRaised + o.rejected}</span></div>
               <div><span className="k">Not started</span><span className="v num">{o.notStarted + o.evidencePending}</span></div>
-              <div className="tiny dim" style={{ borderTop: '1px solid var(--line-2)', paddingTop: 6, marginTop: -1 }}>
-                Applicable obligations is the sum of the four rows above.
-                {o.overdue > 0 && (
-                  <span style={{ color: 'var(--bad-600)' }}> {o.overdue} of them are past the due date with no evidence uploaded.</span>
-                )}
-              </div>
+              {o.overdue > 0 && (
+                <div className="tiny" style={{ borderTop: '1px solid var(--line-2)', paddingTop: 6, marginTop: -1, color: 'var(--bad-600)' }}>
+                  {o.overdue} of them are past the due date with no evidence uploaded.
+                </div>
+              )}
             </div>
             <div className="row between g12" style={{ marginTop: 10, padding: '8px 10px', background: 'var(--surface-2)', borderRadius: 'var(--r)' }}>
               <span className="small muted">Future obligations <span className="dim">(not yet due — excluded from the figures above)</span></span>
@@ -266,12 +265,13 @@ export default function Dashboard() {
             </div>
             <div className="tiny dim mt4">followed</div>
           </div>
-          <div className="grow stack" style={{ minWidth: 200 }}>
+          <div className="stack" style={{ width: 300, flexShrink: 0 }}>
             <div><span className="k">Applicable</span><span className="v num">{catTotals.total}</span></div>
             <div><span className="k">Approved with evidence</span><span className="v num">{catTotals.approved}</span></div>
             <div><span className="k">Overdue and unfiled</span>
               <span className="v num" style={{ color: catTotals.overdue ? 'var(--bad-600)' : undefined }}>{catTotals.overdue}</span></div>
           </div>
+          <div className="grow" />
           {catTotals.total === 0 && (
             <div className="small muted">No applicable obligations in this category for the current filter.</div>
           )}

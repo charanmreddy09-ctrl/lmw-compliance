@@ -27,7 +27,7 @@ type EvFile = {
   id: string; file_name: string; mime_type: string; size_bytes: string; version: number;
   doc_type: string | null; period_label: string | null; filed_date: string | null;
   status: string; validation: { outcome?: string; checks?: { key: string; label: string; result: string; detail: string }[] } | null;
-  uploaded_at: string; reviewed_at: string | null;
+  is_nil: boolean; uploaded_at: string; reviewed_at: string | null;
   uploaded_by_name: string | null; reviewed_by_name: string | null;
 };
 type Trail = {
@@ -275,6 +275,29 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
     }
   }
 
+  async function nilFile() {
+    if (!o || busy) return;
+    if (!confirm(`File "${o.title}" (${o.period_label}) as Nil / Not Applicable? This is sent to the reviewer for approval, same as a normal filing.`)) return;
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('obligationId', o.id);
+      fd.append('nil', '1');
+      if (comment) fd.append('comment', comment);
+      fd.append('period', o.period_label);
+      const res = await fetch('/api/evidence', { method: 'POST', body: fd });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? `Could not file as nil (${res.status}).`);
+      toast('Filed as Nil and sent to the reviewer.', 'ok');
+      setComment('');
+      await load();
+      onChanged();
+      setTab('documents');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not file as nil.', 'bad');
+    } finally { setBusy(false); }
+  }
+
   async function withdraw(evId: string, name: string) {
     if (!confirm(`Withdraw "${name}"? The document is retained in the audit trail but no longer counts as evidence.`)) return;
     try {
@@ -393,7 +416,12 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
 
           {/* ------------------------------------------------------- FILE */}
           {tab === 'file' && (
-            canFile ? (
+            o.status === 'Not Applicable' ? (
+              <Note kind="i">
+                A reviewer has marked this compliance not applicable to {o.entity}. No filing is
+                required and it is excluded from the compliance score.
+              </Note>
+            ) : canFile ? (
               <>
                 <div className="f">
                   <label htmlFor="dt">Document type</label>
@@ -463,6 +491,13 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
                 <button className="btn btn-p btn-block" onClick={upload} disabled={!file || busy}>
                   {busy ? `Uploading… ${pct}%` : 'Upload and send for review'}
                 </button>
+                <button className="btn btn-block mt8" onClick={nilFile} disabled={busy}>
+                  <Ic n="alert" s={13} /> File as Nil / Not Applicable for this period
+                </button>
+                <div className="tiny dim mt4">
+                  Use this when there is genuinely nothing to file for {o.period_label} (e.g. a nil
+                  return) — no document is required, but a reviewer still has to approve it.
+                </div>
 
                 {result && (
                   <div className="mt16">
@@ -502,13 +537,13 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
                     <div className="row between g8 wrap">
                       <div className="grow" style={{ minWidth: 0 }}>
                         <div className="row g6">
-                          <Ic n="doc" s={14} />
+                          <Ic n={f.is_nil ? 'alert' : 'doc'} s={14} />
                           <span className="strong small" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {f.file_name}
+                            {f.is_nil ? 'Nil filing — no document required' : f.file_name}
                           </span>
                         </div>
                         <div className="tiny muted mt4">
-                          v{f.version} · {fmtBytes(Number(f.size_bytes))} · {f.doc_type ?? 'Unclassified'}
+                          {f.is_nil ? `v${f.version}` : `v${f.version} · ${fmtBytes(Number(f.size_bytes))} · ${f.doc_type ?? 'Unclassified'}`}
                           {f.filed_date ? ` · filed ${fmtDate(f.filed_date)}` : ''}
                         </div>
                         <div className="tiny dim mt4">
@@ -523,13 +558,17 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
                       </div>
                     </div>
                     <div className="row g6 mt12 wrap">
-                      <a className="btn btn-xs" href={`/api/evidence/${f.id}`} target="_blank" rel="noopener noreferrer">
-                        <Ic n="eye" s={12} /> Preview
-                      </a>
-                      <button className="btn btn-xs"
-                              onClick={() => downloadFile(`/api/evidence/${f.id}?dl=1`, f.file_name, toast)}>
-                        <Ic n="download" s={12} /> Download
-                      </button>
+                      {!f.is_nil && (
+                        <>
+                          <a className="btn btn-xs" href={`/api/evidence/${f.id}`} target="_blank" rel="noopener noreferrer">
+                            <Ic n="eye" s={12} /> Preview
+                          </a>
+                          <button className="btn btn-xs"
+                                  onClick={() => downloadFile(`/api/evidence/${f.id}?dl=1`, f.file_name, toast)}>
+                            <Ic n="download" s={12} /> Download
+                          </button>
+                        </>
+                      )}
                       {f.validation?.outcome && (
                         <span className={`pill ${f.validation.outcome === 'clean' ? 'p-ok'
                           : f.validation.outcome === 'blocked' ? 'p-bad' : 'p-warn'}`}>

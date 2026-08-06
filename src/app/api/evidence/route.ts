@@ -20,36 +20,94 @@ export const POST = handler(async (req: Request) => {
   const form = await req.formData();
 
   const obligationId = String(form.get('obligationId') ?? '');
+  const isNil = form.get('nil') === '1';
   const file = form.get('file');
   const docType = form.get('docType') ? String(form.get('docType')) : null;
   const period = form.get('period') ? String(form.get('period')) : null;
   const comment = form.get('comment') ? String(form.get('comment')) : null;
 
   if (!obligationId) return fail(400, 'Obligation reference is missing.');
-  if (!(file instanceof File)) return fail(400, 'Choose a file to upload.');
-  if (file.size === 0) return fail(400, 'The selected file is empty.');
-  if (file.size > MAX_UPLOAD_BYTES)
-    return fail(413, `The file is ${(file.size / 1048576).toFixed(2)} MB. The limit is ${MAX_UPLOAD_BYTES / 1048576} MB per document — split it or upload a ZIP.`);
-  if (!isAllowedEvidence(file.type || '', file.name))
-    return fail(415, `"${file.name}" is not an accepted evidence format. Upload a PDF, Excel, Word, ZIP, CSV or image file.`);
+  if (!isNil) {
+    if (!(file instanceof File)) return fail(400, 'Choose a file to upload.');
+    if (file.size === 0) return fail(400, 'The selected file is empty.');
+    if (file.size > MAX_UPLOAD_BYTES)
+      return fail(413, `The file is ${(file.size / 1048576).toFixed(2)} MB. The limit is ${MAX_UPLOAD_BYTES / 1048576} MB per document — split it or upload a ZIP.`);
+    if (!isAllowedEvidence(file.type || '', file.name))
+      return fail(415, `"${file.name}" is not an accepted evidence format. Upload a PDF, Excel, Word, ZIP, CSV or image file.`);
+  }
 
   const obl = await one<{ entity_id: string; status: string; period_label: string }>(
     `SELECT entity_id, status, period_label FROM obligations WHERE id = $1 AND deleted_at IS NULL`,
     [obligationId]);
   if (!obl) return fail(404, 'That obligation no longer exists.');
+  if (obl.status === 'Not Applicable')
+    return fail(409, 'A reviewer has marked this compliance not applicable — no filing is needed.');
   if (!canSeeEntity(u, obl.entity_id)) return fail(403, 'You are not assigned to this entity.');
   if (!canFileEntity(u, obl.entity_id))
     return fail(403, 'Your role does not permit filing for this entity.');
 
-  const bytes = Buffer.from(await file.arrayBuffer());
+  /* Nil / Not Applicable filing: no document, but still goes through the
+     same reviewer approval queue as a real filing — it just carries a
+     placeholder "record" instead of a document, marked is_nil so the UI can
+     tell the two apart. Skips file-shaped checks (type/size/duplicate/date
+     extraction) that don't mean anything for a nil filing. */
+  if (isNil) {
+    const result = await tx(async c => {
+      const prev = await c.query<{ v: number }>(
+        `SELECT COALESCE(max(version),0) AS v FROM evidence WHERE obligation_id = $1`, [obligationId]);
+      const version = Number(prev.rows[0].v) + 1;
+      if (version > 1) {
+        await c.query(
+          `UPDATE evidence SET status = 'Superseded'
+            WHERE obligation_id = $1 AND status NOT IN ('Approved','Superseded')`, [obligationId]);
+      }
+      const ev = await c.query<{ id: string }>(
+        `INSERT INTO evidence (obligation_id, file_name, mime_type, size_bytes, checksum,
+            version, doc_type, period_label, filed_date, content, status, validation, is_nil, uploaded_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,CURRENT_DATE,$9,'Submitted','{}'::jsonb,TRUE,$10)
+         RETURNING id`,
+        [obligationId, 'Nil filing', 'text/plain', 0, null,
+         version, 'Nil / Not Applicable', period ?? obl.period_label, Buffer.from(''), u.id]);
+      await c.query(
+        `UPDATE obligations SET status = 'Submitted', workflow_stage = 'reviewer' WHERE id = $1`,
+        [obligationId]);
+      await c.query(
+        `INSERT INTO review_actions (obligation_id, evidence_id, action, actor_id, actor_role,
+            from_status, to_status, comment)
+         VALUES ($1,$2,'submit',$3,$4,$5,'Submitted',$6)`,
+        [obligationId, ev.rows[0].id, u.id, u.role, obl.status,
+         comment || 'Filed as Nil / Not Applicable for this period.']);
+      const rv = await c.query<{ reviewer_id: string | null; title: string; country_code: string }>(
+        `SELECT o.reviewer_id, c.title, e.country_code
+           FROM obligations o JOIN compliances c ON c.id = o.compliance_id
+           JOIN entities e ON e.id = o.entity_id WHERE o.id = $1`, [obligationId]);
+      const r = rv.rows[0];
+      if (r?.reviewer_id) {
+        await c.query(
+          `INSERT INTO notifications (user_id, country_code, entity_id, kind, title, body, link, severity)
+           VALUES ($1,$2,$3,'review_pending',$4,$5,$6,'info')`,
+          [r.reviewer_id, r.country_code, obl.entity_id,
+           'Nil filing awaiting review',
+           `${r.title} — ${obl.entity_id} (${obl.period_label}) was filed as Nil by ${u.name}.`,
+           `/reviews?obligation=${obligationId}`]);
+      }
+      return { evidenceId: ev.rows[0].id, version };
+    });
+    await writeAudit({ actor: u, action: 'evidence.nil', objectType: 'obligation', objectId: obligationId,
+      detail: 'Filed as Nil / Not Applicable for this period.' });
+    return ok({ ...result, validation: { outcome: 'clean', checks: [] }, filedDate: { date: new Date().toISOString().slice(0, 10), source: 'defaulted' } });
+  }
+
+  const f = file as File;
+  const bytes = Buffer.from(await f.arrayBuffer());
   const checksum = createHash('sha256').update(bytes).digest('hex').slice(0, 32);
-  const filedDate = await extractFiledDate(bytes, file.type || 'application/octet-stream');
+  const filedDate = await extractFiledDate(bytes, f.type || 'application/octet-stream');
 
   const validation = await validateUpload({
     obligationId,
     entityId: obl.entity_id,
-    fileName: file.name,
-    mimeType: file.type || 'application/octet-stream',
+    fileName: f.name,
+    mimeType: f.type || 'application/octet-stream',
     sizeBytes: bytes.length,
     checksum,
     declaredPeriod: period,
@@ -80,7 +138,7 @@ export const POST = handler(async (req: Request) => {
           version, doc_type, period_label, filed_date, content, status, validation, uploaded_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'Submitted',$11::jsonb,$12)
        RETURNING id`,
-      [obligationId, file.name, file.type || 'application/octet-stream', bytes.length, checksum,
+      [obligationId, f.name, f.type || 'application/octet-stream', bytes.length, checksum,
        version, docType, period ?? obl.period_label, filedDate.date, bytes,
        JSON.stringify(validation), u.id]);
 
@@ -100,7 +158,7 @@ export const POST = handler(async (req: Request) => {
           from_status, to_status, comment)
        VALUES ($1,$2,'submit',$3,$4,$5,'Submitted',$6)`,
       [obligationId, ev.rows[0].id, u.id, u.role, obl.status,
-       comment || `Evidence uploaded (${file.name}). Automatic validation: ${validation.outcome}.`]);
+       comment || `Evidence uploaded (${f.name}). Automatic validation: ${validation.outcome}.`]);
 
     /* tell the reviewer there is something waiting */
     const rv = await c.query<{ reviewer_id: string | null; title: string; country_code: string }>(
@@ -123,7 +181,7 @@ export const POST = handler(async (req: Request) => {
   });
 
   await writeAudit({ actor: u, action: 'evidence.upload', objectType: 'obligation', objectId: obligationId,
-    detail: `${file.name} (${(bytes.length / 1024).toFixed(0)} KB) v${result.version}; validation ${validation.outcome}`,
+    detail: `${f.name} (${(bytes.length / 1024).toFixed(0)} KB) v${result.version}; validation ${validation.outcome}`,
     meta: { checksum, outcome: validation.outcome, delayDays: validation.delayDays } });
 
   return ok({ ...result, validation, filedDate });

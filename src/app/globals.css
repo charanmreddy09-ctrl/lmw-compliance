@@ -51,8 +51,8 @@
 
   --r: 2px;
   --r-2: 3px;
-  --shadow: 0 1px 1px rgba(16,29,54,.05);
-  --shadow-2: 0 1px 4px rgba(16,29,54,.18);
+  --shadow: 0 1px 2px rgba(16,29,54,.07), 0 1px 1px rgba(16,29,54,.04);
+  --shadow-2: 0 2px 6px rgba(16,29,54,.16), 0 1px 2px rgba(16,29,54,.1);
 
   --sidebar: 232px;
   --topbar: 52px;
@@ -67,14 +67,18 @@ body {
   font-size: 13px;
   line-height: 1.45;
   color: var(--ink);
-  background: var(--canvas);
+  /* A faint navy-tinted lift at the top of the viewport rather than a flat
+     fill — enough depth to read as considered, not enough to be a "gradient
+     background" in the startup-landing-page sense. */
+  background: linear-gradient(180deg, #EEF1F7 0%, var(--canvas) 260px);
+  background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 h1,h2,h3,h4 { margin: 0; font-weight: 600; letter-spacing: -0.011em; color: var(--navy-900); }
 h1 { font-size: 19px; } h2 { font-size: 15px; } h3 { font-size: 13.5px; } h4 { font-size: 12.5px; }
 p { margin: 0 0 8px; }
-a { color: var(--navy-700); text-decoration: none; }
+a { color: var(--red-700); text-decoration: none; }
 a:hover { text-decoration: underline; }
 button, input, select, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--navy-600); outline-offset: 1px; }
@@ -215,6 +219,7 @@ table.dt { width: 100%; font-size: 12.5px; }
 .dt th.asc::after { content: " ▲"; font-size: 8px; }
 .dt th.desc::after { content: " ▼"; font-size: 8px; }
 .dt td { padding: 7px 11px; border-bottom: 1px solid var(--line-2); vertical-align: top; }
+.dt tbody tr:nth-child(even) td { background: var(--surface-2); }
 .dt tbody tr:hover td { background: var(--navy-050); }
 .dt tbody tr.click { cursor: pointer; }
 .dt td.w { white-space: normal; min-width: 210px; }
@@ -246,8 +251,8 @@ table.dt { width: 100%; font-size: 12.5px; }
 }
 .btn:hover { border-color: var(--navy-600); color: var(--navy-700); text-decoration: none; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
-.btn-p { background: var(--navy-700); border-color: var(--navy-700); color: #fff; }
-.btn-p:hover { background: var(--navy-800); border-color: var(--navy-800); color: #fff; }
+.btn-p { background: var(--red-600); border-color: var(--red-600); color: #fff; }
+.btn-p:hover { background: var(--red-700); border-color: var(--red-700); color: #fff; }
 .btn-ok { background: var(--ok-600); border-color: var(--ok-600); color: #fff; }
 .btn-ok:hover { background: var(--ok-700); border-color: var(--ok-700); color: #fff; }
 .btn-bad { background: var(--bad-600); border-color: var(--bad-600); color: #fff; }
@@ -283,7 +288,7 @@ input[type="file"] { padding: 5px; }
 .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--line); margin-bottom: 14px; overflow-x: auto; }
 .tab { padding: 8px 13px; font-size: 12.5px; font-weight: 600; color: var(--ink-3); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; background: none; border-top: none; border-left: none; border-right: none; }
 .tab:hover { color: var(--ink); }
-.tab.on { color: var(--navy-700); border-bottom-color: var(--navy-700); }
+.tab.on { color: var(--red-700); border-bottom-color: var(--red-600); }
 
 /* act tabs — the always-visible top-level category strip on the dashboard */
 .act-tabs { overflow: hidden; }

@@ -28,7 +28,7 @@ export const GET = handler(async (_req: Request, ctx: { params: { id: string } }
 
   const [files, trail, changes] = await Promise.all([
     q(`SELECT id, file_name, mime_type, size_bytes, version, doc_type, period_label,
-              filed_date, status, validation, uploaded_at, reviewed_at,
+              filed_date, status, validation, is_nil, uploaded_at, reviewed_at,
               (SELECT full_name FROM users WHERE id = uploaded_by) AS uploaded_by_name,
               (SELECT full_name FROM users WHERE id = reviewed_by) AS reviewed_by_name
          FROM evidence WHERE obligation_id = $1 AND deleted_at IS NULL

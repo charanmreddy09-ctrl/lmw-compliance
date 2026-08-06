@@ -270,13 +270,31 @@ CREATE TABLE IF NOT EXISTS evidence (
   status          TEXT         NOT NULL DEFAULT 'Submitted'
                                CHECK (status IN ('Submitted','Approved','Rejected','Superseded')),
   validation      JSONB        NOT NULL DEFAULT '{}'::jsonb,
+  is_nil          BOOLEAN      NOT NULL DEFAULT FALSE,
   uploaded_by     UUID         REFERENCES users(id),
   uploaded_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
   reviewed_by     UUID         REFERENCES users(id),
   reviewed_at     TIMESTAMPTZ,
   deleted_at      TIMESTAMPTZ
 );
+ALTER TABLE evidence ADD COLUMN IF NOT EXISTS is_nil BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE INDEX IF NOT EXISTS idx_ev_obl ON evidence(obligation_id) WHERE deleted_at IS NULL;
+
+-- A compliance a Reviewer has decided genuinely does not apply to a given
+-- entity (e.g. cost audit for a non-manufacturing subsidiary). Excluding one
+-- flips its non-approved obligations to 'Not Applicable', which every score/
+-- dashboard query already excludes — see src/lib/score.ts and
+-- src/app/api/dashboard/route.ts.
+CREATE TABLE IF NOT EXISTS compliance_exclusions (
+  id              BIGSERIAL    PRIMARY KEY,
+  compliance_id   UUID         NOT NULL REFERENCES compliances(id) ON DELETE CASCADE,
+  entity_id       TEXT         NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+  reason          TEXT,
+  excluded_by     UUID         REFERENCES users(id),
+  excluded_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  UNIQUE (compliance_id, entity_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ce_entity ON compliance_exclusions(entity_id);
 
 -- ---------------------------------------------------------------- workflow
 CREATE TABLE IF NOT EXISTS review_actions (

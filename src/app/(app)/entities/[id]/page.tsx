@@ -8,6 +8,7 @@ import {
   scoreColor, fmtDate, fmtDateTime, daysFromToday, RISK_TONE, useToast, downloadFile,
 } from '@/components/ui';
 import type { ScoreBreakdown } from '@/lib/score';
+import type { SessionUser } from '@/lib/rbac';
 
 type Entity = {
   id: string; name: string; short_name: string; country_code: string; country_name: string;
@@ -27,15 +28,20 @@ type Recent = { action: string; comment: string | null; created_at: string; acto
 type Change = { old_due_date: string; new_due_date: string; reason: string | null; changed_at: string; title: string | null };
 type State = { id: string; name: string; level: string; code: string };
 
+type Applic = {
+  compliance_id: string; code: string; title: string; category: string;
+  excluded: boolean; reason: string | null; excluded_at: string | null; excluded_by: string | null;
+};
 type Payload = {
   entity: Entity; score: ScoreBreakdown | null; states: State[];
   byCategory: Grp[]; byStatus: { status: string; n: string }[];
-  obligations: Obl[]; recent: Recent[]; changes: Change[];
+  obligations: Obl[]; recent: Recent[]; changes: Change[]; applicability: Applic[];
 };
 
 export default function EntityDetail() {
   const params = useParams<{ id: string }>();
   const toast = useToast();
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [d, setD] = useState<Payload | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [tab, setTab] = useState('register');
@@ -43,18 +49,51 @@ export default function EntityDetail() {
   const [cat, setCat] = useState('');
   const [q, setQ] = useState('');
 
+  const load = async () => {
+    try {
+      const res = await fetch(`/api/entities/${params.id}`);
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? 'Unable to load this entity.');
+      setD(j);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Unable to load this entity.');
+    }
+  };
+
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`/api/entities/${params.id}`);
-        const j = await res.json();
-        if (!res.ok) throw new Error(j.error ?? 'Unable to load this entity.');
-        setD(j);
-      } catch (e) {
-        setErr(e instanceof Error ? e.message : 'Unable to load this entity.');
-      }
-    })();
+    fetch('/api/auth/me').then(r => r.json()).then(j => setUser(j.user)).catch(() => setUser(null));
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
+
+  const canExclude = !!user?.permissions.includes('compliance.review');
+
+  async function toggleExclusion(a: Applic) {
+    if (!d) return;
+    if (a.excluded) {
+      if (!confirm(`Mark "${a.title}" applicable again for ${d.entity.short_name}? Its obligations re-enter the normal workflow.`)) return;
+      try {
+        const res = await fetch(`/api/compliance-exclusions?compliance_id=${a.compliance_id}&entity_id=${d.entity.id}`, { method: 'DELETE' });
+        const j = await res.json();
+        if (!res.ok) throw new Error(j.error);
+        toast(`Marked applicable again — ${j.affected} obligation${j.affected === 1 ? '' : 's'} reopened.`, 'ok');
+        load();
+      } catch (e) { toast(e instanceof Error ? e.message : 'Could not update.', 'bad'); }
+    } else {
+      const reason = prompt(`Why does "${a.title}" not apply to ${d.entity.short_name}? (shown in the audit trail)`);
+      if (reason === null) return;
+      try {
+        const res = await fetch('/api/compliance-exclusions', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ compliance_id: a.compliance_id, entity_id: d.entity.id, reason: reason || undefined }),
+        });
+        const j = await res.json();
+        if (!res.ok) throw new Error(j.error);
+        toast(`Marked not applicable — ${j.affected} obligation${j.affected === 1 ? '' : 's'} excluded from the count.`, 'ok');
+        load();
+      } catch (e) { toast(e instanceof Error ? e.message : 'Could not update.', 'bad'); }
+    }
+  }
 
   const cats = useMemo(() => (d ? [...new Set(d.obligations.map(o => o.category))].sort() : []), [d]);
   const statuses = useMemo(() => (d ? [...new Set(d.obligations.map(o => o.status))].sort() : []), [d]);
@@ -177,6 +216,7 @@ export default function EntityDetail() {
         {[
           { id: 'register', label: `Obligation register (${d.obligations.length})` },
           { id: 'category', label: 'By category' },
+          ...(canExclude ? [{ id: 'applicability', label: `Applicability (${d.applicability.filter(a => a.excluded).length} excluded)` }] : []),
           { id: 'activity', label: 'Activity' },
           { id: 'changes', label: `Due date changes (${d.changes.length})` },
           { id: 'profile', label: 'Profile' },
@@ -244,6 +284,40 @@ export default function EntityDetail() {
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {tab === 'applicability' && canExclude && (
+        <div className="card">
+          <div className="card-h">
+            <h3>Compliance applicability</h3>
+            <span className="tiny muted">Mark a compliance not applicable to remove it and its obligations from this entity's counts</span>
+          </div>
+          <div className="tw">
+            <table className="dt">
+              <thead><tr><th>Compliance</th><th>Category</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                {d.applicability.map(a => (
+                  <tr key={a.compliance_id}>
+                    <td><div className="t1">{a.title}</div><div className="t2 mono">{a.code}</div></td>
+                    <td className="small">{a.category}</td>
+                    <td>
+                      {a.excluded
+                        ? <span className="pill p-mute" title={`${a.excluded_by ?? ''} ${a.excluded_at ? fmtDate(a.excluded_at) : ''}`}>
+                            Not applicable{a.reason ? ` — ${a.reason}` : ''}
+                          </span>
+                        : <span className="pill p-ok nd">Applicable</span>}
+                    </td>
+                    <td className="nowrap no-print">
+                      <button className="btn btn-xs" onClick={() => toggleExclusion(a)}>
+                        {a.excluded ? 'Mark applicable' : 'Mark not applicable'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

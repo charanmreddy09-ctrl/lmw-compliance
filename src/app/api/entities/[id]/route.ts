@@ -20,7 +20,7 @@ export const GET = handler(async (_req: Request, ctx: { params: { id: string } }
      WHERE e.id = $1 AND e.deleted_at IS NULL`, [id]);
   if (!entity) return fail(404, 'Entity not found.');
 
-  const [scores, states, byCategory, byStatus, obligations, recent, changes] = await Promise.all([
+  const [scores, states, byCategory, byStatus, obligations, recent, changes, applicability] = await Promise.all([
     entityScores([id]),
     q(`SELECT j.id, j.name, j.level, j.code FROM entity_jurisdictions ej
          JOIN jurisdictions j ON j.id = ej.jurisdiction_id
@@ -37,7 +37,7 @@ export const GET = handler(async (_req: Request, ctx: { params: { id: string } }
     q(`SELECT status, count(*) AS n FROM obligations
         WHERE entity_id = $1 AND deleted_at IS NULL GROUP BY status`, [id]),
     q(`SELECT o.id, o.reference, o.period_label, o.due_date, o.filed_date, o.status,
-              o.delay_days, c.title, c.code, c.risk_level, c.frequency, c.form_reference,
+              o.delay_days, o.compliance_id, c.title, c.code, c.risk_level, c.frequency, c.form_reference,
               cat.name AS category, j.name AS jurisdiction,
               (SELECT count(*) FROM evidence ev WHERE ev.obligation_id = o.id AND ev.deleted_at IS NULL) AS files
          FROM obligations o
@@ -58,7 +58,19 @@ export const GET = handler(async (_req: Request, ctx: { params: { id: string } }
          LEFT JOIN obligations o ON o.id = ddc.obligation_id
          LEFT JOIN compliances c ON c.id = o.compliance_id
         WHERE ddc.entity_id = $1 ORDER BY ddc.changed_at DESC LIMIT 10`, [id]),
+    /* Distinct compliances that ever apply to this entity, with whether a
+       reviewer has already marked them not applicable — drives the
+       Applicability tab where a reviewer excludes a compliance for good. */
+    q(`SELECT DISTINCT c.id AS compliance_id, c.code, c.title, cat.name AS category,
+              (ce.id IS NOT NULL) AS excluded, ce.reason, ce.excluded_at, ub.full_name AS excluded_by
+         FROM obligations o
+         JOIN compliances c ON c.id = o.compliance_id
+         JOIN categories cat ON cat.id = c.category_id
+         LEFT JOIN compliance_exclusions ce ON ce.compliance_id = c.id AND ce.entity_id = o.entity_id
+         LEFT JOIN users ub ON ub.id = ce.excluded_by
+        WHERE o.entity_id = $1 AND o.deleted_at IS NULL
+        ORDER BY cat.name, c.title`, [id]),
   ]);
 
-  return ok({ entity, score: scores[id] ?? null, states, byCategory, byStatus, obligations, recent, changes });
+  return ok({ entity, score: scores[id] ?? null, states, byCategory, byStatus, obligations, recent, changes, applicability });
 });
