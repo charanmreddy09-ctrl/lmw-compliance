@@ -1,0 +1,288 @@
+/* ===========================================================================
+   COMPLIANCE SCORE ENGINE
+   The platform's headline output. This replaces the representation letter: the
+   score is derived only from obligations that carry approved documentary
+   evidence, so it cannot be inflated by self-declaration.
+
+   score = 100 * (approved obligations / applicable obligations)
+           with deductions for overdue items and filing delays.
+   Every component is returned so the number is always explainable.
+   =========================================================================== */
+import { q } from './db';
+
+export type ScoreBreakdown = {
+  total: number;
+  approved: number;
+  submitted: number;
+  underReview: number;
+  queryRaised: number;
+  rejected: number;
+  evidencePending: number;
+  notStarted: number;
+  overdue: number;
+  filedLate: number;
+  avgDelayDays: number;
+  evidenceCoverage: number;   // % of applicable obligations with at least one file
+  onTimeRate: number;         // % of filed obligations filed on or before due date
+  base: number;               // approved / total
+  overduePenalty: number;
+  delayPenalty: number;
+  score: number;
+};
+
+type Agg = {
+  entity_id: string;
+  total: string; approved: string; submitted: string; under_review: string;
+  query_raised: string; rejected: string; evidence_pending: string; not_started: string;
+  overdue: string; filed_late: string; avg_delay: string | null;
+  with_evidence: string; filed_total: string; filed_ontime: string;
+  in_review_ct: string;
+};
+
+/* The select list is shared; entity_id is added only when grouping by entity.
+   Only counts obligations that are actually due by today — a period that
+   hasn't come up yet can't be filed, so it shouldn't count against the score
+   (or appear as "applicable") until its due date arrives. */
+function aggSql(groupByEntity: boolean, extraWhere = ''): string {
+  return `
+  SELECT ${groupByEntity ? 'o.entity_id,' : `'' AS entity_id,`}
+         count(*)                                                        AS total,
+         count(*) FILTER (WHERE o.status = 'Approved')                    AS approved,
+         count(*) FILTER (WHERE o.status = 'Submitted')                   AS submitted,
+         count(*) FILTER (WHERE o.status = 'Under Review')                AS under_review,
+         count(*) FILTER (WHERE o.status = 'Query Raised')                AS query_raised,
+         count(*) FILTER (WHERE o.status = 'Rejected')                    AS rejected,
+         count(*) FILTER (WHERE o.status = 'Evidence Pending')            AS evidence_pending,
+         count(*) FILTER (WHERE o.status = 'Not Started')                 AS not_started,
+         count(*) FILTER (WHERE o.status <> 'Approved'
+                            AND o.status <> 'Not Applicable'
+                            AND o.filed_date IS NULL
+                            AND o.due_date < CURRENT_DATE)                AS overdue,
+         count(*) FILTER (WHERE o.status IN ('Submitted','Under Review')) AS in_review_ct,
+         count(*) FILTER (WHERE o.filed_date IS NOT NULL
+                            AND o.filed_date > o.due_date)                AS filed_late,
+         avg(NULLIF(o.delay_days, 0)) FILTER (WHERE o.delay_days > 0)     AS avg_delay,
+         count(*) FILTER (WHERE EXISTS (
+            SELECT 1 FROM evidence e WHERE e.obligation_id = o.id AND e.deleted_at IS NULL))
+                                                                          AS with_evidence,
+         count(*) FILTER (WHERE o.filed_date IS NOT NULL)                 AS filed_total,
+         count(*) FILTER (WHERE o.filed_date IS NOT NULL
+                            AND o.filed_date <= o.due_date)               AS filed_ontime
+    FROM obligations o
+   WHERE o.deleted_at IS NULL
+     AND o.status <> 'Not Applicable'
+     AND o.due_date <= CURRENT_DATE
+     ${extraWhere}
+   ${groupByEntity ? 'GROUP BY o.entity_id' : ''}`;
+}
+
+function build(a: Agg): ScoreBreakdown {
+  const n = (v: string | null) => Number(v ?? 0);
+  const total = n(a.total);
+  const approved = n(a.approved);
+  const overdue = n(a.overdue);
+  const filedTotal = n(a.filed_total);
+  const avgDelay = a.avg_delay ? Number(a.avg_delay) : 0;
+
+  const base = total ? (approved / total) * 100 : 0;
+  // Overdue items bite harder than slow ones: up to 15 points.
+  const overduePenalty = total ? Math.min(15, (overdue / total) * 100 * 0.5) : 0;
+  // Chronic lateness costs up to 5 points.
+  const delayPenalty = Math.min(5, avgDelay / 6);
+  const score = Math.max(0, Math.min(100, base - overduePenalty - delayPenalty));
+
+  return {
+    total,
+    approved,
+    submitted: n(a.submitted),
+    underReview: n(a.under_review),
+    queryRaised: n(a.query_raised),
+    rejected: n(a.rejected),
+    evidencePending: n(a.evidence_pending),
+    notStarted: n(a.not_started),
+    overdue,
+    filedLate: n(a.filed_late),
+    avgDelayDays: Math.round(avgDelay * 10) / 10,
+    evidenceCoverage: total ? Math.round((n(a.with_evidence) / total) * 1000) / 10 : 0,
+    onTimeRate: filedTotal ? Math.round((n(a.filed_ontime) / filedTotal) * 1000) / 10 : 0,
+    base: Math.round(base * 10) / 10,
+    overduePenalty: Math.round(overduePenalty * 10) / 10,
+    delayPenalty: Math.round(delayPenalty * 10) / 10,
+    score: Math.round(score * 10) / 10,
+  };
+}
+
+export async function entityScores(
+  entityIds?: string[]
+): Promise<Record<string, ScoreBreakdown>> {
+  const scoped = !!(entityIds && entityIds.length);
+  const rows = await q<Agg>(
+    aggSql(true, scoped ? 'AND o.entity_id = ANY($1)' : ''),
+    scoped ? [entityIds] : []
+  );
+  const out: Record<string, ScoreBreakdown> = {};
+  rows.forEach(r => { out[r.entity_id] = build(r); });
+  return out;
+}
+
+export async function overallScore(entityIds?: string[]): Promise<ScoreBreakdown> {
+  const scoped = !!(entityIds && entityIds.length);
+  const rows = await q<Agg>(
+    aggSql(false, scoped ? 'AND o.entity_id = ANY($1)' : ''),
+    scoped ? [entityIds] : []
+  );
+  if (!rows.length) {
+    return build({
+      entity_id: '', total: '0', approved: '0', submitted: '0', under_review: '0',
+      query_raised: '0', rejected: '0', evidence_pending: '0', not_started: '0',
+      overdue: '0', filed_late: '0', avg_delay: null, with_evidence: '0',
+      filed_total: '0', filed_ontime: '0', in_review_ct: '0',
+    });
+  }
+  return build(rows[0]);
+}
+
+/* The same breakdown as entityScores/overallScore, grouped by country instead
+   — lets the dashboard's country filter re-scope the headline score exactly,
+   with no client-side approximation. */
+function aggSqlByCountry(extraWhere = ''): string {
+  return `
+  SELECT e.country_code AS entity_id,
+         count(*)                                                        AS total,
+         count(*) FILTER (WHERE o.status = 'Approved')                    AS approved,
+         count(*) FILTER (WHERE o.status = 'Submitted')                   AS submitted,
+         count(*) FILTER (WHERE o.status = 'Under Review')                AS under_review,
+         count(*) FILTER (WHERE o.status = 'Query Raised')                AS query_raised,
+         count(*) FILTER (WHERE o.status = 'Rejected')                    AS rejected,
+         count(*) FILTER (WHERE o.status = 'Evidence Pending')            AS evidence_pending,
+         count(*) FILTER (WHERE o.status = 'Not Started')                 AS not_started,
+         count(*) FILTER (WHERE o.status <> 'Approved'
+                            AND o.status <> 'Not Applicable'
+                            AND o.filed_date IS NULL
+                            AND o.due_date < CURRENT_DATE)                AS overdue,
+         count(*) FILTER (WHERE o.status IN ('Submitted','Under Review')) AS in_review_ct,
+         count(*) FILTER (WHERE o.filed_date IS NOT NULL
+                            AND o.filed_date > o.due_date)                AS filed_late,
+         avg(NULLIF(o.delay_days, 0)) FILTER (WHERE o.delay_days > 0)     AS avg_delay,
+         count(*) FILTER (WHERE EXISTS (
+            SELECT 1 FROM evidence e2 WHERE e2.obligation_id = o.id AND e2.deleted_at IS NULL))
+                                                                          AS with_evidence,
+         count(*) FILTER (WHERE o.filed_date IS NOT NULL)                 AS filed_total,
+         count(*) FILTER (WHERE o.filed_date IS NOT NULL
+                            AND o.filed_date <= o.due_date)               AS filed_ontime
+    FROM obligations o
+    JOIN entities e ON e.id = o.entity_id
+   WHERE o.deleted_at IS NULL
+     AND o.status <> 'Not Applicable'
+     AND o.due_date <= CURRENT_DATE
+     ${extraWhere}
+   GROUP BY e.country_code`;
+}
+
+export async function countryScores(entityIds?: string[]): Promise<Record<string, ScoreBreakdown>> {
+  const scoped = !!(entityIds && entityIds.length);
+  const rows = await q<Agg>(aggSqlByCountry(scoped ? 'AND o.entity_id = ANY($1)' : ''), scoped ? [entityIds] : []);
+  const out: Record<string, ScoreBreakdown> = {};
+  rows.forEach(r => { out[r.entity_id] = build(r); });
+  return out;
+}
+
+/* Same breakdown again, grouped by compliance category — lets the dashboard's
+   category tabs (Direct Tax / GST / Companies Act / Labour Laws) show their
+   own Evidence coverage / On-time filing / Awaiting review / Average delay,
+   not just the group-wide numbers, when a tab is selected. */
+function aggSqlByCategory(extraWhere = ''): string {
+  return `
+  SELECT cat.name AS entity_id,
+         count(*)                                                        AS total,
+         count(*) FILTER (WHERE o.status = 'Approved')                    AS approved,
+         count(*) FILTER (WHERE o.status = 'Submitted')                   AS submitted,
+         count(*) FILTER (WHERE o.status = 'Under Review')                AS under_review,
+         count(*) FILTER (WHERE o.status = 'Query Raised')                AS query_raised,
+         count(*) FILTER (WHERE o.status = 'Rejected')                    AS rejected,
+         count(*) FILTER (WHERE o.status = 'Evidence Pending')            AS evidence_pending,
+         count(*) FILTER (WHERE o.status = 'Not Started')                 AS not_started,
+         count(*) FILTER (WHERE o.status <> 'Approved'
+                            AND o.status <> 'Not Applicable'
+                            AND o.filed_date IS NULL
+                            AND o.due_date < CURRENT_DATE)                AS overdue,
+         count(*) FILTER (WHERE o.status IN ('Submitted','Under Review')) AS in_review_ct,
+         count(*) FILTER (WHERE o.filed_date IS NOT NULL
+                            AND o.filed_date > o.due_date)                AS filed_late,
+         avg(NULLIF(o.delay_days, 0)) FILTER (WHERE o.delay_days > 0)     AS avg_delay,
+         count(*) FILTER (WHERE EXISTS (
+            SELECT 1 FROM evidence e2 WHERE e2.obligation_id = o.id AND e2.deleted_at IS NULL))
+                                                                          AS with_evidence,
+         count(*) FILTER (WHERE o.filed_date IS NOT NULL)                 AS filed_total,
+         count(*) FILTER (WHERE o.filed_date IS NOT NULL
+                            AND o.filed_date <= o.due_date)               AS filed_ontime
+    FROM obligations o
+    JOIN compliances c ON c.id = o.compliance_id
+    JOIN categories cat ON cat.id = c.category_id
+   WHERE o.deleted_at IS NULL
+     AND o.status <> 'Not Applicable'
+     AND o.due_date <= CURRENT_DATE
+     ${extraWhere}
+   GROUP BY cat.name`;
+}
+
+export async function categoryScores(entityIds?: string[]): Promise<Record<string, ScoreBreakdown>> {
+  const scoped = !!(entityIds && entityIds.length);
+  const rows = await q<Agg>(aggSqlByCategory(scoped ? 'AND o.entity_id = ANY($1)' : ''), scoped ? [entityIds] : []);
+  const out: Record<string, ScoreBreakdown> = {};
+  rows.forEach(r => { out[r.entity_id] = build(r); });
+  return out;
+}
+
+export type CountryRow = {
+  countryCode: string;
+  countryName: string;
+  entities: number;
+  total: number;
+  approved: number;
+  overdue: number;
+  score: number;
+};
+
+/** Country-wise applicable vs followed — the CFO "Overall" tab. */
+export async function countryBreakdown(entityIds?: string[]): Promise<CountryRow[]> {
+  const filter = entityIds && entityIds.length ? ` AND o.entity_id = ANY($1)` : '';
+  const rows = await q<{
+    country_code: string; country_name: string; entities: string;
+    total: string; approved: string; overdue: string;
+  }>(
+    `SELECT c.code AS country_code, c.name AS country_name,
+            count(DISTINCT o.entity_id)                                   AS entities,
+            count(*)                                                      AS total,
+            count(*) FILTER (WHERE o.status = 'Approved')                  AS approved,
+            count(*) FILTER (WHERE o.status <> 'Approved'
+                               AND o.filed_date IS NULL
+                               AND o.due_date < CURRENT_DATE)              AS overdue
+       FROM obligations o
+       JOIN entities e ON e.id = o.entity_id
+       JOIN countries c ON c.code = e.country_code
+      WHERE o.deleted_at IS NULL AND o.status <> 'Not Applicable'
+        AND o.due_date <= CURRENT_DATE${filter}
+      GROUP BY c.code, c.name
+      ORDER BY c.name`,
+    entityIds && entityIds.length ? [entityIds] : []
+  );
+  return rows.map(r => {
+    const total = Number(r.total), approved = Number(r.approved), overdue = Number(r.overdue);
+    const base = total ? (approved / total) * 100 : 0;
+    const pen = total ? Math.min(15, (overdue / total) * 100 * 0.5) : 0;
+    return {
+      countryCode: r.country_code,
+      countryName: r.country_name,
+      entities: Number(r.entities),
+      total, approved, overdue,
+      score: Math.round(Math.max(0, base - pen) * 10) / 10,
+    };
+  });
+}
+
+export function scoreBand(score: number): { label: string; tone: 'good' | 'warn' | 'bad' } {
+  if (score >= 90) return { label: 'Strong', tone: 'good' };
+  if (score >= 75) return { label: 'Acceptable', tone: 'warn' };
+  return { label: 'Needs attention', tone: 'bad' };
+}

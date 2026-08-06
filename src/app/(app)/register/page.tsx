@@ -1,0 +1,630 @@
+'use client';
+
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import {
+  Ic, Modal, Note, Spinner, StatusPill, DataTable, ValidationChecks, type Col,
+  fmtDate, fmtDateTime, fmtBytes, daysFromToday, RISK_TONE, useToast, downloadFile,
+} from '@/components/ui';
+import type { SessionUser } from '@/lib/rbac';
+
+type Obl = {
+  id: string; reference: string; period_label: string; due_date: string;
+  original_due_date: string | null; filed_date: string | null; status: string;
+  workflow_stage: string; delay_days: number; penalty_exposure: string | null; notes: string | null;
+  compliance_id: string; code: string; title: string; applicable_law: string | null;
+  form_reference: string | null; authority: string | null; frequency: string;
+  risk_level: string; evidence_required: string[]; penalty: string | null;
+  government_site: string | null; category_id: string; category: string;
+  jurisdiction: string | null; jurisdiction_level: string | null;
+  entity_id: string; entity: string; entity_name: string; country_code: string; country_name: string;
+  assigned_to_name: string | null; assigned_to: string | null;
+  reviewer_name: string | null; reviewer_id: string | null;
+  files: string; last_upload: string | null;
+};
+type EvFile = {
+  id: string; file_name: string; mime_type: string; size_bytes: string; version: number;
+  doc_type: string | null; period_label: string | null; filed_date: string | null;
+  status: string; validation: { outcome?: string; checks?: { key: string; label: string; result: string; detail: string }[] } | null;
+  uploaded_at: string; reviewed_at: string | null;
+  uploaded_by_name: string | null; reviewed_by_name: string | null;
+};
+type Trail = {
+  id: number; action: string; comment: string | null; from_status: string | null;
+  to_status: string | null; created_at: string; actor: string | null; actor_role: string | null;
+  target_user: string | null;
+};
+
+function RegisterInner() {
+  const search = useSearchParams();
+  const toast = useToast();
+
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [rows, setRows] = useState<Obl[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  const [entity, setEntity] = useState(search.get('entity') ?? '');
+  const [status, setStatus] = useState('');
+  const [cat, setCat] = useState('');
+  const [scopeMine, setScopeMine] = useState(false);
+  const [q, setQ] = useState('');
+
+  const [openId, setOpenId] = useState<string | null>(search.get('obligation'));
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/obligations?limit=2000');
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? 'Unable to load the register.');
+      setRows(d.obligations);
+      setErr(null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Unable to load the register.');
+    } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      const me = await fetch('/api/auth/me').then(r => r.json()).catch(() => ({ user: null }));
+      setUser(me.user);
+      await load();
+    })();
+  }, [load]);
+
+  const entities = useMemo(
+    () => [...new Map(rows.map(r => [r.entity_id, r.entity])).entries()]
+      .sort((a, b) => a[1].localeCompare(b[1])), [rows]);
+  const cats = useMemo(() => [...new Set(rows.map(r => r.category))].sort(), [rows]);
+  const statuses = useMemo(() => [...new Set(rows.map(r => r.status))].sort(), [rows]);
+
+  const shown = useMemo(() => rows.filter(r =>
+    (!entity || r.entity_id === entity) &&
+    (!status || r.status === status) &&
+    (!cat || r.category === cat) &&
+    (!scopeMine || (user && r.assigned_to === user.id)) &&
+    (!q || `${r.title} ${r.code} ${r.reference} ${r.form_reference ?? ''} ${r.period_label}`
+      .toLowerCase().includes(q.toLowerCase()))
+  ), [rows, entity, status, cat, scopeMine, q, user]);
+
+  const counts = useMemo(() => ({
+    actionable: shown.filter(r => ['Not Started', 'Evidence Pending', 'Overdue', 'Query Raised', 'Rejected'].includes(r.status)).length,
+    overdue: shown.filter(r => r.status !== 'Approved' && !r.filed_date && (daysFromToday(r.due_date) ?? 0) < 0).length,
+  }), [shown]);
+
+  const cols: Col<Obl & Record<string, unknown>>[] = [
+    { key: 'due_date', label: 'Due', sort: true, cls: 'nowrap',
+      render: r => {
+        const n = daysFromToday(r.due_date);
+        const late = r.status !== 'Approved' && !r.filed_date && n != null && n < 0;
+        return (<><div className="num">{fmtDate(r.due_date)}</div>
+          <div className="t2" style={{ color: late ? 'var(--bad-600)' : undefined }}>
+            {late ? `${-(n as number)} d overdue` : n === 0 ? 'today' : r.period_label}
+          </div></>);
+      } },
+    { key: 'title', label: 'Compliance', sort: true, cls: 'w',
+      render: r => (<><div className="t1">{r.title}</div>
+        <div className="t2">{r.category}{r.form_reference ? ` · ${r.form_reference}` : ''}
+          {r.jurisdiction_level && r.jurisdiction_level !== 'federal' ? ` · ${r.jurisdiction}` : ''}</div></>) },
+    { key: 'entity', label: 'Entity', sort: true, cls: 'nowrap small',
+      render: r => (<><div className="t1">{r.entity}</div><div className="t2">{r.country_code}</div></>) },
+    { key: 'risk_level', label: 'Risk', sort: true,
+      render: r => <span className={`pill ${RISK_TONE[r.risk_level] ?? 'p-mute'}`}>{r.risk_level}</span> },
+    { key: 'files', label: 'Docs', sort: true, cls: 'right', value: r => Number(r.files),
+      render: r => Number(r.files)
+        ? <span className="pill p-mute nd">{r.files}</span>
+        : <span className="dim">none</span> },
+    { key: 'status', label: 'Status', sort: true, render: r => <StatusPill s={r.status} /> },
+  ];
+
+  if (err) return <Note kind="b">{err}</Note>;
+
+  return (
+    <>
+      <div className="toolbar no-print">
+        <select value={entity} onChange={e => setEntity(e.target.value)}>
+          <option value="">All entities</option>
+          {entities.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+        </select>
+        <select value={status} onChange={e => setStatus(e.target.value)}>
+          <option value="">All statuses</option>
+          {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select value={cat} onChange={e => setCat(e.target.value)}>
+          <option value="">All categories</option>
+          {cats.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <div className="search">
+          <Ic n="search" s={14} />
+          <input placeholder="Search compliance, form or reference…" value={q} onChange={e => setQ(e.target.value)} />
+        </div>
+        {user?.permissions.includes('compliance.file') && (
+          <label className="small row g6" style={{ cursor: 'pointer' }}>
+            <input type="checkbox" checked={scopeMine} onChange={e => setScopeMine(e.target.checked)}
+                   style={{ width: 'auto' }} />
+            Assigned to me
+          </label>
+        )}
+        <div className="grow" />
+        <span className="small muted">{shown.length} of {rows.length}</span>
+        <button className="btn btn-s" onClick={load} disabled={loading}>
+          <Ic n="swap" s={13} /> Refresh
+        </button>
+      </div>
+
+      {counts.overdue > 0 && (
+        <div className="mb16">
+          <Note kind="w">
+            <strong>{counts.overdue} of the obligations shown are past their due date with no
+            document uploaded.</strong> Upload the filed return and its supporting evidence to
+            move them into review.
+          </Note>
+        </div>
+      )}
+
+      <div className="card">
+        <div className="card-h">
+          <h3>Compliance register</h3>
+          <span className="tiny muted">{counts.actionable} awaiting action · click a row to file or review the history</span>
+        </div>
+        {loading
+          ? <div className="card-b"><Spinner label="Loading obligations…" /></div>
+          : <DataTable<Obl & Record<string, unknown>>
+              rows={shown as (Obl & Record<string, unknown>)[]}
+              cols={cols} rowKey={r => r.id} pageSize={40}
+              onRow={r => setOpenId(r.id)}
+              empty="No obligations match the current filters." />}
+      </div>
+
+      {openId && (
+        <ObligationDrawer id={openId} user={user}
+                          onClose={() => setOpenId(null)}
+                          onChanged={() => { load(); }} />
+      )}
+    </>
+  );
+}
+
+/* =========================================================================
+   OBLIGATION DRAWER — file the compliance, see validation, follow the trail
+   ========================================================================= */
+function ObligationDrawer({ id, user, onClose, onChanged }: {
+  id: string; user: SessionUser | null; onClose: () => void; onChanged: () => void;
+}) {
+  const toast = useToast();
+  const [d, setD] = useState<{ obligation: Obl; files: EvFile[]; trail: Trail[];
+    changes: { old_due_date: string; new_due_date: string; reason: string | null; changed_at: string }[] } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [tab, setTab] = useState('file');
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/obligations/${id}`);
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? 'Unable to open this obligation.');
+      setD(j);
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Unable to open this obligation.'); }
+  }, [id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  /* -------------------------------------------------------------- upload */
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [docType, setDocType] = useState('');
+  const [comment, setComment] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [pct, setPct] = useState(0);
+  const [over, setOver] = useState(false);
+  const [result, setResult] = useState<{ outcome: string; checks: { key: string; label: string; result: string; detail: string }[] } | null>(null);
+  const [detectedDate, setDetectedDate] = useState<{ date: string; source: 'extracted' | 'defaulted'; note: string } | null>(null);
+
+  const o = d?.obligation;
+  const canFile = !!(o && user && user.permissions.includes('compliance.file') &&
+    (user.canFile.includes('*') || user.canFile.includes(o.entity_id)));
+
+  async function upload() {
+    if (!file || !o || busy) return;
+    setBusy(true); setPct(8); setResult(null);
+    try {
+      const fd = new FormData();
+      fd.append('obligationId', o.id);
+      fd.append('file', file);
+      if (docType) fd.append('docType', docType);
+      if (comment) fd.append('comment', comment);
+      fd.append('period', o.period_label);
+
+      /* XHR rather than fetch so the progress bar is real, not simulated */
+      const res = await new Promise<{ ok: boolean; status: number; body: string }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/evidence');
+        xhr.upload.onprogress = e => {
+          if (e.lengthComputable) setPct(Math.max(8, Math.round((e.loaded / e.total) * 92)));
+        };
+        xhr.onload = () => { setPct(100); resolve({ ok: xhr.status < 400, status: xhr.status, body: xhr.responseText }); };
+        xhr.onerror = () => reject(new Error('The upload could not reach the server. Check your connection and try again.'));
+        xhr.send(fd);
+      });
+
+      const j = JSON.parse(res.body || '{}');
+      if (!res.ok) throw new Error(j.error ?? `Upload failed (${res.status}).`);
+
+      setResult(j.validation);
+      setDetectedDate(j.filedDate ?? null);
+      setFile(null); setComment('');
+      if (inputRef.current) inputRef.current.value = '';
+      const dateNote = j.filedDate?.source === 'extracted'
+        ? ` Filing date detected from the document: ${fmtDate(j.filedDate.date)}.`
+        : j.filedDate ? ` No date found in the document — used the upload date (${fmtDate(j.filedDate.date)}).` : '';
+      toast(
+        (j.validation?.outcome === 'clean'
+          ? 'Uploaded and validated. Sent to the reviewer.'
+          : 'Uploaded and sent to the reviewer, with validation warnings.') + dateNote,
+        j.validation?.outcome === 'clean' ? 'ok' : 'warn'
+      );
+      await load();
+      onChanged();
+      setTab('documents');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Upload failed.', 'bad');
+    } finally {
+      setBusy(false);
+      setTimeout(() => setPct(0), 900);
+    }
+  }
+
+  async function withdraw(evId: string, name: string) {
+    if (!confirm(`Withdraw "${name}"? The document is retained in the audit trail but no longer counts as evidence.`)) return;
+    try {
+      const res = await fetch(`/api/evidence?id=${evId}`, { method: 'DELETE' });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error);
+      toast('Document withdrawn', 'ok');
+      await load(); onChanged();
+    } catch (e) { toast(e instanceof Error ? e.message : 'Could not withdraw the document.', 'bad'); }
+  }
+
+  async function addComment() {
+    if (!comment.trim() || !o) return;
+    try {
+      const res = await fetch('/api/reviews', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ obligationId: o.id, action: 'comment', comment }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error);
+      setComment(''); toast('Comment added', 'ok');
+      await load(); onChanged();
+    } catch (e) { toast(e instanceof Error ? e.message : 'Could not add the comment.', 'bad'); }
+  }
+
+  if (err) {
+    return <Modal title="Obligation" onClose={onClose}><Note kind="b">{err}</Note></Modal>;
+  }
+  if (!d || !o) {
+    return <Modal title="Loading…" onClose={onClose}><Spinner /></Modal>;
+  }
+
+  const overdueDays = daysFromToday(o.due_date);
+  const isLate = o.status !== 'Approved' && !o.filed_date && (overdueDays ?? 0) < 0;
+  const latest = d.files[0];
+
+  return (
+    <Modal size="xw" sub={`${o.entity} · ${o.reference}`} title={o.title} onClose={onClose}
+           footer={<button className="btn" onClick={onClose}>Close</button>}>
+
+      <div className="grid" style={{ gridTemplateColumns: '1.15fr 1fr', gap: 16 }}>
+        <div>
+          <div className="row g8 wrap mb12">
+            <StatusPill s={o.status} />
+            <span className={`pill ${RISK_TONE[o.risk_level] ?? 'p-mute'}`}>{o.risk_level} risk</span>
+            <span className="pill p-mute nd">{o.frequency}</span>
+            <span className="pill p-mute nd">{o.period_label}</span>
+            {o.jurisdiction_level && o.jurisdiction_level !== 'federal' && (
+              <span className="pill p-info nd">{o.jurisdiction}</span>
+            )}
+          </div>
+
+          {isLate && (
+            <div className="mb12"><Note kind="b">
+              Past due by <strong>{-(overdueDays as number)} days</strong> with no evidence uploaded.
+              {o.penalty ? <> Penalty exposure: {o.penalty}</> : null}
+            </Note></div>
+          )}
+          {o.original_due_date && o.original_due_date.slice(0, 10) !== o.due_date.slice(0, 10) && (
+            <div className="mb12"><Note kind="w">
+              The due date was revised from {fmtDate(o.original_due_date)} to <strong>{fmtDate(o.due_date)}</strong>.
+              Delay is measured against the revised date.
+            </Note></div>
+          )}
+
+          <dl className="kv mb16">
+            <dt>Due date</dt><dd className="num strong">{fmtDate(o.due_date)}</dd>
+            <dt>Date of filing</dt>
+            <dd className="num">{fmtDate(o.filed_date)}
+              {o.delay_days > 0 && <span style={{ color: 'var(--bad-600)' }}> (+{o.delay_days} d)</span>}</dd>
+            <dt>Entity</dt><dd>{o.entity_name} · {o.country_name}</dd>
+            <dt>Category</dt><dd>{o.category}</dd>
+            <dt>Applicable law</dt><dd>{o.applicable_law ?? '—'}</dd>
+            <dt>Form / reference</dt><dd>{o.form_reference ?? '—'}</dd>
+            <dt>Authority</dt><dd>{o.authority ?? '—'}</dd>
+            <dt>Responsible</dt><dd>{o.assigned_to_name ?? <span className="dim">Unassigned</span>}</dd>
+            <dt>Reviewer</dt><dd>{o.reviewer_name ?? <span className="dim">Unassigned</span>}</dd>
+            {o.government_site && (
+              <>
+                <dt>Filing portal</dt>
+                <dd><a href={o.government_site} target="_blank" rel="noopener noreferrer">
+                  Open portal <Ic n="arrowR" s={11} /></a></dd>
+              </>
+            )}
+            {o.penalty && (<><dt>Statutory penalty</dt><dd className="small">{o.penalty}</dd></>)}
+          </dl>
+
+          <div className="cap mb8">Evidence required</div>
+          {(o.evidence_required ?? []).length === 0 && <div className="small muted">Not specified in the library.</div>}
+          {(o.evidence_required ?? []).map((r, i) => {
+            const met = d.files.some(f =>
+              `${f.doc_type ?? ''} ${f.file_name}`.toLowerCase()
+                .split(/[^a-z0-9]+/)
+                .some(w => w.length > 3 && r.toLowerCase().includes(w)));
+            return (
+              <div className="chk" key={i}>
+                <span className={`ci ${met ? 'pass' : 'warn'}`}>{met ? '✓' : '!'}</span>
+                <div><div className="cl">{r}</div>
+                  <div className="cd">{met ? 'A matching document is attached.' : 'Not yet attached.'}</div></div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div>
+          <div className="tabs" style={{ marginBottom: 12 }}>
+            {[
+              { id: 'file', label: 'File' },
+              { id: 'documents', label: `Documents (${d.files.length})` },
+              { id: 'validation', label: 'Validation' },
+              { id: 'trail', label: `Trail (${d.trail.length})` },
+            ].map(t => (
+              <button key={t.id} className={`tab${tab === t.id ? ' on' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>
+            ))}
+          </div>
+
+          {/* ------------------------------------------------------- FILE */}
+          {tab === 'file' && (
+            canFile ? (
+              <>
+                <div className="f">
+                  <label htmlFor="dt">Document type</label>
+                  <select id="dt" value={docType} onChange={e => setDocType(e.target.value)} disabled={busy}>
+                    <option value="">Select…</option>
+                    {(o.evidence_required ?? []).map(r => <option key={r} value={r}>{r}</option>)}
+                    <option value="Other supporting document">Other supporting document</option>
+                  </select>
+                  <div className="h">
+                    The filing date is read automatically from the uploaded document — no need to type it in.
+                  </div>
+                </div>
+
+                {detectedDate && (
+                  <div className="mb8">
+                    <Note kind={detectedDate.source === 'extracted' ? 'o' : 'i'}>
+                      {detectedDate.source === 'extracted'
+                        ? <>Filing date detected from the document: <strong>{fmtDate(detectedDate.date)}</strong>.</>
+                        : <>No date found in the document — used the upload date: <strong>{fmtDate(detectedDate.date)}</strong>.</>}
+                    </Note>
+                  </div>
+                )}
+
+                {/* fixed height so the panel never jumps while uploading */}
+                <div className={`dz${over ? ' over' : ''}${busy ? ' busy' : ''}`}
+                     style={{ minHeight: 118, display: 'grid', placeItems: 'center' }}
+                     onClick={() => !busy && inputRef.current?.click()}
+                     onDragOver={e => { e.preventDefault(); setOver(true); }}
+                     onDragLeave={() => setOver(false)}
+                     onDrop={e => {
+                       e.preventDefault(); setOver(false);
+                       if (busy) return;
+                       const f = e.dataTransfer.files?.[0];
+                       if (f) setFile(f);
+                     }}>
+                  <div>
+                    <Ic n="upload" s={20} />
+                    {file ? (
+                      <>
+                        <div className="small strong mt8">{file.name}</div>
+                        <div className="tiny muted">{fmtBytes(file.size)} · click to choose a different file</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="small strong mt8">Drop the filed document here, or click to browse</div>
+                        <div className="tiny muted">PDF, Excel, Word, ZIP or image · up to 4 MB</div>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <input ref={inputRef} type="file" className="hide"
+                       accept=".pdf,.xlsx,.xls,.doc,.docx,.zip,.png,.jpg,.jpeg,.csv,.txt"
+                       onChange={e => setFile(e.target.files?.[0] ?? null)} />
+
+                {/* progress slot reserved permanently */}
+                <div style={{ height: 3, marginTop: 10 }}>
+                  {pct > 0 && <div className="prog"><i style={{ width: `${pct}%` }} /></div>}
+                </div>
+
+                <div className="f mt8">
+                  <label htmlFor="cm">Note for the reviewer (optional)</label>
+                  <textarea id="cm" value={comment} disabled={busy}
+                            onChange={e => setComment(e.target.value)}
+                            placeholder="Acknowledgement number, portal reference, or anything the reviewer should know." />
+                </div>
+
+                <button className="btn btn-p btn-block" onClick={upload} disabled={!file || busy}>
+                  {busy ? `Uploading… ${pct}%` : 'Upload and send for review'}
+                </button>
+
+                {result && (
+                  <div className="mt16">
+                    <div className={`note note-${result.outcome === 'clean' ? 'o' : result.outcome === 'blocked' ? 'b' : 'w'} mb8`}>
+                      <span style={{ marginTop: 1 }}><Ic n={result.outcome === 'clean' ? 'check2' : 'alert'} s={15} /></span>
+                      <div>
+                        <strong>
+                          {result.outcome === 'clean' ? 'All automatic checks passed.'
+                            : result.outcome === 'blocked' ? 'Automatic checks found blocking issues.'
+                            : 'Uploaded with warnings for the reviewer.'}
+                        </strong>
+                      </div>
+                    </div>
+                    <ValidationChecks v={result} />
+                  </div>
+                )}
+              </>
+            ) : (
+              <Note kind="i">
+                Your role does not include filing for this entity, so upload is disabled.
+                You can still read the documents, validation results and the full trail.
+                {user?.permissions.includes('compliance.review') && ' Use the Reviews module to approve, reject or raise a query.'}
+              </Note>
+            )
+          )}
+
+          {/* -------------------------------------------------- DOCUMENTS */}
+          {tab === 'documents' && (
+            <>
+              {d.files.length === 0 && (
+                <Note kind="w">No documentary evidence has been uploaded against this obligation.
+                  Until it is, the obligation cannot be approved and does not count towards the compliance score.</Note>
+              )}
+              {d.files.map(f => (
+                <div className="card mb8" key={f.id}>
+                  <div className="card-b">
+                    <div className="row between g8 wrap">
+                      <div className="grow" style={{ minWidth: 0 }}>
+                        <div className="row g6">
+                          <Ic n="doc" s={14} />
+                          <span className="strong small" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {f.file_name}
+                          </span>
+                        </div>
+                        <div className="tiny muted mt4">
+                          v{f.version} · {fmtBytes(Number(f.size_bytes))} · {f.doc_type ?? 'Unclassified'}
+                          {f.filed_date ? ` · filed ${fmtDate(f.filed_date)}` : ''}
+                        </div>
+                        <div className="tiny dim mt4">
+                          Uploaded {fmtDateTime(f.uploaded_at)} by {f.uploaded_by_name ?? 'unknown'}
+                          {f.reviewed_at ? ` · reviewed ${fmtDateTime(f.reviewed_at)} by ${f.reviewed_by_name}` : ''}
+                        </div>
+                      </div>
+                      <div className="row g6">
+                        <span className={`pill ${f.status === 'Approved' ? 'p-ok'
+                          : f.status === 'Rejected' ? 'p-bad'
+                          : f.status === 'Superseded' ? 'p-mute' : 'p-info'}`}>{f.status}</span>
+                      </div>
+                    </div>
+                    <div className="row g6 mt12 wrap">
+                      <a className="btn btn-xs" href={`/api/evidence/${f.id}`} target="_blank" rel="noopener noreferrer">
+                        <Ic n="eye" s={12} /> Preview
+                      </a>
+                      <button className="btn btn-xs"
+                              onClick={() => downloadFile(`/api/evidence/${f.id}?dl=1`, f.file_name, toast)}>
+                        <Ic n="download" s={12} /> Download
+                      </button>
+                      {f.validation?.outcome && (
+                        <span className={`pill ${f.validation.outcome === 'clean' ? 'p-ok'
+                          : f.validation.outcome === 'blocked' ? 'p-bad' : 'p-warn'}`}>
+                          validation: {f.validation.outcome}
+                        </span>
+                      )}
+                      {canFile && f.status !== 'Superseded' && (
+                        <button className="btn btn-xs" style={{ marginLeft: 'auto' }}
+                                onClick={() => withdraw(f.id, f.file_name)}>
+                          <Ic n="trash" s={12} /> Withdraw
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* -------------------------------------------------- VALIDATION */}
+          {tab === 'validation' && (
+            latest?.validation
+              ? (<>
+                  <div className={`note note-${latest.validation.outcome === 'clean' ? 'o'
+                    : latest.validation.outcome === 'blocked' ? 'b' : 'w'} mb12`}>
+                    <span style={{ marginTop: 1 }}><Ic n="info" s={15} /></span>
+                    <div>
+                      Automatic checks run on <strong>{latest.file_name}</strong> when it was uploaded.
+                      Outcome: <strong>{latest.validation.outcome}</strong>.
+                    </div>
+                  </div>
+                  <ValidationChecks v={latest.validation} />
+                </>)
+              : <Note kind="i">Validation runs automatically the moment a document is uploaded.
+                  Nothing has been uploaded against this obligation yet.</Note>
+          )}
+
+          {/* ------------------------------------------------------- TRAIL */}
+          {tab === 'trail' && (
+            <>
+              <div className="tl mb16">
+                {d.trail.length === 0 && <div className="small muted">No workflow activity yet.</div>}
+                {d.trail.map(t => (
+                  <div key={t.id} className={`tl-i ${t.action === 'approve' ? 'ok'
+                    : t.action === 'reject' || t.action === 'escalate' ? 'bad'
+                    : t.action === 'query' ? 'warn' : ''}`}>
+                    <div className="tl-t">
+                      <strong>{t.actor ?? 'System'}</strong>
+                      <span className="muted"> ({t.actor_role ?? '—'}) </span>
+                      {t.action}
+                      {t.from_status && t.to_status && t.from_status !== t.to_status && (
+                        <span className="muted"> · {t.from_status} → {t.to_status}</span>
+                      )}
+                      {t.target_user && <span className="muted"> · to {t.target_user}</span>}
+                    </div>
+                    {t.comment && <div className="small mt4">{t.comment}</div>}
+                    <div className="tl-m mt4">{fmtDateTime(t.created_at)}</div>
+                  </div>
+                ))}
+              </div>
+
+              {d.changes.length > 0 && (
+                <>
+                  <div className="cap mb8">Due date changes</div>
+                  {d.changes.map((c, i) => (
+                    <div className="small mb4" key={i}>
+                      {fmtDate(c.old_due_date)} <Ic n="arrowR" s={10} /> <strong>{fmtDate(c.new_due_date)}</strong>
+                      <span className="muted"> — {c.reason ?? 'no reason recorded'} ({fmtDateTime(c.changed_at)})</span>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              <div className="f mt16">
+                <label htmlFor="ac">Add a comment</label>
+                <textarea id="ac" value={comment} onChange={e => setComment(e.target.value)}
+                          placeholder="Visible to the preparer, the reviewer and in the audit trail." />
+              </div>
+              <button className="btn btn-s" onClick={addComment} disabled={!comment.trim()}>
+                <Ic n="send" s={13} /> Post comment
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* useSearchParams needs a Suspense boundary so the shell can render immediately
+   instead of the whole route opting out of static rendering. */
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<Spinner label="Loading the register…" />}>
+      <RegisterInner />
+    </Suspense>
+  );
+}

@@ -1,0 +1,37 @@
+{
+  "name": "lmw-compliance-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LMW Limited — Global Compliance Management Platform, seeded with LMW's entities and a starting India/UAE compliance library",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "db:setup": "tsx scripts/setup-db.ts",
+    "db:reset": "tsx scripts/setup-db.ts --reset",
+    "db:purge-library": "tsx scripts/purge-library.ts",
+    "lint": "next lint",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "bcryptjs": "2.4.3",
+    "dotenv": "^17.4.2",
+    "jose": "5.9.6",
+    "next": "^14.2.35",
+    "pdf-parse": "1.1.1",
+    "pg": "8.13.1",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "xlsx": "0.18.5"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "2.4.6",
+    "@types/node": "22.7.5",
+    "@types/pdf-parse": "1.1.4",
+    "@types/pg": "8.11.10",
+    "@types/react": "18.3.11",
+    "@types/react-dom": "18.3.0",
+    "tsx": "4.19.1",
+    "typescript": "5.6.3"
+  }
+}

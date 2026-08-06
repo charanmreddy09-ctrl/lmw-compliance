@@ -1,0 +1,60 @@
+/* Permission checks. Kept in one place so server and client agree. */
+export type Permission =
+  | 'score.view.all' | 'score.view.country'
+  | 'reports.generate' | 'delegation.manage' | 'users.manage'
+  | 'compliance.file' | 'compliance.review' | 'compliance.library' | 'compliance.verify'
+  | 'duedate.manage' | 'audit.view';
+
+export type SessionUser = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  roleName: string;
+  permissions: Permission[];
+  entities: string[];      // '*' means all
+  canFile: string[];
+  canReview: string[];
+};
+
+export function can(user: SessionUser | null, perm: Permission): boolean {
+  if (!user) return false;
+  return user.permissions.includes(perm);
+}
+
+export function hasAnyEntity(user: SessionUser | null): boolean {
+  return !!user && user.entities.length > 0;
+}
+
+export function scopeEntities(user: SessionUser | null): string[] | 'all' {
+  if (!user) return [];
+  return user.entities.includes('*') ? 'all' : user.entities;
+}
+
+export function canSeeEntity(user: SessionUser | null, entityId: string): boolean {
+  if (!user) return false;
+  return user.entities.includes('*') || user.entities.includes(entityId);
+}
+
+export function canReviewEntity(user: SessionUser | null, entityId: string): boolean {
+  if (!user) return false;
+  if (!can(user, 'compliance.review')) return false;
+  return user.canReview.includes('*') || user.canReview.includes(entityId);
+}
+
+export function canFileEntity(user: SessionUser | null, entityId: string): boolean {
+  if (!user) return false;
+  if (!can(user, 'compliance.file')) return false;
+  return user.canFile.includes('*') || user.canFile.includes(entityId);
+}
+
+/** The CFO deliberately does not review individual filings. */
+export const ROLE_LANDING: Record<string, string> = {
+  CFO: '/dashboard',
+  CFO_OFFICE: '/dashboard',
+  COUNTRY_HEAD: '/dashboard',
+  REVIEWER: '/reviews',
+  PREPARER: '/register',
+  ADMIN: '/admin',
+  AUDITOR: '/dashboard',
+};

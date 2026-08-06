@@ -1,0 +1,152 @@
+/* ===========================================================================
+   EVIDENCE UPLOAD
+   The preparer uploads the compliance together with its documentary evidence.
+   The file is stored, validated automatically against that entity's compliance
+   calendar, and the obligation moves into the reviewer's queue in one atomic
+   step — so an upload can never leave the record half-committed.
+   =========================================================================== */
+import { handler, ok, fail, auth, writeAudit } from '@/lib/api';
+import { q, one, tx } from '@/lib/db';
+import { canFileEntity, canSeeEntity } from '@/lib/rbac';
+import { validateUpload, MAX_UPLOAD_BYTES, isAllowedEvidence } from '@/lib/validate';
+import { extractFiledDate } from '@/lib/extract-date';
+import { createHash } from 'node:crypto';
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
+export const POST = handler(async (req: Request) => {
+  const u = await auth();
+  const form = await req.formData();
+
+  const obligationId = String(form.get('obligationId') ?? '');
+  const file = form.get('file');
+  const docType = form.get('docType') ? String(form.get('docType')) : null;
+  const period = form.get('period') ? String(form.get('period')) : null;
+  const comment = form.get('comment') ? String(form.get('comment')) : null;
+
+  if (!obligationId) return fail(400, 'Obligation reference is missing.');
+  if (!(file instanceof File)) return fail(400, 'Choose a file to upload.');
+  if (file.size === 0) return fail(400, 'The selected file is empty.');
+  if (file.size > MAX_UPLOAD_BYTES)
+    return fail(413, `The file is ${(file.size / 1048576).toFixed(2)} MB. The limit is ${MAX_UPLOAD_BYTES / 1048576} MB per document — split it or upload a ZIP.`);
+  if (!isAllowedEvidence(file.type || '', file.name))
+    return fail(415, `"${file.name}" is not an accepted evidence format. Upload a PDF, Excel, Word, ZIP, CSV or image file.`);
+
+  const obl = await one<{ entity_id: string; status: string; period_label: string }>(
+    `SELECT entity_id, status, period_label FROM obligations WHERE id = $1 AND deleted_at IS NULL`,
+    [obligationId]);
+  if (!obl) return fail(404, 'That obligation no longer exists.');
+  if (!canSeeEntity(u, obl.entity_id)) return fail(403, 'You are not assigned to this entity.');
+  if (!canFileEntity(u, obl.entity_id))
+    return fail(403, 'Your role does not permit filing for this entity.');
+
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const checksum = createHash('sha256').update(bytes).digest('hex').slice(0, 32);
+  const filedDate = await extractFiledDate(bytes, file.type || 'application/octet-stream');
+
+  const validation = await validateUpload({
+    obligationId,
+    entityId: obl.entity_id,
+    fileName: file.name,
+    mimeType: file.type || 'application/octet-stream',
+    sizeBytes: bytes.length,
+    checksum,
+    declaredPeriod: period,
+    declaredFiledDate: filedDate.date,
+    docType,
+  });
+
+  /* Refuse uploads that fail a blocking check. A late filing is not blocking:
+     the delay is recorded and flagged, but the document is still accepted. */
+  if (validation.outcome === 'blocked') {
+    const first = validation.checks.find(c => c.result === 'fail' && c.blocking)!;
+    return fail(first.key === 'duplicate' ? 409 : 422, first.detail);
+  }
+
+  const result = await tx(async c => {
+    const prev = await c.query<{ v: number }>(
+      `SELECT COALESCE(max(version),0) AS v FROM evidence WHERE obligation_id = $1`, [obligationId]);
+    const version = Number(prev.rows[0].v) + 1;
+
+    if (version > 1) {
+      await c.query(
+        `UPDATE evidence SET status = 'Superseded'
+          WHERE obligation_id = $1 AND status NOT IN ('Approved','Superseded')`, [obligationId]);
+    }
+
+    const ev = await c.query<{ id: string }>(
+      `INSERT INTO evidence (obligation_id, file_name, mime_type, size_bytes, checksum,
+          version, doc_type, period_label, filed_date, content, status, validation, uploaded_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'Submitted',$11::jsonb,$12)
+       RETURNING id`,
+      [obligationId, file.name, file.type || 'application/octet-stream', bytes.length, checksum,
+       version, docType, period ?? obl.period_label, filedDate.date, bytes,
+       JSON.stringify(validation), u.id]);
+
+    /* the obligation moves to the reviewer automatically */
+    await c.query(
+      `UPDATE obligations
+          SET status = 'Submitted', workflow_stage = 'reviewer',
+              filed_date = COALESCE($2::date, filed_date),
+              delay_days = CASE WHEN $2::date IS NOT NULL AND $2::date > due_date
+                                THEN ($2::date - due_date) ELSE delay_days END,
+              penalty_exposure = $3
+        WHERE id = $1`,
+      [obligationId, filedDate.date, validation.penaltyExposure]);
+
+    await c.query(
+      `INSERT INTO review_actions (obligation_id, evidence_id, action, actor_id, actor_role,
+          from_status, to_status, comment)
+       VALUES ($1,$2,'submit',$3,$4,$5,'Submitted',$6)`,
+      [obligationId, ev.rows[0].id, u.id, u.role, obl.status,
+       comment || `Evidence uploaded (${file.name}). Automatic validation: ${validation.outcome}.`]);
+
+    /* tell the reviewer there is something waiting */
+    const rv = await c.query<{ reviewer_id: string | null; title: string; country_code: string }>(
+      `SELECT o.reviewer_id, c.title, e.country_code
+         FROM obligations o JOIN compliances c ON c.id = o.compliance_id
+         JOIN entities e ON e.id = o.entity_id WHERE o.id = $1`, [obligationId]);
+    const r = rv.rows[0];
+    if (r?.reviewer_id) {
+      await c.query(
+        `INSERT INTO notifications (user_id, country_code, entity_id, kind, title, body, link, severity)
+         VALUES ($1,$2,$3,'review_pending',$4,$5,$6,$7)`,
+        [r.reviewer_id, r.country_code, obl.entity_id,
+         'New submission awaiting review',
+         `${r.title} — ${obl.entity_id} (${obl.period_label}) was submitted by ${u.name}.`,
+         `/reviews?obligation=${obligationId}`,
+         validation.outcome === 'blocked' ? 'critical' : validation.outcome === 'warnings' ? 'warning' : 'info']);
+    }
+
+    return { evidenceId: ev.rows[0].id, version };
+  });
+
+  await writeAudit({ actor: u, action: 'evidence.upload', objectType: 'obligation', objectId: obligationId,
+    detail: `${file.name} (${(bytes.length / 1024).toFixed(0)} KB) v${result.version}; validation ${validation.outcome}`,
+    meta: { checksum, outcome: validation.outcome, delayDays: validation.delayDays } });
+
+  return ok({ ...result, validation, filedDate });
+});
+
+export const DELETE = handler(async (req: Request) => {
+  const u = await auth();
+  const id = new URL(req.url).searchParams.get('id');
+  if (!id) return fail(400, 'Evidence id is required.');
+
+  const row = await one<{ entity_id: string; file_name: string; status: string; obligation_id: string }>(
+    `SELECT o.entity_id, ev.file_name, ev.status, ev.obligation_id
+       FROM evidence ev JOIN obligations o ON o.id = ev.obligation_id
+      WHERE ev.id = $1 AND ev.deleted_at IS NULL`, [id]);
+  if (!row) return fail(404, 'Document not found.');
+  if (!canSeeEntity(u, row.entity_id)) return fail(403, 'You are not assigned to this entity.');
+  if (row.status === 'Approved' && !u.permissions.includes('compliance.review'))
+    return fail(403, 'An approved document cannot be withdrawn. Ask the reviewer to reopen the item first.');
+
+  await q(`UPDATE evidence SET deleted_at = now() WHERE id = $1`, [id]);
+  await q(`INSERT INTO review_actions (obligation_id, action, actor_id, actor_role, comment)
+           VALUES ($1,'comment',$2,$3,$4)`,
+    [row.obligation_id, u.id, u.role, `Withdrew document "${row.file_name}".`]);
+  await writeAudit({ actor: u, action: 'evidence.delete', objectType: 'evidence', objectId: id, detail: row.file_name });
+  return ok({ ok: true });
+});
