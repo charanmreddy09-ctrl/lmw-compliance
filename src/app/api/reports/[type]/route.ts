@@ -151,24 +151,21 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
 
   if (type === 'evidence') {
     rows = (await q(`
-      SELECT e.short_name AS entity, co.name AS country, c.title,
-             o.period_label, ev.file_name, ev.doc_type,
-             ev.status, ev.filed_date, ev.uploaded_at,
-             up.full_name AS uploaded_by, rb.full_name AS reviewed_by
+      SELECT e.short_name AS entity, c.title,
+             o.period_label, ev.id AS evidence_id, ev.doc_type,
+             ev.status, ev.filed_date, up.full_name AS uploaded_by
         FROM evidence ev
         JOIN obligations o ON o.id = ev.obligation_id
         JOIN compliances c ON c.id = o.compliance_id
         JOIN entities e ON e.id = o.entity_id
-        JOIN countries co ON co.code = e.country_code
         LEFT JOIN users up ON up.id = ev.uploaded_by
-        LEFT JOIN users rb ON rb.id = ev.reviewed_by
        WHERE ev.deleted_at IS NULL AND o.deleted_at IS NULL ${sc}
        ORDER BY ev.uploaded_at DESC LIMIT 5000`, args)).map(r => ({
-      Entity: r.entity, Country: r.country, Compliance: r.title,
-      Period: r.period_label, Document: r.file_name, 'Document type': r.doc_type ?? '',
+      Entity: r.entity, Compliance: r.title,
+      Period: r.period_label, 'Document type': r.doc_type ?? '',
       'Evidence status': r.status, 'Filed date': r.filed_date,
-      'Uploaded at': r.uploaded_at, 'Uploaded by': r.uploaded_by ?? '',
-      'Reviewed by': r.reviewed_by ?? '',
+      'Uploaded by': r.uploaded_by ?? '',
+      Download: `/api/evidence/${r.evidence_id}?dl=1`,
     }));
   }
 

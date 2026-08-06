@@ -243,6 +243,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     aria-label="Toggle navigation"
                     style={{ display: 'none' }} id="navToggle"><Ic n="menu" s={18} /></button>
 
+            <button className="iconbtn no-print" onClick={toggleCollapsed}
+                    aria-label={collapsed ? 'Show sidebar' : 'Hide sidebar'}
+                    title={collapsed ? 'Show sidebar' : 'Hide sidebar'}>
+              <Ic n="menu" s={17} />
+            </button>
+
             <div className="grow">
               <div className="crumbs">
                 LMW Limited <span style={{ opacity: .5 }}>/</span> <b>{crumb?.label ?? 'Platform'}</b>

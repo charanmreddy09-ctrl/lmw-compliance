@@ -163,7 +163,6 @@ export default function Dashboard() {
     { id: 'overview', label: 'Overview' },
     { id: 'overall', label: 'Overall by country' },
     { id: 'entities', label: 'Entity scores' },
-    ...(isCfo ? [] : [{ id: 'workload', label: 'Workload' }]),
     { id: 'activity', label: 'Recent activity' },
   ];
 
@@ -198,7 +197,6 @@ export default function Dashboard() {
           <div className="grow" style={{ minWidth: 260 }}>
             <div className="stack">
               <div><span className="k">{countryFilter ? 'Total Obligations Applicable' : 'Applicable obligations'}</span><span className="v num">{o.total}</span></div>
-              <div><span className="k">Future obligations (not yet due)</span><span className="v num">{futureCount}</span></div>
               <div><span className="k">Approved with evidence</span><span className="v num">{o.approved}<Pct n={o.approved} of={o.total} /></span></div>
               <div><span className="k">Awaiting reviewer</span><span className="v num">{o.submitted + o.underReview}</span></div>
               <div><span className="k">Query raised / rejected</span><span className="v num">{o.queryRaised + o.rejected}</span></div>
@@ -209,6 +207,10 @@ export default function Dashboard() {
                   <span style={{ color: 'var(--bad-600)' }}> {o.overdue} of them are past the due date with no evidence uploaded.</span>
                 )}
               </div>
+            </div>
+            <div className="row between g12" style={{ marginTop: 10, padding: '8px 10px', background: 'var(--surface-2)', borderRadius: 'var(--r)' }}>
+              <span className="small muted">Future obligations <span className="dim">(not yet due — excluded from the figures above)</span></span>
+              <span className="v num">{futureCount}</span>
             </div>
           </div>
           <div style={{ minWidth: 260 }}>
@@ -528,51 +530,6 @@ export default function Dashboard() {
                 })}
               </tbody>
             </table>
-          </div>
-        </div>
-      )}
-
-      {/* ----------------------------------------------------------- WORKLOAD */}
-      {tab === 'workload' && (
-        <div className="grid g-2">
-          <div className="card">
-            <div className="card-h"><h3>Status distribution</h3></div>
-            <div className="card-b">
-              {([
-                ['Approved', o.approved, 'var(--ok-600)'],
-                ['Under review', o.underReview, 'var(--navy-600)'],
-                ['Submitted', o.submitted, 'var(--navy-600)'],
-                ['Query raised', o.queryRaised, 'var(--warn-600)'],
-                ['Rejected', o.rejected, 'var(--bad-600)'],
-                ['Evidence pending', o.evidencePending, 'var(--warn-600)'],
-                ['Not started', o.notStarted, 'var(--ink-4)'],
-              ] as [string, number, string][]).map(([l, v, c]) => (
-                <div key={l} className="mb8">
-                  <div className="row between small">
-                    <span>{l}</span>
-                    <span className="num strong">{v}</span>
-                  </div>
-                  <div className="bar"><i style={{ width: `${o.total ? (v / o.total) * 100 : 0}%`, background: c }} /></div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="card">
-            <div className="card-h">
-              <h3>Where the exposure sits</h3>
-              <span className="tiny muted">Lowest scoring entities first</span>
-            </div>
-            <div className="card-b">
-              {entityRanked.slice(0, 8).map(e => (
-                <div key={e.id} className="row between g12" style={{ padding: '7px 0', borderBottom: '1px solid var(--line-2)' }}>
-                  <div>
-                    <Link href={`/entities/${e.id}`} className="small strong">{e.short_name}</Link>
-                    <div className="tiny muted">{e.country_name} · {e.s!.overdue} overdue · {e.s!.queryRaised} queries</div>
-                  </div>
-                  <span className="num strong" style={{ color: scoreColor(e.s!.score) }}>{e.s!.score.toFixed(1)}</span>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       )}

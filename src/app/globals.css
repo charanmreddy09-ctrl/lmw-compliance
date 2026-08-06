@@ -52,7 +52,7 @@
   --r: 2px;
   --r-2: 3px;
   --shadow: 0 1px 1px rgba(16,29,54,.05);
-  --shadow-2: 0 2px 10px rgba(0,0,0,.16);
+  --shadow-2: 0 1px 4px rgba(16,29,54,.18);
 
   --sidebar: 232px;
   --topbar: 52px;
@@ -189,7 +189,8 @@ img { display: block; max-width: 100%; }
 /* KPI tile */
 .kpi { padding: 11px 13px; }
 .kpi .kl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); font-weight: 600; }
-.kpi .kv { font-family: var(--font-num); font-size: 23px; font-weight: 500; color: var(--navy-900); line-height: 1.15; margin-top: 5px; letter-spacing: -0.02em; }
+.kpi .kv-num { display: block; font-family: var(--font-num); font-size: 23px; font-weight: 500; color: var(--navy-900); line-height: 1.15; margin-top: 5px; letter-spacing: -0.02em; }
+.kpi .kv-num > span { font-family: var(--font-sans); }
 .kpi .ks { font-size: 11px; color: var(--ink-3); margin-top: 3px; }
 .bar { height: 4px; background: var(--line-2); border-radius: 2px; overflow: hidden; margin-top: 8px; }
 .bar > i { display: block; height: 100%; }

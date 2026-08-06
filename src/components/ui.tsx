@@ -288,7 +288,7 @@ export function Kpi({ label, value, sub, bar, barColor }: {
   return (
     <div className="card kpi">
       <div className="kl">{label}</div>
-      <div className="kv">{value}</div>
+      <div className="kv-num">{value}</div>
       {sub && <div className="ks">{sub}</div>}
       {bar != null && (
         <div className="bar"><i style={{ width: `${Math.max(0, Math.min(100, bar))}%`, background: barColor ?? scoreColor(bar) }} /></div>

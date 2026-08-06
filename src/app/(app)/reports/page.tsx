@@ -57,6 +57,11 @@ function ReportsInner() {
 
   function cell(v: unknown, key: string) {
     if (v === null || v === undefined || v === '') return <span className="dim">—</span>;
+    if (key === 'Download' && typeof v === 'string') {
+      return <a className="btn btn-xs" href={v} target="_blank" rel="noopener">
+        <Ic n="download" s={12} /> Download
+      </a>;
+    }
     if (typeof v === 'number') {
       const isScore = /score|%/i.test(key);
       return <span className="num" style={isScore ? { color: scoreColor(v), fontWeight: 600 } : undefined}>

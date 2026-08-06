@@ -155,18 +155,32 @@ export async function validateUpload(ctx: Ctx): Promise<ValidationResult> {
            detail: `${(ctx.sizeBytes / 1024).toFixed(0)} KB.` });
   }
 
-  /* ------------------------------------------------------ 2. duplicates */
-  const dup = await one<{ id: string; file_name: string; uploaded_at: string }>(
-    `SELECT id, file_name, uploaded_at FROM evidence
-      WHERE obligation_id = $1 AND checksum = $2 AND deleted_at IS NULL LIMIT 1`,
-    [ctx.obligationId, ctx.checksum]
+  /* ------------------------------------------------------ 2. duplicates
+     Checked by content checksum across every obligation, not just this one
+     — the same PDF re-uploaded against a different (often wrong) obligation
+     is exactly the kind of mistake this should catch, not let through. */
+  const dup = await one<{
+    id: string; file_name: string; uploaded_at: string; obligation_id: string;
+    title: string; period_label: string; entity_name: string;
+  }>(
+    `SELECT ev.id, ev.file_name, ev.uploaded_at, ev.obligation_id,
+            c.title, o.period_label, e.short_name AS entity_name
+       FROM evidence ev
+       JOIN obligations o ON o.id = ev.obligation_id
+       JOIN compliances c ON c.id = o.compliance_id
+       JOIN entities e ON e.id = o.entity_id
+      WHERE ev.checksum = $1 AND ev.deleted_at IS NULL LIMIT 1`,
+    [ctx.checksum]
   );
-  if (dup) {
+  if (dup && dup.obligation_id === ctx.obligationId) {
     push({ key: 'duplicate', label: 'Not a duplicate upload', result: 'fail', blocking: true,
            detail: `An identical file ("${dup.file_name}") was already uploaded against this obligation.` });
+  } else if (dup) {
+    push({ key: 'duplicate', label: 'Not a duplicate upload', result: 'fail', blocking: true,
+           detail: `An identical file ("${dup.file_name}") is already on file against a different obligation — ${dup.title} for ${dup.entity_name} (${dup.period_label}). Confirm this is really meant for this obligation before uploading it again.` });
   } else {
     push({ key: 'duplicate', label: 'Not a duplicate upload', result: 'pass',
-           detail: 'No identical file found on this obligation.' });
+           detail: 'No identical file found anywhere in the evidence register.' });
   }
 
   /* ------------------------------------------------- 3. correct period */

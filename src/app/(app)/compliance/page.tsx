@@ -53,7 +53,16 @@ export default function Library() {
 
   const canManageDueDates = !!user?.permissions.includes('duedate.manage');
   const canManageLibrary = !!user?.permissions.includes('compliance.library');
-  const canVerify = canManageLibrary || !!user?.permissions.includes('compliance.verify');
+  /* Signing a compliance off is the reviewer's job specifically — holding
+     compliance.library (Admin) does not also grant sign-off; removing an
+     existing sign-off is a library-admin correction, kept separate. */
+  const canSignOff = !!user?.permissions.includes('compliance.verify');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggleSelected = (id: string) => setSelected(s => {
+    const next = new Set(s);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   const loadPending = useCallback(async () => {
     if (!canManageDueDates) return;
@@ -190,12 +199,36 @@ export default function Library() {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error);
-      toast(c.verified ? 'Verification removed' : 'Marked as verified by adviser', 'ok');
+      toast(c.verified ? 'Verification removed' : 'Signed off', 'ok');
       load();
     } catch (e) { toast(e instanceof Error ? e.message : 'Could not update.', 'bad'); }
   }
 
+  async function bulkSignOff() {
+    const ids = [...selected];
+    if (!ids.length) return;
+    try {
+      const res = await fetch('/api/compliances', {
+        method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids, verified: true }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error);
+      toast(`Signed off ${j.verified.length} compliance${j.verified.length === 1 ? '' : 's'}${j.skipped ? ` (${j.skipped} already signed off)` : ''}.`, 'ok');
+      setSelected(new Set());
+      load();
+    } catch (e) { toast(e instanceof Error ? e.message : 'Could not sign off the selected items.', 'bad'); }
+  }
+
   const cols: Col<Comp & Record<string, unknown>>[] = [
+    ...(canSignOff ? [{
+      key: 'select', label: '', cls: 'nowrap no-print' as string,
+      render: (r: Comp) => !r.verified && (
+        <input type="checkbox" checked={selected.has(r.id)}
+               onClick={e => e.stopPropagation()}
+               onChange={() => toggleSelected(r.id)} />
+      ),
+    }] : []),
     { key: 'title', label: 'Compliance', sort: true, cls: 'w',
       render: r => (<>
         <div className="t1">{r.title}</div>
@@ -243,9 +276,12 @@ export default function Library() {
                       });
                     }}><Ic n="edit" s={12} /></button>
           )}
-          {canVerify && (!r.verified || canManageLibrary) && (
-            <button className="btn btn-xs"
-                    title={r.verified ? 'Remove sign-off' : 'Mark verified'}
+          {!r.verified && canSignOff && (
+            <button className="btn btn-xs" title="Sign off"
+                    onClick={e => { e.stopPropagation(); verify(r); }}><Ic n="shield" s={12} /></button>
+          )}
+          {r.verified && canManageLibrary && (
+            <button className="btn btn-xs" title="Remove sign-off"
                     onClick={e => { e.stopPropagation(); verify(r); }}><Ic n="shield" s={12} /></button>
           )}
           {canManageLibrary && (r.is_archived
@@ -349,6 +385,14 @@ export default function Library() {
         <div className="card-h">
           <h3>Compliance library</h3>
           <div className="row g6 wrap no-print">
+            {canSignOff && selected.size > 0 && (
+              <>
+                <button className="btn btn-p btn-s" onClick={bulkSignOff}>
+                  <Ic n="shield" s={13} /> Sign off selected ({selected.size})
+                </button>
+                <button className="btn btn-s" onClick={() => setSelected(new Set())}>Clear selection</button>
+              </>
+            )}
             {canManageLibrary && (
               <>
                 <button className="btn btn-s" onClick={() => setImportOpen(true)}>

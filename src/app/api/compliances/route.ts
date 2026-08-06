@@ -53,7 +53,7 @@ export const GET = handler(async (req: Request) => {
 });
 
 type Payload = {
-  id?: string; code?: string; country_code: string; jurisdiction_id?: string | null;
+  id?: string; ids?: string[]; code?: string; country_code: string; jurisdiction_id?: string | null;
   category_id: string; title: string; applicable_law?: string; form_reference?: string;
   authority?: string; government_site?: string; frequency: string; due_rule?: string;
   due_day?: number | null; due_month?: number | null; evidence_required?: string[];
@@ -97,28 +97,43 @@ export const PATCH = handler(async (req: Request) => {
   if (!hasLibrary && !hasVerify) return fail(403, 'Your role does not permit this action.');
 
   const b = await body<Payload>(req);
-  if (!b.id) return fail(400, 'Compliance id is required.');
+  const ids = b.ids?.length ? b.ids : (b.id ? [b.id] : []);
+  if (!ids.length) return fail(400, 'Compliance id is required.');
+
+  /* Signing off (verified: true) is a distinct action from editing the
+     library record, always routed through here regardless of whether the
+     actor also holds compliance.library — a library administrator's edit
+     request never implicitly re-verifies a record. Reviewers hold
+     compliance.verify without compliance.library and can sign off one or
+     many newly added (not yet verified) items in a single call; they cannot
+     touch an already-verified item or any other field. */
+  if (b.verified === true) {
+    if (!hasVerify) return fail(403, 'Your role does not permit signing off compliances.');
+    const rows = await q<{ id: string; verified: boolean; title: string }>(
+      `SELECT id, verified, title FROM compliances WHERE id = ANY($1) AND deleted_at IS NULL`, [ids]);
+    if (!rows.length) return fail(404, 'Compliance not found.');
+    const toVerify = rows.filter(r => !r.verified);
+    if (!toVerify.length) return fail(409, 'The selected item(s) are already signed off — only a library administrator can change them further.');
+
+    const verifiedIds = toVerify.map(r => r.id);
+    const after = await q<{ id: string; title: string }>(
+      `UPDATE compliances SET verified = TRUE, verified_by = $2, verified_on = CURRENT_DATE
+        WHERE id = ANY($1) RETURNING id, title`, [verifiedIds, u.name]);
+    for (const row of after) {
+      await q(`INSERT INTO compliance_history (compliance_id, changed_by, change_type, note)
+               VALUES ($1,$2,'verify','Signed off by a reviewer (new addition)')`, [row.id, u.id]);
+      await writeAudit({ actor: u, action: 'compliance.verify', objectType: 'compliance', objectId: row.id, detail: row.title });
+    }
+    return ok({ verified: after.map(r => r.id), skipped: rows.length - toVerify.length });
+  }
+
+  if (!hasLibrary) return fail(403, 'Your role can only sign off newly added compliance items.');
+  if (ids.length > 1) return fail(400, 'Only sign-off supports multiple items at once.');
+  const [id] = ids;
 
   const before = await one<{ verified: boolean; title: string }>(
-    `SELECT * FROM compliances WHERE id = $1 AND deleted_at IS NULL`, [b.id]);
+    `SELECT * FROM compliances WHERE id = $1 AND deleted_at IS NULL`, [id]);
   if (!before) return fail(404, 'Compliance not found.');
-
-  /* A reviewer with only compliance.verify may sign off a newly added
-     (not yet verified) item and nothing else — no editing fields, no
-     removing an existing sign-off, no touching an already-verified item. */
-  if (!hasLibrary) {
-    if (before.verified) return fail(403, 'This compliance is already signed off — only a library administrator can change it further.');
-    if (b.verified !== true) return fail(403, 'Your role can only sign off newly added compliance items.');
-
-    const after = await one(
-      `UPDATE compliances SET verified = TRUE, verified_by = $2, verified_on = CURRENT_DATE
-        WHERE id = $1 RETURNING *`,
-      [b.id, u.name]);
-    await q(`INSERT INTO compliance_history (compliance_id, changed_by, change_type, note)
-             VALUES ($1,$2,'verify','Signed off by a reviewer (new addition)')`, [b.id, u.id]);
-    await writeAudit({ actor: u, action: 'compliance.verify', objectType: 'compliance', objectId: b.id, detail: String(after?.title ?? '') });
-    return ok({ compliance: after });
-  }
 
   const after = await one(`
     UPDATE compliances SET
@@ -134,11 +149,9 @@ export const PATCH = handler(async (req: Request) => {
       applies_if_listed = COALESCE($17, applies_if_listed),
       applies_if_factory = COALESCE($18, applies_if_factory),
       applies_if_importer = COALESCE($19, applies_if_importer),
-      verified = COALESCE($20, verified),
-      verified_by = CASE WHEN $20 IS TRUE THEN $21 ELSE verified_by END,
-      verified_on = CASE WHEN $20 IS TRUE THEN CURRENT_DATE ELSE verified_on END
+      verified = COALESCE($20, verified)
     WHERE id = $1 RETURNING *`,
-    [b.id, b.country_code ?? null, b.jurisdiction_id ?? null, b.category_id ?? null, b.title ?? null,
+    [id, b.country_code ?? null, b.jurisdiction_id ?? null, b.category_id ?? null, b.title ?? null,
      b.applicable_law ?? null, b.form_reference ?? null, b.authority ?? null, b.government_site ?? null,
      b.frequency ?? null, b.due_rule ?? null, b.due_day ?? null, b.due_month ?? null,
      b.evidence_required ? JSON.stringify(b.evidence_required) : null,
@@ -148,8 +161,8 @@ export const PATCH = handler(async (req: Request) => {
 
   await q(`INSERT INTO compliance_history (compliance_id, changed_by, change_type, before_data, after_data, note)
            VALUES ($1,$2,'update',$3::jsonb,$4::jsonb,'Edited in the application')`,
-          [b.id, u.id, JSON.stringify(before), JSON.stringify(after)]);
-  await writeAudit({ actor: u, action: 'compliance.update', objectType: 'compliance', objectId: b.id, detail: String(after?.title ?? '') });
+          [id, u.id, JSON.stringify(before), JSON.stringify(after)]);
+  await writeAudit({ actor: u, action: 'compliance.update', objectType: 'compliance', objectId: id, detail: String(after?.title ?? '') });
   return ok({ compliance: after });
 });
 
