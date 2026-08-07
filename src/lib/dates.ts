@@ -49,14 +49,20 @@ export function addMonths(d: Date, n: number): Date {
   return out;
 }
 
-/** Push a date off Saturday/Sunday to the next working day. */
-export function nudgeWeekend(d: Date): Date {
-  const out = new Date(d);
-  const day = out.getUTCDay();
-  if (day === 6) out.setUTCDate(out.getUTCDate() + 2);
-  if (day === 0) out.setUTCDate(out.getUTCDate() + 1);
-  return out;
-}
+/* nudgeWeekend() was here: it pushed a date off Saturday or Sunday to the
+   next working day. It was never called, and it has been removed rather than
+   left available, because a statutory due date is whatever the authority
+   publishes — not what a business-day rule computes.
+
+   Several jurisdictions genuinely do roll a weekend deadline forward, and
+   several deliberately do not. Encoding either as a global rule would make
+   the platform quietly disagree with the portal for half the world, and an
+   obligation shown as due on the 21st when the portal says the 20th is how
+   a filing gets made a day late against a score that called it on time.
+
+   If weekend or public-holiday rolling is wanted later it belongs per
+   jurisdiction, sourced and recorded like any other due-date change — not as
+   a helper any caller can reach for. */
 
 /** "FY 2026-27" for startYear 2026 — the one place this label is built, so
     the compliance library, register, dashboard and reports all agree. */

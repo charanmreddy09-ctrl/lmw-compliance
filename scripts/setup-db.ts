@@ -548,41 +548,19 @@ async function main() {
       }
       log(`Attached ${evCount} evidence documents with a full review trail.`);
 
-      /* a couple of real due-date changes so the notification popup has content */
-      log('Recording sample due-date changes and notifications…');
-      const sample = await client.query<{ id: string; entity_id: string; country_code: string;
-        due_date: string; title: string }>(
-        `SELECT o.id, o.entity_id, e.country_code, o.due_date, c.title
-           FROM obligations o
-           JOIN entities e ON e.id = o.entity_id
-           JOIN compliances c ON c.id = o.compliance_id
-          WHERE o.status IN ('Not Started','Evidence Pending') AND o.due_date >= CURRENT_DATE
-          ORDER BY o.due_date LIMIT 3`);
-      for (const s of sample.rows) {
-        const newDue = new Date(s.due_date);
-        newDue.setUTCDate(newDue.getUTCDate() + 15);
-        const nd = newDue.toISOString().slice(0, 10);
-        await client.query(`UPDATE obligations SET due_date = $1 WHERE id = $2`, [nd, s.id]);
-        await client.query(
-          `INSERT INTO due_date_changes (obligation_id, country_code, entity_id,
-              old_due_date, new_due_date, reason, source, changed_by)
-           VALUES ($1,$2,$3,$4,$5,$6,'seed',$7)`,
-          [s.id, s.country_code, s.entity_id, s.due_date, nd,
-           'Filing deadline extended by the authority.', cfoId]);
+      /* A statutory due date is whatever the authority's own portal says it
+         is. This seed used to move three of them fifteen days into the
+         future and record the reason as "filing deadline extended by the
+         authority" — an extension no authority had granted, indistinguishable
+         in the register and the audit trail from a real one. Demonstration
+         content is not worth putting a fabricated statutory date in front of
+         a preparer, so nothing here moves a due date any more.
 
-        const affected = await client.query<{ user_id: string }>(
-          `SELECT DISTINCT user_id FROM user_entities
-            WHERE entity_id = $1 OR entity_id = '*'`, [s.entity_id]);
-        for (const a of affected.rows) {
-          await client.query(
-            `INSERT INTO notifications (user_id, country_code, entity_id, kind, title, body, link, severity, is_popup)
-             VALUES ($1,$2,$3,'due_date_change',$4,$5,$6,'warning',TRUE)`,
-            [a.user_id, s.country_code, s.entity_id,
-             `Due date changed — ${s.country_code}`,
-             `${s.title}: due date moved from ${s.due_date} to ${nd}. Reason: filing deadline extended by the authority.`,
-             `/register?obligation=${s.id}`]);
-        }
-      }
+         Due dates enter the platform from the compliance library's due_day /
+         due_month, which is where the portal's published date is recorded,
+         and change afterwards only through /api/duedates/import or an
+         approved proposal from the due-date sync — both of which write a
+         due_date_changes row naming a real source. */
     }
 
     /* ------------------------------------------------------------ settings */
