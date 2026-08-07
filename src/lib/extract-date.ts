@@ -39,6 +39,39 @@ function findCandidates(text: string): Candidate[] {
   return out.filter(c => c.day >= 1 && c.day <= 31 && c.month >= 1 && c.month <= 12 && c.year >= 2000);
 }
 
+/* ---------------------------------------------------------------- due date
+   The document usually states the deadline it was filed against ("due date",
+   "last date for filing", "on or before"). Reading it lets the platform check
+   its own due date against what the authority actually printed.
+
+   This never sets a due date. A statutory deadline is whatever the portal
+   publishes, and a date scraped out of a document is evidence about that
+   deadline, not the deadline itself — so a disagreement is raised as a
+   validation warning and a proposal for a human to approve, exactly the way
+   the due-date sync job already works. */
+export type DueDateResult = { date: string; note: string } | null;
+
+const DUE_KEYWORD =
+  /(due date|due on|last date(?:\s+for\s+\w+)?|on or before|payable by|to be filed by|filing deadline)[^0-9]{0,24}(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/gi;
+
+export async function extractDueDate(buffer: Buffer, mimeType: string): Promise<DueDateResult> {
+  if (mimeType !== 'application/pdf') return null;
+  let text = '';
+  try {
+    text = (await pdfParse(buffer)).text || '';
+  } catch {
+    return null;
+  }
+  for (const m of text.matchAll(DUE_KEYWORD)) {
+    const day = +m[2], month = +m[3], year = normYear(+m[4]);
+    if (day < 1 || day > 31 || month < 1 || month > 12 || year < 2000) continue;
+    const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (isNaN(new Date(iso + 'T00:00:00Z').getTime())) continue;
+    return { date: iso, note: `The document states a due date of ${day}/${month}/${year}.` };
+  }
+  return null;
+}
+
 export async function extractFiledDate(buffer: Buffer, mimeType: string): Promise<FiledDateResult> {
   const todayIso = new Date().toISOString().slice(0, 10);
 
