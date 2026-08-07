@@ -32,7 +32,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     section: 'Compliance',
     items: [
       { href: '/compliance', label: 'Compliance library', icon: 'book',
-        show: u => has(u, 'compliance.library') },
+        show: u => has(u, 'compliance.library') || has(u, 'compliance.verify') },
       { href: '/register', label: 'Compliance register', icon: 'list',
         show: u => !isCfo(u) },
       { href: '/calendar', label: 'Compliance calendar', icon: 'cal', show: () => true },
