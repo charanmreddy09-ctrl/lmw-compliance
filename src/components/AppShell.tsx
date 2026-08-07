@@ -229,10 +229,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <aside className={`side${sideOpen ? ' open' : ''}${collapsed ? ' collapsed' : ''}`}>
           <Link href="/dashboard" className="brand" style={{ textDecoration: 'none' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://www.lmwglobal.com/images/lmw-logo.png" alt="LMW"
-                 style={{ height: 24, width: 'auto', background: '#fff', borderRadius: 2, padding: '2px 4px' }} />
+            <img src="https://www.lmwglobal.com/images/lmw-logo.png" alt="LMW" />
             {!collapsed && (
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <div className="bt">LMW Compliance Platform</div>
                 <div className="bs">Control Tower</div>
               </div>
@@ -264,16 +263,28 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
           {!collapsed && (
             <div className="side-foot">
-              <div className="strong" style={{ color: '#C6D3E8' }}>{user.roleName}</div>
-              <div>{user.entities.includes('*') ? 'All entities' : `${user.entities.length} entities assigned`}</div>
-              <div className="mt8" style={{ opacity: .7 }}>Version 1.2</div>
+              <div className="side-user">
+                <span className="av">{initials(user.name)}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div className="sn" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {user.roleName}
+                  </div>
+                  <div className="sr">
+                    {user.entities.includes('*') ? 'All entities' : `${user.entities.length} entities assigned`}
+                  </div>
+                </div>
+              </div>
+              <div className="side-ver">Version 1.2</div>
             </div>
           )}
 
+          {/* Collapse lives here AND in the header. Having it only in the rail
+              is what got an earlier revision of this interface rolled back. */}
           <button className="side-collapse no-print" onClick={toggleCollapsed}
                   aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                   title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
-            <Ic n={collapsed ? 'chevR' : 'chev'} s={13} />
+            <Ic n={collapsed ? 'chevR' : 'chev'} s={14} />
+            {!collapsed && <span>Collapse</span>}
           </button>
         </aside>
 
