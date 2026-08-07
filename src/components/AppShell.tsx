@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Ic, ToastHost, Modal, initials, fmtDateTime, Spinner } from '@/components/ui';
@@ -77,6 +77,44 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       return !c;
     });
   }
+
+  /* ------------------------------------------------------------ going back
+     A KPI tile on the dashboard opens a report, and the only way back was to
+     find Dashboard in the navigation again. There is now a Back control, and
+     Escape does the same thing.
+
+     `navigated` records that at least one in-app move has happened this
+     session, so Back is never offered on a deep link that would take the
+     user out of the platform entirely. The dashboard is home, so it shows no
+     Back of its own. */
+  const navigated = useRef(false);
+  const prevPath = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevPath.current !== null && prevPath.current !== pathname) navigated.current = true;
+    prevPath.current = pathname;
+  }, [pathname]);
+
+  const atHome = pathname === '/dashboard';
+  const showBack = !atHome;
+
+  const goBack = useCallback(() => {
+    if (navigated.current) router.back();
+    else router.push('/dashboard');
+  }, [router]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape' || atHome) return;
+      /* A modal owns Escape while it is open — closing the dialog must not
+         also navigate the page out from under it. */
+      if (document.querySelector('.mask')) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable)) return;
+      goBack();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [atHome, goBack]);
 
   /* live clock next to sign-out */
   useEffect(() => {
@@ -251,9 +289,24 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <Ic n="menu" s={17} />
             </button>
 
+            {showBack && (
+              <button className="iconbtn no-print" onClick={goBack}
+                      aria-label="Go back" title="Go back  ·  Esc">
+                <Ic n="back" s={17} />
+              </button>
+            )}
+
             <div className="grow">
               <div className="crumbs">
-                LMW Limited <span style={{ opacity: .5 }}>/</span> <b>{crumb?.label ?? 'Platform'}</b>
+                {showBack ? (
+                  <>
+                    <button className="crumb-link" onClick={goBack}>Dashboard</button>
+                    <span style={{ opacity: .5 }}> / </span>
+                    <b>{crumb?.label ?? 'Platform'}</b>
+                  </>
+                ) : (
+                  <>LMW Limited <span style={{ opacity: .5 }}>/</span> <b>{crumb?.label ?? 'Platform'}</b></>
+                )}
               </div>
               <h1>{crumb?.label ?? 'Compliance Platform'}</h1>
             </div>
@@ -282,7 +335,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </header>
 
-          <main className="content">{children}</main>
+          <main className="content">
+            {children}
+            <footer className="foot no-print">
+              <span>© {new Date().getFullYear()} LMW Limited. All rights reserved.</span>
+              <span>Version 1.2 · Internal use only</span>
+            </footer>
+          </main>
         </div>
       </div>
 

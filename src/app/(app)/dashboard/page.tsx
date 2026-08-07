@@ -201,6 +201,12 @@ export default function Dashboard() {
 
   /* B1 / B2 — the brief reads from counts the API already returned; nothing
      here re-derives a figure that exists server-side. */
+  /* Destinations are role-aware: a preparer holds no reports.generate and a
+     CFO deliberately has no review queue, so the same shortcut points each
+     role at a screen it can actually open. */
+  const canReport = user.permissions.includes('reports.generate');
+  const canReview = user.permissions.includes('compliance.review') && !isCfo;
+
   const b = d.brief;
   const movedYesterday = b.approved + b.submitted + b.queries + b.rejected + b.escalated;
   const attention = b.severity.Critical + b.severity.High + b.severity.Medium + b.severity.Low;
@@ -327,6 +333,37 @@ export default function Dashboard() {
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* ------------------------------------------------------- QUICK ACTIONS
+          The four places people go straight from the dashboard. Each is
+          role-aware: a preparer has no reports.generate, so it is offered the
+          register rather than a report it would be refused. Nothing here is
+          new capability — it is a shortcut to a screen that already exists. */}
+      <div className="card mb16">
+        <div className="card-h"><h3>Quick actions</h3></div>
+        <div className="card-b row g8 wrap">
+          <Link href="/calendar" className="btn btn-s">
+            <Ic n="cal" s={13} /> Compliance calendar
+          </Link>
+          <Link href={canReport ? '/reports?r=overdue' : '/register'} className="btn btn-s">
+            <Ic n="alert" s={13} /> Overdue report
+          </Link>
+          {canReport && (
+            <button className="btn btn-s"
+                    onClick={() => downloadFile('/api/reports/executive?format=xlsx', 'Executive summary.xlsx', toast)}>
+              <Ic n="download" s={13} /> Executive summary
+            </button>
+          )}
+          <Link href="/entities" className="btn btn-s">
+            <Ic n="building" s={13} /> Entity performance
+          </Link>
+          {canReview && (
+            <Link href="/reviews" className="btn btn-s">
+              <Ic n="review" s={13} /> Review queue
+            </Link>
+          )}
         </div>
       </div>
 
