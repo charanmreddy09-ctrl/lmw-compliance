@@ -44,6 +44,7 @@ type Payload = {
   activity: Activity[];
   dueChanges: DueChange[];
   pendingReview: number;
+  pendingReviewByCountry: Record<string, number>;
   scopeLabel: string;
   futureByCountry: Record<string, number>;
   futureOverall: number;
@@ -157,6 +158,9 @@ export default function Dashboard() {
 
   const o = countryFilter ? (d.byCountryScore[countryFilter] ?? d.overall) : d.overall;
   const futureCount = countryFilter ? (d.futureByCountry[countryFilter] ?? 0) : d.futureOverall;
+  /* Not gated by due date, unlike o.submitted/o.underReview — a submission
+     filed ahead of its due date is still real work waiting on a reviewer. */
+  const awaitingReviewer = countryFilter ? (d.pendingReviewByCountry[countryFilter] ?? 0) : d.pendingReview;
   const worst = [...d.byCountry].sort((a, b) => a.score - b.score).slice(0, 3);
   const entityRanked = d.entities
     .map(e => ({ ...e, s: d.byEntity[e.id] }))
@@ -236,7 +240,7 @@ export default function Dashboard() {
             <div className="stack">
               <div><span className="k">{countryFilter ? 'Total Obligations Applicable' : 'Applicable obligations'}</span><span className="v num">{o.total}</span></div>
               <div><span className="k">Approved with evidence</span><span className="v num">{o.approved}<Pct n={o.approved} of={o.total} /></span></div>
-              <div><span className="k">Awaiting reviewer</span><span className="v num">{o.submitted + o.underReview}</span></div>
+              <div><span className="k">Awaiting reviewer</span><span className="v num">{awaitingReviewer}</span></div>
               <div><span className="k">Query raised / rejected</span><span className="v num">{o.queryRaised + o.rejected}</span></div>
               <div><span className="k">Not started</span><span className="v num">{o.notStarted + o.evidencePending}</span></div>
               {o.overdue > 0 && (

@@ -52,8 +52,8 @@ function RegisterInner() {
 
   const [openId, setOpenId] = useState<string | null>(search.get('obligation'));
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await fetch('/api/obligations?limit=2000');
       const d = await res.json();
@@ -61,8 +61,8 @@ function RegisterInner() {
       setRows(d.obligations);
       setErr(null);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Unable to load the register.');
-    } finally { setLoading(false); }
+      if (!silent) setErr(e instanceof Error ? e.message : 'Unable to load the register.');
+    } finally { if (!silent) setLoading(false); }
   }, []);
 
   useEffect(() => {
@@ -71,6 +71,13 @@ function RegisterInner() {
       setUser(me.user);
       await load();
     })();
+  }, [load]);
+
+  /* Auto-sync: a reviewer's decision on this preparer's filing shows up here
+     without a manual reload — matches the dashboard's own polling pattern. */
+  useEffect(() => {
+    const t = setInterval(() => load(true), 60_000);
+    return () => clearInterval(t);
   }, [load]);
 
   const entities = useMemo(
@@ -140,7 +147,7 @@ function RegisterInner() {
         </div>
         <div className="grow" />
         <span className="small muted">{shown.length} of {rows.length}</span>
-        <button className="btn btn-s" onClick={load} disabled={loading}>
+        <button className="btn btn-s" onClick={() => load()} disabled={loading}>
           <Ic n="swap" s={13} /> Refresh
         </button>
       </div>

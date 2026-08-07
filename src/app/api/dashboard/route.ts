@@ -114,10 +114,20 @@ export const GET = handler(async (req: Request) => {
        ${scope ? 'AND o.entity_id = ANY($1)' : ''}
      ORDER BY o.due_date LIMIT 200`, scope ? [scope] : []);
 
-  const pendingReview = await q(`
-    SELECT count(*) AS n FROM obligations o
-     WHERE o.deleted_at IS NULL AND o.status IN ('Submitted','Under Review')
-       ${scope ? 'AND o.entity_id = ANY($1)' : ''}`, scope ? [scope] : []);
+  /* Deliberately NOT gated by due_date <= CURRENT_DATE, unlike the score
+     aggregates above — a preparer who files ahead of the due date has still
+     done real work that a reviewer needs to see, so it must count as
+     "awaiting reviewer" even though it is excluded from the score itself
+     (which only ever reflects obligations that have actually come due). */
+  const pendingReviewRows = await q<{ country_code: string; n: string }>(`
+    SELECT e.country_code, count(*) AS n
+      FROM obligations o
+      JOIN entities e ON e.id = o.entity_id
+     WHERE o.deleted_at IS NULL AND o.status IN ('Submitted','Under Review') ${scopeSql}
+     GROUP BY e.country_code`, scopeVals);
+  const pendingReviewByCountry: Record<string, number> = {};
+  let pendingReview = 0;
+  pendingReviewRows.forEach(r => { pendingReviewByCountry[r.country_code] = Number(r.n); pendingReview += Number(r.n); });
 
   const activity = await q(`
     SELECT ra.id, ra.action, ra.comment, ra.created_at, ra.to_status,
@@ -144,7 +154,7 @@ export const GET = handler(async (req: Request) => {
   return ok({
     overall, byEntity, byCountry, byCountryScore, byCategoryScore, entities, byDivision, byCategory, heat, trend,
     upcoming, activity, dueChanges, futureByCountry, futureOverall, availableFys, selectedFy: fy,
-    pendingReview: Number(pendingReview[0]?.n ?? 0),
+    pendingReview, pendingReviewByCountry,
     scopeLabel: scope ? `${entities.length} assigned entit${entities.length === 1 ? 'y' : 'ies'}` : 'All entities',
     syncedAt: new Date().toISOString(),
   });

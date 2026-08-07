@@ -81,6 +81,14 @@ function ReviewsInner() {
 
   useEffect(() => { load(); }, [load]);
 
+  /* Auto-sync: a preparer's submission from a different session shows up
+     here without needing a manual reload — matches the dashboard's and the
+     compliance library's own polling pattern. */
+  useEffect(() => {
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, [load]);
+
   const entities = useMemo(
     () => [...new Map(rows.map(r => [r.entity_id, r.entity])).entries()].sort((a, b) => a[1].localeCompare(b[1])),
     [rows]);
