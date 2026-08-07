@@ -228,7 +228,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <div className="side-foot">
               <div className="strong" style={{ color: '#C6D3E8' }}>{user.roleName}</div>
               <div>{user.entities.includes('*') ? 'All entities' : `${user.entities.length} entities assigned`}</div>
-              <div className="mt8" style={{ opacity: .7 }}>Version 1.0</div>
+              <div className="mt8" style={{ opacity: .7 }}>Version 1.2</div>
             </div>
           )}
 

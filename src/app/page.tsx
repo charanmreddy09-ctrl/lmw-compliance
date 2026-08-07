@@ -81,7 +81,7 @@ export default function Landing() {
 
       <section className="land-hero row g24 wrap" style={{ alignItems: 'center' }}>
         <div style={{ maxWidth: 640, flex: '1 1 480px' }}>
-          <div className="cap mb12" style={{ color: 'var(--red-600)' }}>Version 1.0</div>
+          <div className="cap mb12" style={{ color: 'var(--red-600)' }}>Version 1.2</div>
           <h1 style={{ fontSize: 34, lineHeight: 1.18, letterSpacing: '-0.02em' }}>
             Statutory compliance the Board can rely on, because every entry is
             backed by the document that proves it.
@@ -204,7 +204,7 @@ export default function Landing() {
       <footer style={{ borderTop: '1px solid var(--line)', padding: '18px 26px' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto' }} className="row between wrap g12">
           <span className="tiny muted">
-            LMW Compliance Management Platform · Version 1.0 · Internal use only
+            LMW Compliance Management Platform · Version 1.2 · Internal use only
           </span>
           <Link href="/signin" className="tiny strong">Sign in</Link>
         </div>
