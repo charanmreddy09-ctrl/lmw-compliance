@@ -30,6 +30,59 @@ type Audit = {
 
 const STATUS_TONE: Record<string, string> = { active: 'p-ok', pending: 'p-warn', disabled: 'p-mute' };
 
+/* -------------------------------------------------------------- C19 / C20 */
+type JobHealth = {
+  job: string; label: string; lastRun: string | null; runs7d: number;
+  lastDetail: string | null; state: 'never' | 'silent' | 'healthy'; hoursSince: number | null;
+};
+type Anomaly = { key: string; count: number; sample: string[] };
+type Ops = {
+  automation: JobHealth[];
+  slaHours: number;
+  silentAfterHours: number;
+  notifications: { sent7d: number; unread: number; popupsOpen: number };
+  anomalies: Anomaly[];
+  checkedAt: string;
+};
+
+/* What each check means and how much it matters. "severe" reads as a defect
+   rather than a backlog: these are the two that make the platform report
+   something untrue, rather than merely leave work undone. */
+const ANOMALY_META: Record<string, { label: string; why: string; tone: string; severe?: boolean }> = {
+  approved_no_evidence: {
+    label: 'Approved with no evidence on file', tone: 'p-bad', severe: true,
+    why: 'The score treats an approval as proof. These inflate it.',
+  },
+  assignee_inactive: {
+    label: 'Assigned to a disabled account', tone: 'p-bad', severe: true,
+    why: 'Looks assigned, but the account cannot sign in. Nobody is working it.',
+  },
+  unassigned_review: {
+    label: 'Submitted with no named reviewer', tone: 'p-warn',
+    why: 'Visible to everyone with rights on the entity, owned by no one.',
+  },
+  review_overdue: {
+    label: 'Past the review turnaround target', tone: 'p-warn',
+    why: 'Evidence has been waiting on a decision longer than the target.',
+  },
+  unassigned_preparer: {
+    label: 'Due and unfiled with no preparer', tone: 'p-warn',
+    why: 'No one to remind, so no reminder is sent.',
+  },
+  compliance_no_due_rule: {
+    label: 'Library records with no due rule', tone: 'p-warn',
+    why: 'Without a due day and month a due date cannot be generated.',
+  },
+  compliance_unverified: {
+    label: 'Library records not yet verified', tone: 'p-mute',
+    why: 'Counted in the score, but no adviser has confirmed them.',
+  },
+  users_pending: {
+    label: 'Accounts awaiting approval', tone: 'p-mute',
+    why: 'Someone requested access and nobody has answered.',
+  },
+};
+
 export default function Admin() {
   const toast = useToast();
   const [me, setMe] = useState<SessionUser | null>(null);
@@ -45,6 +98,7 @@ export default function Admin() {
     entities: Ent[]; countries: { code: string; name: string }[];
   }>({ candidates: [], entities: [], countries: [] });
   const [audit, setAudit] = useState<Audit[]>([]);
+  const [ops, setOps] = useState<Ops | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -79,6 +133,10 @@ export default function Admin() {
         tasks.push(fetch('/api/audit').then(async r => {
           const d = await r.json();
           if (r.ok) setAudit(d.entries);
+        }));
+        tasks.push(fetch('/api/operations').then(async r => {
+          const d = await r.json();
+          if (r.ok) setOps(d);
         }));
       }
       await Promise.all(tasks);
@@ -177,6 +235,14 @@ export default function Admin() {
         </div>) },
   ];
 
+  /* Things that are actually wrong, not merely outstanding — the tab badge
+     counts defects and silent jobs, so a long list of pending users does not
+     make the platform look broken. */
+  const opsIssues = ops
+    ? ops.anomalies.filter(a => ANOMALY_META[a.key]?.severe && a.count > 0).length
+      + ops.automation.filter(j => j.state !== 'healthy').length
+    : 0;
+
   if (err) return <Note kind="b">{err}</Note>;
   if (loading) return <Spinner label="Loading administration…" />;
 
@@ -184,6 +250,10 @@ export default function Admin() {
     ...(canUsers ? [{ id: 'users', label: `Users (${users.length})` }] : []),
     { id: 'delegation', label: `Delegation (${delegs.filter(d => d.is_active).length} active)` },
     ...(canUsers ? [{ id: 'roles', label: 'Roles and permissions' }] : []),
+    ...(canAudit ? [{
+      id: 'operations',
+      label: opsIssues > 0 ? `Operations (${opsIssues})` : 'Operations',
+    }] : []),
     ...(canAudit ? [{ id: 'audit', label: 'Audit trail' }] : []),
   ];
   const activeTab = TABS.some(t => t.id === tab) ? tab : TABS[0]?.id ?? 'delegation';
@@ -338,6 +408,126 @@ export default function Admin() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* ----------------------------------------------------- C19 / C20 OPS */}
+      {activeTab === 'operations' && canAudit && (
+        <>
+          {!ops && <Spinner label="Running platform checks…" />}
+          {ops && (
+            <>
+              <div className="card mb16">
+                <div className="card-h">
+                  <div>
+                    <h3>Scheduled jobs</h3>
+                    <span className="tiny muted">
+                      Both run daily and are signed with <span className="mono">CRON_SECRET</span>.
+                      Without that variable set in Vercel every run is rejected silently.
+                    </span>
+                  </div>
+                </div>
+                <div className="tw">
+                  <table className="dt">
+                    <thead><tr>
+                      <th>Job</th><th>Status</th><th>Last run</th>
+                      <th className="right">Runs (7d)</th><th className="w">Last result</th>
+                    </tr></thead>
+                    <tbody>
+                      {ops.automation.map(j => (
+                        <tr key={j.job}>
+                          <td><div className="t1">{j.label}</div>
+                            <div className="t2 mono">{j.job}</div></td>
+                          <td>
+                            <span className={`pill ${j.state === 'healthy' ? 'p-ok' : 'p-bad'}`}>
+                              {j.state === 'healthy' ? 'Healthy' : j.state === 'silent' ? 'Silent' : 'Never run'}
+                            </span>
+                          </td>
+                          <td className="small nowrap">
+                            {j.lastRun ? (<>{fmtDateTime(j.lastRun)}
+                              <div className="t2">{j.hoursSince}h ago</div></>) : <span className="dim">—</span>}
+                          </td>
+                          <td className="right num">{j.runs7d}</td>
+                          <td className="small w">{j.lastDetail ?? <span className="dim">—</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {ops.automation.some(j => j.state !== 'healthy') && (
+                  <div className="card-f">
+                    <Note kind="b">
+                      <strong>A scheduled job is not running.</strong> If it has never run, the most
+                      likely cause is a missing <span className="mono">CRON_SECRET</span> environment
+                      variable in Vercel — the cron request is rejected with a 401 on every attempt and
+                      nothing else reports it. Reminders and escalations stop while this is true.
+                    </Note>
+                  </div>
+                )}
+              </div>
+
+              <div className="card mb16">
+                <div className="card-h">
+                  <div>
+                    <h3>Continuous audit</h3>
+                    <span className="tiny muted">
+                      Conditions that are individually legal but operationally wrong ·
+                      checked {fmtDateTime(ops.checkedAt)}
+                    </span>
+                  </div>
+                  <button className="btn btn-s no-print" onClick={loadAll}>
+                    <Ic n="swap" s={13} /> Re-run
+                  </button>
+                </div>
+                <div className="tw">
+                  <table className="dt">
+                    <thead><tr>
+                      <th className="right" style={{ width: 70 }}>Count</th>
+                      <th>Finding</th><th className="w">Examples</th>
+                    </tr></thead>
+                    <tbody>
+                      {ops.anomalies.filter(a => a.count > 0).length === 0 && (
+                        <tr><td colSpan={3}><div className="empty">
+                          Every check passed. Nothing is unassigned, unevidenced or stalled.
+                        </div></td></tr>
+                      )}
+                      {ops.anomalies.filter(a => a.count > 0).map(a => {
+                        const m = ANOMALY_META[a.key] ?? { label: a.key, why: '', tone: 'p-mute' };
+                        return (
+                          <tr key={a.key}>
+                            <td className="right">
+                              <span className={`pill ${m.tone} nd`}>{a.count}</span>
+                            </td>
+                            <td>
+                              <div className="t1">{m.label}</div>
+                              <div className="t2">{m.why}</div>
+                            </td>
+                            <td className="small w mono dim">
+                              {a.sample.length ? a.sample.join(', ') : '—'}
+                              {a.count > a.sample.length && a.sample.length > 0 && ` … +${a.count - a.sample.length} more`}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="grid g-3">
+                {([
+                  ['Notifications sent (7d)', ops.notifications.sent7d, ''],
+                  ['Unread notifications', ops.notifications.unread, ''],
+                  ['Popups awaiting acknowledgement', ops.notifications.popupsOpen, ''],
+                ] as const).map(([label, value]) => (
+                  <div className="card kpi" key={label}>
+                    <div className="kl">{label}</div>
+                    <div className="kv-num">{value}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </>
       )}
 
       {/* ---------------------------------------------------------------- AUDIT */}
