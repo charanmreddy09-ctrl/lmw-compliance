@@ -57,6 +57,7 @@ export default function Library() {
      compliance.library (Admin) does not also grant sign-off; removing an
      existing sign-off is a library-admin correction, kept separate. */
   const canSignOff = !!user?.permissions.includes('compliance.verify');
+  const unverifiedCount = useMemo(() => rows.filter(r => !r.verified).length, [rows]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const toggleSelected = (id: string) => setSelected(s => {
     const next = new Set(s);
@@ -385,13 +386,18 @@ export default function Library() {
         <div className="card-h">
           <h3>Compliance library</h3>
           <div className="row g6 wrap no-print">
+            {canSignOff && unverifiedCount > 0 && (
+              selected.size === unverifiedCount
+                ? <button className="btn btn-s" onClick={() => setSelected(new Set())}>Clear selection</button>
+                : <button className="btn btn-s"
+                          onClick={() => setSelected(new Set(rows.filter(r => !r.verified).map(r => r.id)))}>
+                    Select all pending ({unverifiedCount})
+                  </button>
+            )}
             {canSignOff && selected.size > 0 && (
-              <>
-                <button className="btn btn-p btn-s" onClick={bulkSignOff}>
-                  <Ic n="shield" s={13} /> Sign off selected ({selected.size})
-                </button>
-                <button className="btn btn-s" onClick={() => setSelected(new Set())}>Clear selection</button>
-              </>
+              <button className="btn btn-p btn-s" onClick={bulkSignOff}>
+                <Ic n="shield" s={13} /> Sign off selected ({selected.size})
+              </button>
             )}
             {canManageLibrary && (
               <>
