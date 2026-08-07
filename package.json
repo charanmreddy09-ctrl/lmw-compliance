@@ -1,6 +1,6 @@
 {
   "name": "lmw-compliance-platform",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "LMW Limited — Global Compliance Management Platform, seeded with LMW's entities and a starting India/UAE compliance library",
   "scripts": {

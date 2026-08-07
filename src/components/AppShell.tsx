@@ -191,10 +191,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <aside className={`side${sideOpen ? ' open' : ''}${collapsed ? ' collapsed' : ''}`}>
           <Link href="/dashboard" className="brand" style={{ textDecoration: 'none' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://www.lmwglobal.com/images/lmw-logo.png" alt="LMW"
-                 style={{ height: 24, width: 'auto', background: '#fff', borderRadius: 2, padding: '2px 4px' }} />
+            <img src="https://www.lmwglobal.com/images/lmw-logo.png" alt="LMW" style={{ height: 30, width: 'auto' }} />
             {!collapsed && (
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <div className="bt">LMW Compliance Platform</div>
                 <div className="bs">Control Tower</div>
               </div>
@@ -212,8 +211,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     <Link key={i.href} href={i.href}
                           className={`nav-a${pathname.startsWith(i.href) ? ' on' : ''}`}
                           onClick={() => setSideOpen(false)} title={collapsed ? i.label : undefined}>
-                      <Ic n={i.icon} s={15} />
-                      {!collapsed && <span>{i.label}</span>}
+                      <Ic n={i.icon} s={16} />
+                      {!collapsed && <span className="grow">{i.label}</span>}
                       {i.href === '/reviews' && reviewCount ? (
                         <span className={`ct${reviewCount > 0 ? ' alert' : ''}`}>{reviewCount}</span>
                       ) : null}
@@ -224,18 +223,42 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          {!collapsed && (
-            <div className="side-foot">
-              <div className="strong" style={{ color: '#C6D3E8' }}>{user.roleName}</div>
-              <div>{user.entities.includes('*') ? 'All entities' : `${user.entities.length} entities assigned`}</div>
-              <div className="mt8" style={{ opacity: .7 }}>Version 1.0</div>
-            </div>
-          )}
+          {/* Signed-in identity sits with the navigation, not the header — and
+              sign-out is an explicit button. Previously the whole name block in
+              the header was the sign-out control, so clicking your own name
+              ended the session with no confirmation. */}
+          <div className="side-foot">
+            {!collapsed ? (
+              <>
+                <div className="side-user">
+                  <span className="av">{initials(user.name)}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="sn" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {user.roleName}
+                    </div>
+                    <div className="sr">
+                      {user.entities.includes('*') ? 'All entities' : `${user.entities.length} entities`}
+                    </div>
+                  </div>
+                </div>
+                <button className="side-signout no-print" onClick={signOut}>
+                  <Ic n="out" s={15} /> Sign out
+                </button>
+                <div className="side-ver">Version 1.2</div>
+              </>
+            ) : (
+              <button className="side-signout no-print" onClick={signOut}
+                      title="Sign out" style={{ justifyContent: 'center' }}>
+                <Ic n="out" s={16} />
+              </button>
+            )}
+          </div>
 
           <button className="side-collapse no-print" onClick={toggleCollapsed}
                   aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                   title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
-            <Ic n={collapsed ? 'chevR' : 'chev'} s={13} />
+            <Ic n={collapsed ? 'chevR' : 'chev'} s={14} />
+            {!collapsed && <span>Collapse</span>}
           </button>
         </aside>
 
@@ -245,40 +268,33 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     aria-label="Toggle navigation"
                     style={{ display: 'none' }} id="navToggle"><Ic n="menu" s={18} /></button>
 
-            <button className="iconbtn no-print" onClick={toggleCollapsed}
-                    aria-label={collapsed ? 'Show sidebar' : 'Hide sidebar'}
-                    title={collapsed ? 'Show sidebar' : 'Hide sidebar'}>
-              <Ic n="menu" s={17} />
-            </button>
-
-            <div className="grow">
+            <div className="grow" style={{ minWidth: 0 }}>
               <div className="crumbs">
-                LMW Limited <span style={{ opacity: .5 }}>/</span> <b>{crumb?.label ?? 'Platform'}</b>
+                LMW Limited <span style={{ opacity: .45 }}>/</span> <b>{crumb?.label ?? 'Platform'}</b>
               </div>
               <h1>{crumb?.label ?? 'Compliance Platform'}</h1>
             </div>
 
             {clock && (
-              <div className="tiny muted num no-print" style={{ whiteSpace: 'nowrap' }}>
+              <div className="topbar-meta num no-print">
                 {clock.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                {' · '}
-                {clock.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                {'  '}
+                {clock.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
               </div>
             )}
 
-            <button className="iconbtn no-print" onClick={() => setDrawer(true)} aria-label="Notifications">
-              <Ic n="bell" s={17} />
-              {unread > 0 && <span className="pip" />}
+            <button className="iconbtn no-print" onClick={() => setDrawer(true)}
+                    aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}>
+              <Ic n="bell" s={18} />
+              {unread > 0 && <span className="pip">{unread > 9 ? '9+' : unread}</span>}
             </button>
 
-            <div className="who no-print" onClick={signOut} title="Sign out" role="button" tabIndex={0}
-                 onKeyDown={e => { if (e.key === 'Enter') signOut(); }}>
+            <div className="who no-print">
               <span className="av">{initials(user.name)}</span>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <div className="wn">{user.name}</div>
                 <div className="wr">{user.email}</div>
               </div>
-              <span style={{ color: 'var(--ink-4)', marginLeft: 4 }}><Ic n="out" s={15} /></span>
             </div>
           </header>
 
