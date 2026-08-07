@@ -307,6 +307,73 @@ export function Note({ kind = 'i', children }: { kind?: 'i' | 'w' | 'b' | 'o'; c
   );
 }
 
+/* --------------------------------------------------------------- lifecycle
+   B11. The audit answer to "what happened to this filing, in what order, and
+   who did it". Rendered from review_actions, which already records every
+   transition with actor, timestamp, from/to status and comment — so this is
+   a view of the audit trail, not a second telling of it that could disagree. */
+export type TrailEntry = {
+  id: number;
+  action: string;
+  comment: string | null;
+  from_status?: string | null;
+  to_status?: string | null;
+  created_at: string;
+  actor: string | null;
+  actor_role?: string | null;
+};
+
+const ACTION_META: Record<string, { label: string; tone: '' | 'ok' | 'bad' | 'warn'; icon: string }> = {
+  submit:   { label: 'Evidence submitted',   tone: '',     icon: 'upload' },
+  resubmit: { label: 'Resubmitted',          tone: '',     icon: 'swap' },
+  approve:  { label: 'Approved',             tone: 'ok',   icon: 'check2' },
+  reject:   { label: 'Rejected',             tone: 'bad',  icon: 'x' },
+  query:    { label: 'Query raised',         tone: 'warn', icon: 'alert' },
+  escalate: { label: 'Escalated',            tone: 'bad',  icon: 'arrowR' },
+  reopen:   { label: 'Reopened',             tone: 'warn', icon: 'swap' },
+  reassign: { label: 'Reassigned',           tone: '',     icon: 'users' },
+  comment:  { label: 'Comment',              tone: '',     icon: 'doc' },
+};
+
+export function Lifecycle({ trail, limit }: { trail: TrailEntry[]; limit?: number }) {
+  if (!trail.length) {
+    return <div className="small muted">Nothing has happened to this obligation yet.</div>;
+  }
+  /* Oldest first: a lifecycle is read forwards, unlike an activity feed. */
+  const rows = limit ? trail.slice(-limit) : trail;
+  return (
+    <div className="tl">
+      {rows.map(t => {
+        const m = ACTION_META[t.action] ?? { label: t.action, tone: '' as const, icon: 'info' };
+        return (
+          <div className={`tl-i ${m.tone}`} key={t.id}>
+            <div className="row g6 wrap">
+              <Ic n={m.icon} s={13} />
+              <span className="small strong">{m.label}</span>
+              {t.to_status && t.from_status && t.from_status !== t.to_status && (
+                <span className="tiny dim">
+                  {t.from_status} <Ic n="arrowR" s={10} /> {t.to_status}
+                </span>
+              )}
+            </div>
+            <div className="tiny muted mt4">
+              {t.actor ?? 'System'}{t.actor_role ? ` · ${t.actor_role}` : ''}
+            </div>
+            {t.comment && (
+              <div className="small mt4" style={{
+                borderLeft: '2px solid var(--line)', paddingLeft: 8, color: 'var(--ink-2)',
+              }}>
+                {t.comment}
+              </div>
+            )}
+            <div className="tl-m mt4">{fmtDateTime(t.created_at)}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function Spinner({ label }: { label?: string }) {
   return (
     <div className="row g8 muted small" style={{ padding: '18px 0' }}>

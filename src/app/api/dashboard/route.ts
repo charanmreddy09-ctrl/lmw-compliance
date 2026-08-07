@@ -151,10 +151,91 @@ export const GET = handler(async (req: Request) => {
      WHERE 1=1 ${scope ? 'AND (ddc.entity_id IS NULL OR ddc.entity_id = ANY($1))' : ''}
      ORDER BY ddc.changed_at DESC LIMIT 10`, scope ? [scope] : []);
 
+  /* ------------------------------------------------------------ B1 / B2
+     What moved yesterday, and what is exposed right now. Both feed panels
+     that answer "what should I do today" rather than "what are the totals",
+     so they are counted here in one round trip alongside everything else
+     rather than becoming a second request from the client.
+
+     Deliberately NOT gated by `due_date <= CURRENT_DATE` the way the score
+     aggregates are: a brief about today has to be able to mention something
+     falling due tomorrow. */
+  const [movementRows, severityRows, tomorrowRows] = await Promise.all([
+    /* Yesterday's workflow movements, by action. One grouped scan rather
+       than four counting queries. */
+    q<{ action: string; n: string }>(`
+      SELECT ra.action, count(*) AS n
+        FROM review_actions ra
+        JOIN obligations o ON o.id = ra.obligation_id
+       WHERE o.deleted_at IS NULL
+         AND ra.created_at >= date_trunc('day', now()) - INTERVAL '1 day'
+         AND ra.created_at <  date_trunc('day', now())
+         ${scopeSql}
+       GROUP BY ra.action`, scopeVals),
+
+    /* Open exposure by how critical the law is — the "immediate attention"
+       split. Open means due and not yet approved. */
+    q<{ risk_level: string; n: string; overdue: string }>(`
+      SELECT c.risk_level,
+             count(*) AS n,
+             count(*) FILTER (WHERE o.filed_date IS NULL AND o.due_date < CURRENT_DATE) AS overdue
+        FROM obligations o
+        JOIN compliances c ON c.id = o.compliance_id
+       WHERE o.deleted_at IS NULL
+         AND o.status NOT IN ('Approved','Not Applicable')
+         AND o.due_date <= CURRENT_DATE
+         ${scopeSql}
+       GROUP BY c.risk_level`, scopeVals),
+
+    q<{ id: string; title: string; entity: string; country_code: string; risk_level: string }>(`
+      SELECT o.id, c.title, e.short_name AS entity, e.country_code, c.risk_level
+        FROM obligations o
+        JOIN compliances c ON c.id = o.compliance_id
+        JOIN entities e ON e.id = o.entity_id
+       WHERE o.deleted_at IS NULL
+         AND o.status NOT IN ('Approved','Not Applicable')
+         AND o.due_date = CURRENT_DATE + 1
+         ${scopeSql}
+       ORDER BY CASE c.risk_level WHEN 'Critical' THEN 1 WHEN 'High' THEN 2 WHEN 'Medium' THEN 3 ELSE 4 END
+       LIMIT 6`, scopeVals),
+  ]);
+
+  const movement: Record<string, number> = {};
+  movementRows.forEach(r => { movement[r.action] = Number(r.n); });
+
+  const severity = { Critical: 0, High: 0, Medium: 0, Low: 0 };
+  const severityOverdue = { Critical: 0, High: 0, Medium: 0, Low: 0 };
+  severityRows.forEach(r => {
+    if (r.risk_level in severity) {
+      severity[r.risk_level as keyof typeof severity] = Number(r.n);
+      severityOverdue[r.risk_level as keyof typeof severityOverdue] = Number(r.overdue);
+    }
+  });
+
+  /* Countries carrying open critical or high-risk exposure, weakest first —
+     the "where do I look" line of the brief. */
+  const countriesAtRisk = [...byCountry]
+    .filter(c => c.overdue > 0 || c.score < 75)
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 4)
+    .map(c => ({ code: c.countryCode, name: c.countryName, score: c.score, overdue: c.overdue }));
+
+  const brief = {
+    approved: movement.approve ?? 0,
+    submitted: movement.submit ?? 0,
+    queries: movement.query ?? 0,
+    rejected: movement.reject ?? 0,
+    escalated: movement.escalate ?? 0,
+    severity,
+    severityOverdue,
+    dueTomorrow: tomorrowRows,
+    countriesAtRisk,
+  };
+
   return ok({
     overall, byEntity, byCountry, byCountryScore, byCategoryScore, entities, byDivision, byCategory, heat, trend,
     upcoming, activity, dueChanges, futureByCountry, futureOverall, availableFys, selectedFy: fy,
-    pendingReview, pendingReviewByCountry,
+    pendingReview, pendingReviewByCountry, brief,
     scopeLabel: scope ? `${entities.length} assigned entit${entities.length === 1 ? 'y' : 'ies'}` : 'All entities',
     syncedAt: new Date().toISOString(),
   });

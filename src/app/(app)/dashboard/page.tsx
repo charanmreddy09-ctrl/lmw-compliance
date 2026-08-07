@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  Ic, Dial, Kpi, Note, Spinner, StatusPill, DataTable,
+  Ic, Dial, Kpi, Note, Spinner, StatusPill, DataTable, RISK_TONE,
   scoreColor, fmtDate, fmtDateTime, daysFromToday, downloadFile, useToast,
 } from '@/components/ui';
 import type { SessionUser } from '@/lib/rbac';
@@ -29,6 +29,14 @@ type DueChange = {
   reason: string | null; changed_at: string; title: string | null; entity: string | null;
 };
 type TrendPoint = { label: string; monthEnd: string; score: number; total: number; approved: number; overdue: number };
+/** B1 / B2 — yesterday's movement and today's open exposure. */
+type Sev = { Critical: number; High: number; Medium: number; Low: number };
+type Brief = {
+  approved: number; submitted: number; queries: number; rejected: number; escalated: number;
+  severity: Sev; severityOverdue: Sev;
+  dueTomorrow: { id: string; title: string; entity: string; country_code: string; risk_level: string }[];
+  countriesAtRisk: { code: string; name: string; score: number; overdue: number }[];
+};
 type Payload = {
   overall: ScoreBreakdown;
   byEntity: Record<string, ScoreBreakdown>;
@@ -45,6 +53,7 @@ type Payload = {
   dueChanges: DueChange[];
   pendingReview: number;
   pendingReviewByCountry: Record<string, number>;
+  brief: Brief;
   scopeLabel: string;
   futureByCountry: Record<string, number>;
   futureOverall: number;
@@ -65,6 +74,11 @@ const ACTION_LABEL: Record<string, string> = {
   comment: 'commented on', reassign: 'reassigned', delegate: 'delegated',
   escalate: 'escalated', resubmit: 'resubmitted', reopen: 'reopened',
 };
+/** Severity chip tones, matching the compliance library's own risk levels. */
+const SEV_TONE: Record<string, string> = {
+  Critical: 'p-bad', High: 'p-bad', Medium: 'p-warn', Low: 'p-mute',
+};
+
 const ACTION_TONE: Record<string, string> = {
   approve: 'ok', reject: 'bad', query: 'warn', escalate: 'bad', submit: '', resubmit: '',
 };
@@ -185,6 +199,14 @@ export default function Dashboard() {
     return n != null && n <= WINDOW_DAYS[upcomingWindow];
   });
 
+  /* B1 / B2 — the brief reads from counts the API already returned; nothing
+     here re-derives a figure that exists server-side. */
+  const b = d.brief;
+  const movedYesterday = b.approved + b.submitted + b.queries + b.rejected + b.escalated;
+  const attention = b.severity.Critical + b.severity.High + b.severity.Medium + b.severity.Low;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
   const TABS = [
     { id: 'overview', label: 'Overview' },
     { id: 'overall', label: 'Overall by country' },
@@ -208,6 +230,106 @@ export default function Dashboard() {
 
   return (
     <>
+      {/* --------------------------------------------------------- B1 / B2
+          What happened yesterday and what is exposed today, stated before
+          any chart. Everything here is a link: a brief that cannot be acted
+          on from where it is read is just a newsletter. Nothing is invented —
+          each figure is a count the API already returns. */}
+      <div className="card mb16">
+        <div className="card-h">
+          <div>
+            <h3>{greeting}, {user.name.split(' ')[0]}</h3>
+            <span className="tiny muted">
+              {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+              {' · '}{d.scopeLabel}
+            </span>
+          </div>
+          {attention > 0 && (
+            <span className={`pill ${b.severity.Critical > 0 ? 'p-bad' : 'p-warn'}`}>
+              {attention} item{attention === 1 ? '' : 's'} need attention
+            </span>
+          )}
+        </div>
+        <div className="card-b grid g-3" style={{ gap: 20 }}>
+          <div>
+            <div className="cap mb8">Since yesterday</div>
+            {movedYesterday === 0 ? (
+              <div className="small muted">No workflow activity was recorded yesterday.</div>
+            ) : (
+              <div className="stack">
+                {b.approved > 0 && <div><span className="k">Approved</span><span className="v num" style={{ color: 'var(--ok-700)' }}>{b.approved}</span></div>}
+                {b.submitted > 0 && <div><span className="k">Submitted for review</span><span className="v num">{b.submitted}</span></div>}
+                {b.queries > 0 && <div><span className="k">Queries raised</span><span className="v num" style={{ color: 'var(--warn-700)' }}>{b.queries}</span></div>}
+                {b.rejected > 0 && <div><span className="k">Rejected</span><span className="v num" style={{ color: 'var(--bad-600)' }}>{b.rejected}</span></div>}
+                {b.escalated > 0 && <div><span className="k">Escalated</span><span className="v num" style={{ color: 'var(--bad-600)' }}>{b.escalated}</span></div>}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="cap mb8">Immediate attention</div>
+            {attention === 0 ? (
+              <div className="small muted">Nothing due is currently unapproved.</div>
+            ) : (
+              <div className="stack">
+                {(['Critical', 'High', 'Medium', 'Low'] as const)
+                  .filter(k => b.severity[k] > 0)
+                  .map(k => (
+                    <div key={k}>
+                      <span className="k">
+                        <span className={`pill ${SEV_TONE[k]} nd tiny`} style={{ marginRight: 6 }}>{k}</span>
+                        {b.severityOverdue[k] > 0 && (
+                          <span className="tiny" style={{ color: 'var(--bad-600)' }}>{b.severityOverdue[k]} overdue</span>
+                        )}
+                      </span>
+                      <span className="v num">{b.severity[k]}</span>
+                    </div>
+                  ))}
+              </div>
+            )}
+            {isCfo && awaitingReviewer > 0 && (
+              <div className="tiny muted mt8">{awaitingReviewer} submission{awaitingReviewer === 1 ? '' : 's'} awaiting a reviewer&apos;s decision.</div>
+            )}
+          </div>
+
+          <div>
+            <div className="cap mb8">Watch list</div>
+            {b.dueTomorrow.length === 0 && b.countriesAtRisk.length === 0 && (
+              <div className="small muted">Nothing falls due tomorrow and no country is currently flagged.</div>
+            )}
+            {b.dueTomorrow.length > 0 && (
+              <div className="mb8">
+                <div className="tiny dim mb4">Due tomorrow</div>
+                {b.dueTomorrow.slice(0, 3).map(t => (
+                  <Link key={t.id} href={`/register?obligation=${t.id}`}
+                        className="small row g6" style={{ padding: '2px 0', color: 'var(--ink)' }}>
+                    <span className={`pill ${RISK_TONE[t.risk_level] ?? 'p-mute'} nd tiny`}>{t.risk_level}</span>
+                    <span className="grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {t.title}
+                    </span>
+                    <span className="tiny dim">{t.entity}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+            {b.countriesAtRisk.length > 0 && (
+              <div>
+                <div className="tiny dim mb4">Countries to watch</div>
+                <div className="row g6 wrap">
+                  {b.countriesAtRisk.map(c => (
+                    <button key={c.code} className="pill p-mute"
+                            style={{ cursor: 'pointer', border: '1px solid var(--line)' }}
+                            onClick={() => { setCountryFilter(c.code); setTab('overall'); }}>
+                      {c.name} <span className="num strong" style={{ color: scoreColor(c.score) }}>{c.score.toFixed(0)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* ------------------------------------------------------------ headline */}
       <div className="card mb16">
         <div className="card-h">
