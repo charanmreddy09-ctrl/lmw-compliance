@@ -4,7 +4,6 @@
    so the interface has one consistent visual voice.
    =========================================================================== */
 import React, { useEffect, useMemo, useState, useCallback, createContext, useContext } from 'react';
-import Link from 'next/link';
 
 /* -------------------------------------------------------------- icons */
 const P: Record<string, string> = {
@@ -43,12 +42,6 @@ const P: Record<string, string> = {
   sheet: 'M4 4.5h16v15H4zM4 9.5h16M9 9.5v10M14 9.5v10',
   swap: 'M4 8h13l-3-3M20 16H7l3 3',
   back: 'M19 12H5M11 6l-6 6 6 6',
-  up: 'M6 15l6-6 6 6',
-  down: 'M6 9l6 6 6-6',
-  flat: 'M5 12h14',
-  dots: 'M12 5.5h.01M12 12h.01M12 18.5h.01',
-  inbox: 'M3.5 13.5h4l1.5 3h6l1.5-3h4M3.5 13.5L6 5h12l2.5 8.5v5A1.5 1.5 0 0 1 19 20H5a1.5 1.5 0 0 1-1.5-1.5v-5z',
-  flag: 'M5.5 21V4.5h13l-2.5 4 2.5 4h-13',
 };
 
 export function Ic({ n, s = 16, c }: { n: string; s?: number; c?: string }) {
@@ -288,52 +281,6 @@ export function Dial({ value, size = 92, label = 'SCORE' }: { value: number; siz
   );
 }
 
-/** Score band, in the words the board uses rather than a number alone. */
-export function scoreBand(v: number): { label: string; tone: Tone } {
-  if (v >= 90) return { label: 'Strong', tone: 'ok' };
-  if (v >= 80) return { label: 'Good', tone: 'ok' };
-  if (v >= 70) return { label: 'Acceptable', tone: 'warn' };
-  if (v >= 55) return { label: 'Needs attention', tone: 'warn' };
-  return { label: 'Critical', tone: 'bad' };
-}
-
-/* ------------------------------------------------------------------ gauge
-   The headline score. A 270° arc rather than a full ring: the gap at the
-   foot gives the figure somewhere to sit and reads as a dial an executive
-   already knows how to interpret. */
-export function Gauge({ value, size = 172 }: { value: number; size?: number }) {
-  const r = 54, C = 2 * Math.PI * r, SWEEP = 0.75;
-  const v = Math.max(0, Math.min(100, value));
-  const band = scoreBand(v);
-  return (
-    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
-      <svg width={size} height={size} viewBox="0 0 132 132" aria-hidden="true">
-        <circle cx="66" cy="66" r={r} fill="none" stroke="var(--line-2)" strokeWidth="11"
-                strokeLinecap="round" strokeDasharray={`${SWEEP * C} ${C}`}
-                transform="rotate(135 66 66)" />
-        <circle cx="66" cy="66" r={r} fill="none" stroke={scoreColor(v)} strokeWidth="11"
-                strokeLinecap="round" strokeDasharray={`${SWEEP * C * (v / 100)} ${C}`}
-                transform="rotate(135 66 66)"
-                style={{ transition: 'stroke-dasharray .5s ease' }} />
-      </svg>
-      <div style={{
-        position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center', gap: 2,
-      }}>
-        <div className="num" style={{
-          fontSize: 38, fontWeight: 600, lineHeight: 1, letterSpacing: '-.035em', color: 'var(--navy-900)',
-        }}>
-          {v.toFixed(1)}
-        </div>
-        <div className="tiny dim num">out of 100</div>
-        <div style={{ marginTop: 4, color: scoreColor(v), fontSize: 11.5, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase' }}>
-          {band.label}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* -------------------------------------------------------------- misc */
 export function Kpi({ label, value, sub, bar, barColor }: {
   label: string; value: React.ReactNode; sub?: React.ReactNode; bar?: number; barColor?: string;
@@ -346,87 +293,6 @@ export function Kpi({ label, value, sub, bar, barColor }: {
       {bar != null && (
         <div className="bar"><i style={{ width: `${Math.max(0, Math.min(100, bar))}%`, background: barColor ?? scoreColor(bar) }} /></div>
       )}
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------- executive tiles
-   The four figures a CFO reads first. Each one is a link: a number on this
-   dashboard is never a dead end, it always opens the register or report that
-   explains it. Tone drives only the icon chip — the figure itself stays in
-   ink so a wall of tiles doesn't turn into a wall of colour. */
-export type Tone = 'bad' | 'warn' | 'info' | 'ok' | 'neutral';
-
-const TONE_CHIP: Record<Tone, { bg: string; fg: string }> = {
-  bad:     { bg: 'var(--bad-100)',  fg: 'var(--bad-600)' },
-  warn:    { bg: 'var(--warn-100)', fg: 'var(--warn-600)' },
-  info:    { bg: 'var(--info-100)', fg: 'var(--info-600)' },
-  ok:      { bg: 'var(--ok-100)',   fg: 'var(--ok-600)' },
-  neutral: { bg: 'var(--navy-100)', fg: 'var(--navy-700)' },
-};
-
-export function Stat({ label, value, unit, sub, icon, tone = 'neutral', href, cta }: {
-  label: string; value: React.ReactNode; unit?: string; sub?: React.ReactNode;
-  icon: string; tone?: Tone; href?: string; cta?: string;
-}) {
-  const chip = TONE_CHIP[tone];
-  const body = (
-    <div className="stat">
-      <div className="stat-top">
-        <div className="stat-l">{label}</div>
-        <span className="stat-ic" style={{ background: chip.bg, color: chip.fg }}>
-          <Ic n={icon} s={17} />
-        </span>
-      </div>
-      <div className="stat-v num">{value}{unit && <span className="u">{unit}</span>}</div>
-      {sub && <div className="stat-s">{sub}</div>}
-      {href && cta && <div className="stat-go">{cta} <Ic n="arrowR" s={13} /></div>}
-    </div>
-  );
-  if (!href) return <div className="card">{body}</div>;
-  return <Link href={href} className="card card-link">{body}</Link>;
-}
-
-/** Month-on-month movement. Direction, not just sign — "+2.3 vs last month". */
-export function Delta({ value, suffix = 'vs last month' }: { value: number; suffix?: string }) {
-  const dir = value > 0.05 ? 'up' : value < -0.05 ? 'down' : 'flat';
-  const icon = dir === 'up' ? 'up' : dir === 'down' ? 'down' : 'flat';
-  const txt = dir === 'flat' ? 'No change' : `${value > 0 ? '+' : ''}${value.toFixed(1)}`;
-  return (
-    <span className={`delta ${dir}`}>
-      <Ic n={icon} s={14} /> <span className="num">{txt}</span>
-      <span style={{ color: 'var(--ink-4)', fontWeight: 400 }}>{suffix}</span>
-    </span>
-  );
-}
-
-/** One row of the Today's Priorities panel: count, action, owner/context. */
-export function Priority({ count, title, sub, icon, tone, href }: {
-  count: number; title: string; sub: string; icon: string; tone: Tone; href: string;
-}) {
-  const chip = TONE_CHIP[tone];
-  return (
-    <Link href={href} className="prio-i">
-      <span className="prio-ic" style={{ background: chip.bg, color: chip.fg }}>
-        <Ic n={icon} s={16} />
-      </span>
-      <span className="prio-n" style={{ minWidth: 26 }}>{count}</span>
-      <span className="grow">
-        <span className="prio-t" style={{ display: 'block' }}>{title}</span>
-        <span className="prio-s" style={{ display: 'block' }}>{sub}</span>
-      </span>
-      <span className="go"><Ic n="chevR" s={15} /></span>
-    </Link>
-  );
-}
-
-/** Labelled horizontal bar — country and division comparisons. */
-export function HBar({ label, value, sub }: { label: string; value: number; sub?: string }) {
-  return (
-    <div className="hbar" title={sub}>
-      <span className="hbar-l">{label}</span>
-      <span className="hbar-t"><i style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: scoreColor(value) }} /></span>
-      <span className="hbar-v" style={{ color: scoreColor(value) }}>{value.toFixed(1)}</span>
     </div>
   );
 }
