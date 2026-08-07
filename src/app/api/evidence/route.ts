@@ -9,7 +9,7 @@ import { handler, ok, fail, auth, writeAudit } from '@/lib/api';
 import { q, one, tx } from '@/lib/db';
 import { canFileEntity, canReviewEntity, canSeeEntity } from '@/lib/rbac';
 import { validateUpload, MAX_UPLOAD_BYTES, isAllowedEvidence } from '@/lib/validate';
-import { extractFiledDate } from '@/lib/extract-date';
+import { extractFiledDate, extractDueDate } from '@/lib/extract-date';
 import { createHash } from 'node:crypto';
 
 export const dynamic = 'force-dynamic';
@@ -107,7 +107,19 @@ export const POST = handler(async (req: Request) => {
   const f = file as File;
   const bytes = Buffer.from(await f.arrayBuffer());
   const checksum = createHash('sha256').update(bytes).digest('hex').slice(0, 32);
-  const filedDate = await extractFiledDate(bytes, f.type || 'application/octet-stream');
+  const mime = f.type || 'application/octet-stream';
+  const filedDate = await extractFiledDate(bytes, mime);
+
+  /* The document usually prints the deadline it was filed against. Read it and
+     compare, so a platform due date that has drifted from what the authority
+     actually published becomes visible instead of silently scoring filings
+     against the wrong date. The reading never changes the due date — see
+     below, it raises a proposal for someone to approve. */
+  const docDue = await extractDueDate(bytes, mime);
+  const oblDue = await one<{ due_date: string; country_code: string }>(
+    `SELECT o.due_date::text AS due_date, e.country_code
+       FROM obligations o JOIN entities e ON e.id = o.entity_id WHERE o.id = $1`, [obligationId]);
+  const dueMismatch = !!(docDue && oblDue && docDue.date !== oblDue.due_date.slice(0, 10));
 
   const validation = await validateUpload({
     obligationId,
@@ -120,6 +132,18 @@ export const POST = handler(async (req: Request) => {
     declaredFiledDate: filedDate.date,
     docType,
   });
+
+  /* Surfaced to the preparer now and to the reviewer later, alongside every
+     other check. Never blocking: the document is fine, it is the register's
+     due date that may be wrong, and refusing the filing would punish the
+     preparer for a data problem they did not cause. */
+  if (dueMismatch && docDue && oblDue) {
+    validation.checks.push({
+      key: 'duedate_doc', label: 'Due date matches the document', result: 'warn', blocking: false,
+      detail: `${docDue.note} The register has ${oblDue.due_date}. Raised for confirmation against the authority's portal — the due date has not been changed.`,
+    });
+    if (validation.outcome === 'clean') validation.outcome = 'warnings';
+  }
 
   /* Refuse uploads that fail a blocking check. A late filing is not blocking:
      the delay is recorded and flagged, but the document is still accepted. */
@@ -165,6 +189,39 @@ export const POST = handler(async (req: Request) => {
        VALUES ($1,$2,'submit',$3,$4,$5,'Submitted',$6)`,
       [obligationId, ev.rows[0].id, u.id, u.role, obl.status,
        comment2 || `Evidence uploaded (${f.name}). Automatic validation: ${validation.outcome}.`]);
+
+    /* The document disagrees with the due date on file. Recorded as a pending
+       proposal — the same status and approval path the due-date sync job
+       uses — so somebody holding duedate.manage decides, and the register is
+       untouched until they do. One proposal per obligation per document
+       date: re-uploading the same document must not queue it twice. */
+    if (dueMismatch && docDue && oblDue) {
+      const already = await c.query(
+        `SELECT 1 FROM due_date_changes
+          WHERE obligation_id = $1 AND new_due_date = $2::date AND status = 'pending'`,
+        [obligationId, docDue.date]);
+      if (!already.rowCount) {
+        await c.query(
+          `INSERT INTO due_date_changes (obligation_id, country_code, entity_id,
+              old_due_date, new_due_date, reason, source, status)
+           VALUES ($1,$2,$3,$4::date,$5::date,$6,'evidence-read','pending')`,
+          [obligationId, oblDue.country_code, obl.entity_id, oblDue.due_date, docDue.date,
+           `${docDue.note} The register has ${oblDue.due_date}. Read from "${f.name}" on upload — confirm against the authority's portal before accepting.`]);
+
+        const deciders = await c.query<{ id: string }>(
+          `SELECT u.id FROM users u JOIN roles ro ON ro.id = u.role_id
+            WHERE ro.permissions @> '["duedate.manage"]'::jsonb AND u.status = 'active'`);
+        for (const dec of deciders.rows) {
+          await c.query(
+            `INSERT INTO notifications (user_id, country_code, entity_id, kind, title, body, link, severity, is_popup)
+             VALUES ($1,$2,$3,'due_date_proposal',$4,$5,$6,'warning',FALSE)`,
+            [dec.id, oblDue.country_code, obl.entity_id,
+             'Uploaded document disagrees with a due date',
+             `${docDue.note} The register has ${oblDue.due_date} for ${obl.period_label}. Confirm against the portal before accepting.`,
+             `/compliance`]);
+        }
+      }
+    }
 
     /* tell the reviewer there is something waiting */
     const rv = await c.query<{ reviewer_id: string | null; title: string; country_code: string }>(
