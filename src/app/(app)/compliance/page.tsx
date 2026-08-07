@@ -151,6 +151,14 @@ export default function Library() {
     return () => clearTimeout(t);
   }, [load, q]);
 
+  /* Auto-sync: a reviewer signing off a compliance from a different session
+     shows up here without needing a manual reload — matches the dashboard's
+     own polling pattern. */
+  useEffect(() => {
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, [load]);
+
   const jurisForCountry = useMemo(
     () => ref.jurisdictions.filter(j => !country || j.country_code === country), [ref, country]);
 
@@ -207,7 +215,7 @@ export default function Library() {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error);
-      toast(c.verified ? 'Verification removed' : 'Signed off', 'ok');
+      toast(c.verified ? 'Reviewed status removed' : 'Reviewed', 'ok');
       load();
     } catch (e) { toast(e instanceof Error ? e.message : 'Could not update.', 'bad'); }
   }
@@ -222,7 +230,7 @@ export default function Library() {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error);
-      toast(`Signed off ${j.verified.length} compliance${j.verified.length === 1 ? '' : 's'}${j.skipped ? ` (${j.skipped} already signed off)` : ''}.`, 'ok');
+      toast(`Reviewed ${j.verified.length} compliance${j.verified.length === 1 ? '' : 's'}${j.skipped ? ` (${j.skipped} already reviewed)` : ''}.`, 'ok');
       setSelected(new Set());
       load();
     } catch (e) { toast(e instanceof Error ? e.message : 'Could not sign off the selected items.', 'bad'); }
@@ -256,12 +264,10 @@ export default function Library() {
     { key: 'frequency', label: 'Frequency', sort: true, cls: 'small nowrap' },
     { key: 'risk_level', label: 'Risk', sort: true,
       render: r => <span className={`pill ${RISK_TONE[r.risk_level] ?? 'p-mute'}`}>{r.risk_level}</span> },
-    { key: 'instances', label: 'In use', sort: true, cls: 'right num', value: r => Number(r.instances),
-      render: r => Number(r.instances) ? r.instances : <span className="dim">—</span> },
-    { key: 'verified', label: 'Verified', sort: true, value: r => (r.verified ? 1 : 0),
+    { key: 'verified', label: 'Status', sort: true, value: r => (r.verified ? 1 : 0),
       render: r => r.verified
-        ? <span className="pill p-ok" title={`${r.verified_by ?? ''} ${r.verified_on ?? ''}`}>Signed off</span>
-        : <span className="pill p-mute">Pending</span> },
+        ? <span className="pill p-ok" title={`${r.verified_by ?? ''} ${r.verified_on ?? ''}`}>Reviewed</span>
+        : <span className="pill p-mute">New obligation/amendment</span> },
     { key: 'actions', label: '', cls: 'nowrap no-print',
       render: r => (
         <div className="row g4">
@@ -347,8 +353,8 @@ export default function Library() {
           <option value="">All countries</option>
           {ref.countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
         </select>
-        <select value={juris} onChange={e => setJuris(e.target.value)}>
-          <option value="">All levels</option>
+        <select value={juris} onChange={e => setJuris(e.target.value)} aria-label="Filter by jurisdiction">
+          <option value="">All jurisdictions</option>
           {jurisForCountry.map(j => (
             <option key={j.id} value={j.id}>{j.name}{j.level !== 'federal' ? ` (${j.level})` : ''}</option>
           ))}
@@ -366,9 +372,9 @@ export default function Library() {
           {FREQS.map(f => <option key={f} value={f}>{f}</option>)}
         </select>
         <select value={verified} onChange={e => setVerified(e.target.value)}>
-          <option value="">Any verification</option>
-          <option value="yes">Signed off</option>
-          <option value="no">Pending sign-off</option>
+          <option value="">Any status</option>
+          <option value="yes">Reviewed</option>
+          <option value="no">New obligation/amendment</option>
         </select>
         <label className="small row g6" style={{ cursor: 'pointer' }}>
           <input type="checkbox" checked={archived} onChange={e => setArchived(e.target.checked)} style={{ width: 'auto' }} />
@@ -382,10 +388,10 @@ export default function Library() {
 
       <div className="grid g-4 mb16">
         {[
-          ['Records shown', stats.total, 'Matching the current filters'],
+          ['Compliance list', stats.total, 'Matching the current filters'],
           ['State / provincial', stats.state, 'Apply only where registered'],
-          ['Signed off by adviser', stats.verified, `${stats.total ? Math.round((stats.verified / stats.total) * 100) : 0}% of shown`],
-          ['Generating obligations', stats.inUse, 'Live in the register'],
+          ['Reviewed', stats.verified, `${stats.total ? Math.round((stats.verified / stats.total) * 100) : 0}% of shown`],
+          ['Applicable Obligations', stats.inUse, 'Live in the register'],
         ].map(([l, v, s]) => (
           <div className="card kpi" key={String(l)}>
             <div className="kl">{l}</div><div className="kv">{v as number}</div><div className="ks">{s}</div>
@@ -600,8 +606,8 @@ export default function Library() {
             <span className="pill p-mute nd">{detail.frequency}</span>
             <span className={`pill ${RISK_TONE[detail.risk_level] ?? 'p-mute'}`}>{detail.risk_level}</span>
             {detail.verified
-              ? <span className="pill p-ok">Signed off{detail.verified_by ? ` — ${detail.verified_by}` : ''}</span>
-              : <span className="pill p-warn">Awaiting adviser sign-off</span>}
+              ? <span className="pill p-ok">Reviewed{detail.verified_by ? ` — ${detail.verified_by}` : ''}</span>
+              : <span className="pill p-warn">New obligation/amendment</span>}
           </div>
           <dl className="kv">
             <dt>Applicable law</dt><dd>{detail.applicable_law ?? '—'}</dd>

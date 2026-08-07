@@ -116,6 +116,15 @@ CREATE TABLE IF NOT EXISTS user_entities (
   PRIMARY KEY (user_id, entity_id)
 );
 
+-- Which compliance categories ("laws") a preparer may see and file for. No
+-- rows for a user means unrestricted (every category) — this is opt-in, so
+-- assigning entities without assigning categories keeps today's behaviour.
+CREATE TABLE IF NOT EXISTS user_categories (
+  user_id         UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  category_id     TEXT         NOT NULL REFERENCES categories(id),
+  PRIMARY KEY (user_id, category_id)
+);
+
 -- CFO delegates review authority; the platform honours active delegations.
 CREATE TABLE IF NOT EXISTS delegations (
   id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),

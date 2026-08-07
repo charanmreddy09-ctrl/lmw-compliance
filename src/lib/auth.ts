@@ -80,6 +80,9 @@ export async function getSession(): Promise<SessionUser | null> {
     [userId]
   );
 
+  const categoryRows = await q<{ category_id: string }>(
+    `SELECT category_id FROM user_categories WHERE user_id = $1`, [userId]);
+
   // Active delegations widen review scope without changing the user's role.
   const delegated = await q<{ scope_type: string; scope_value: string | null }>(
     `SELECT scope_type, scope_value FROM delegations
@@ -115,6 +118,7 @@ export async function getSession(): Promise<SessionUser | null> {
     entities: scope.map(s => s.entity_id),
     canFile: scope.filter(s => s.can_file).map(s => s.entity_id),
     canReview: [...canReview],
+    allowedCategories: categoryRows.length ? categoryRows.map(c => c.category_id) : null,
   };
 }
 

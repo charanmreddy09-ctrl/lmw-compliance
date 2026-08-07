@@ -54,6 +54,12 @@ function ReportsInner() {
 
   const meta = REPORTS.find(r => r.id === active);
   const cols = data?.rows.length ? Object.keys(data.rows[0]) : [];
+  /* A column is numeric if every row's value for it is a number (or blank) —
+     checked across all rows, not just the first, so a column doesn't end up
+     with its header aligned one way and its body cells the other. Centred,
+     not right-aligned, to match a scorecard's usual layout. */
+  const isNumericCol = (rows: Record<string, unknown>[], key: string) =>
+    rows.length > 0 && rows.every(r => typeof r[key] === 'number' || r[key] == null || r[key] === '');
 
   function cell(v: unknown, key: string) {
     if (v === null || v === undefined || v === '') return <span className="dim">—</span>;
@@ -151,13 +157,13 @@ function ReportsInner() {
                   <div className="tw">
                     <table className="dt">
                       <thead><tr>{cols.map(c => (
-                        <th key={c} className={typeof data.rows[0][c] === 'number' ? 'right' : ''}>{c}</th>
+                        <th key={c} className={isNumericCol(data.rows, c) ? 'center' : ''}>{c}</th>
                       ))}</tr></thead>
                       <tbody>
                         {data.rows.map((r, i) => (
                           <tr key={i}>
                             {cols.map(c => (
-                              <td key={c} className={typeof r[c] === 'number' ? 'right' : ''}>
+                              <td key={c} className={isNumericCol(data.rows, c) ? 'center' : ''}>
                                 {cell(r[c], c)}
                               </td>
                             ))}
@@ -177,14 +183,14 @@ function ReportsInner() {
                     <table className="dt">
                       <thead><tr>
                         {(s.rows[0] ? Object.keys(s.rows[0]) : []).map(c => (
-                          <th key={c} className={typeof s.rows[0][c] === 'number' ? 'right' : ''}>{c}</th>
+                          <th key={c} className={isNumericCol(s.rows, c) ? 'center' : ''}>{c}</th>
                         ))}
                       </tr></thead>
                       <tbody>
                         {s.rows.map((r, i) => (
                           <tr key={i}>
                             {Object.keys(r).map(c => (
-                              <td key={c} className={typeof r[c] === 'number' ? 'right' : ''}>
+                              <td key={c} className={isNumericCol(s.rows, c) ? 'center' : ''}>
                                 {cell(r[c], c)}
                               </td>
                             ))}

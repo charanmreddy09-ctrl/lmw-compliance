@@ -16,6 +16,10 @@ export const GET = handler(async (req: Request) => {
   if (p.get('entity')) add('o.entity_id = ?', p.get('entity'));
   if (p.get('country')) add('e.country_code = ?', p.get('country'));
   if (p.get('category')) add('cat.id = ?', p.get('category'));
+  /* Enforced regardless of what the client asks for — a preparer restricted
+     to specific laws never sees obligations outside them, even by request
+     param or direct link. */
+  if (u.allowedCategories) add('cat.id = ANY(?)', u.allowedCategories);
   if (p.get('status')) add('o.status = ?', p.get('status'));
   if (p.get('risk')) add('c.risk_level = ?', p.get('risk'));
   if (p.get('mine') === 'true') add('o.assigned_to = ?', u.id);

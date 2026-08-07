@@ -254,39 +254,35 @@ export type CountryRow = {
   score: number;
 };
 
-/** Country-wise applicable vs followed — the CFO "Overall" tab. */
+/** Country-wise applicable vs followed — the CFO "Overall" tab and the
+    country/executive/board reports. Scores come from countryScores(), which
+    runs through the same build() formula (including the delay penalty) as
+    every entity and overall score — country, entity and overall figures
+    must always foot to the same numbers when scoped the same way. */
 export async function countryBreakdown(entityIds?: string[], fy?: number): Promise<CountryRow[]> {
   const { sql, vals } = scopeFilter(entityIds, fy);
-  const rows = await q<{
-    country_code: string; country_name: string; entities: string;
-    total: string; approved: string; overdue: string;
-  }>(
-    `SELECT c.code AS country_code, c.name AS country_name,
-            count(DISTINCT o.entity_id)                                   AS entities,
-            count(*)                                                      AS total,
-            count(*) FILTER (WHERE o.status = 'Approved')                  AS approved,
-            count(*) FILTER (WHERE o.status <> 'Approved'
-                               AND o.filed_date IS NULL
-                               AND o.due_date < CURRENT_DATE)              AS overdue
-       FROM obligations o
-       JOIN entities e ON e.id = o.entity_id
-       JOIN countries c ON c.code = e.country_code
-      WHERE o.deleted_at IS NULL AND o.status <> 'Not Applicable'
-        AND o.due_date <= CURRENT_DATE ${sql}
-      GROUP BY c.code, c.name
-      ORDER BY c.name`,
-    vals
-  );
-  return rows.map(r => {
-    const total = Number(r.total), approved = Number(r.approved), overdue = Number(r.overdue);
-    const base = total ? (approved / total) * 100 : 0;
-    const pen = total ? Math.min(15, (overdue / total) * 100 * 0.5) : 0;
+  const [names, scores] = await Promise.all([
+    q<{ country_code: string; country_name: string; entities: string }>(
+      `SELECT c.code AS country_code, c.name AS country_name,
+              count(DISTINCT o.entity_id) AS entities
+         FROM obligations o
+         JOIN entities e ON e.id = o.entity_id
+         JOIN countries c ON c.code = e.country_code
+        WHERE o.deleted_at IS NULL AND o.status <> 'Not Applicable'
+          AND o.due_date <= CURRENT_DATE ${sql}
+        GROUP BY c.code, c.name
+        ORDER BY c.name`,
+      vals),
+    countryScores(entityIds, fy),
+  ]);
+  return names.map(r => {
+    const s = scores[r.country_code] ?? null;
     return {
       countryCode: r.country_code,
       countryName: r.country_name,
       entities: Number(r.entities),
-      total, approved, overdue,
-      score: Math.round(Math.max(0, base - pen) * 10) / 10,
+      total: s?.total ?? 0, approved: s?.approved ?? 0, overdue: s?.overdue ?? 0,
+      score: s?.score ?? 0,
     };
   });
 }

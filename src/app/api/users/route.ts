@@ -19,17 +19,19 @@ export const GET = handler(async () => {
               FROM user_entities ue WHERE ue.user_id = u.id) AS entities,
            (SELECT bool_or(ue.can_review) FROM user_entities ue WHERE ue.user_id = u.id) AS can_review,
            (SELECT bool_or(ue.can_file) FROM user_entities ue WHERE ue.user_id = u.id) AS can_file,
+           (SELECT array_agg(uc.category_id) FROM user_categories uc WHERE uc.user_id = u.id) AS category_ids,
            iu.email AS invited_by_email
       FROM users u
       JOIN roles r ON r.id = u.role_id
       LEFT JOIN users iu ON iu.id = u.invited_by
      WHERE u.deleted_at IS NULL
      ORDER BY r.name, u.full_name`);
-  const [roles, entities] = await Promise.all([
+  const [roles, entities, categories] = await Promise.all([
     q(`SELECT id, name, description, permissions FROM roles ORDER BY name`),
     q(`SELECT id, short_name, name, country_code FROM entities WHERE deleted_at IS NULL ORDER BY country_code, name`),
+    q(`SELECT id, name FROM categories ORDER BY sort_order`),
   ]);
-  return ok({ users, roles, entities });
+  return ok({ users, roles, entities, categories });
 });
 
 export const POST = handler(async (req: Request) => {
@@ -37,6 +39,7 @@ export const POST = handler(async (req: Request) => {
   const b = await body<{
     email: string; full_name: string; role_id: string;
     entities: string[]; can_file?: boolean; can_review?: boolean;
+    category_ids?: string[];
     approve?: boolean; password?: string;
   }>(req);
 
@@ -71,6 +74,11 @@ export const POST = handler(async (req: Request) => {
          VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
         [row.rows[0].id, ent, !!b.can_file, !!b.can_review]);
     }
+    for (const cat of b.category_ids ?? []) {
+      await c.query(
+        `INSERT INTO user_categories (user_id, category_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
+        [row.rows[0].id, cat]);
+    }
     return row.rows[0].id;
   });
 
@@ -92,6 +100,7 @@ export const PATCH = handler(async (req: Request) => {
   const b = await body<{
     id: string; status?: 'pending' | 'active' | 'disabled'; role_id?: string;
     full_name?: string; entities?: string[]; can_file?: boolean; can_review?: boolean;
+    category_ids?: string[];
     resetPassword?: boolean;
   }>(req);
   if (!b.id) return fail(400, 'User id is required.');
@@ -120,6 +129,13 @@ export const PATCH = handler(async (req: Request) => {
         await c.query(
           `INSERT INTO user_entities (user_id, entity_id, can_file, can_review)
            VALUES ($1,$2,$3,$4)`, [b.id, ent, !!b.can_file, !!b.can_review]);
+      }
+    }
+
+    if (b.category_ids) {
+      await c.query(`DELETE FROM user_categories WHERE user_id = $1`, [b.id]);
+      for (const cat of b.category_ids) {
+        await c.query(`INSERT INTO user_categories (user_id, category_id) VALUES ($1,$2)`, [b.id, cat]);
       }
     }
   });

@@ -1,6 +1,6 @@
 import { handler, ok, fail, auth, body, writeAudit } from '@/lib/api';
 import { q, one } from '@/lib/db';
-import { canSeeEntity } from '@/lib/rbac';
+import { canSeeEntity, canSeeCategory } from '@/lib/rbac';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +9,7 @@ export const GET = handler(async (_req: Request, ctx: { params: { id: string } }
   const row = await one<Record<string, unknown>>(`
     SELECT o.*, c.code, c.title, c.applicable_law, c.form_reference, c.authority,
            c.frequency, c.due_rule, c.risk_level, c.evidence_required, c.penalty,
-           c.government_site, cat.name AS category,
+           c.government_site, cat.id AS category_id, cat.name AS category,
            j.name AS jurisdiction, e.short_name AS entity, e.name AS entity_name,
            e.country_code, co.name AS country_name,
            au.full_name AS assigned_to_name, rv.full_name AS reviewer_name
@@ -25,6 +25,8 @@ export const GET = handler(async (_req: Request, ctx: { params: { id: string } }
 
   if (!row) return fail(404, 'Obligation not found.');
   if (!canSeeEntity(u, String(row.entity_id))) return fail(403, 'You are not assigned to this entity.');
+  if (!canSeeCategory(u, String(row.category_id)))
+    return fail(403, 'Your role is not assigned this compliance category.');
 
   const [files, trail, changes] = await Promise.all([
     q(`SELECT id, file_name, mime_type, size_bytes, version, doc_type, period_label,

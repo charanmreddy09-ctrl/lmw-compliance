@@ -172,7 +172,7 @@ export const PATCH = handler(async (req: Request) => {
      b.evidence_required ? JSON.stringify(b.evidence_required) : null,
      b.penalty ?? null, b.risk_level ?? null,
      b.applies_if_listed ?? null, b.applies_if_factory ?? null, b.applies_if_importer ?? null,
-     b.verified ?? null, u.name]);
+     b.verified ?? null]);
 
   await q(`INSERT INTO compliance_history (compliance_id, changed_by, change_type, before_data, after_data, note)
            VALUES ($1,$2,'update',$3::jsonb,$4::jsonb,'Edited in the application')`,

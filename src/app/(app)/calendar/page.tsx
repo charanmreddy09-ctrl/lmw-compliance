@@ -49,6 +49,7 @@ export default function Calendar() {
   const [day, setDay] = useState<string | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [view, setView] = useState<'month' | 'list'>('month');
+  const [dayFilter, setDayFilter] = useState<'all' | 'yesterday' | 'today' | 'tomorrow'>('all');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -115,6 +116,35 @@ export default function Calendar() {
   const changedIds = useMemo(() => new Set(changes.map(c => c.obligation_id)), [changes]);
   const todayIso = new Date().toISOString().slice(0, 10);
 
+  /* The Today/Tomorrow/Yesterday dropdown filters the List view down to one
+     specific real-world day, regardless of which month is being browsed —
+     switching to it also navigates month/year so that day's events are
+     actually loaded, then filters client-side to just that date. */
+  const dayFilterIso = useMemo(() => {
+    if (dayFilter === 'all') return null;
+    const base = new Date();
+    const offset = dayFilter === 'yesterday' ? -1 : dayFilter === 'tomorrow' ? 1 : 0;
+    const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() + offset));
+    return d.toISOString().slice(0, 10);
+  }, [dayFilter]);
+
+  function applyDayFilter(f: typeof dayFilter) {
+    setDayFilter(f);
+    if (f === 'all') return;
+    const d = new Date(dayFilterIsoFor(f));
+    setYear(d.getUTCFullYear()); setMonth(d.getUTCMonth() + 1);
+    setView('list');
+  }
+  function dayFilterIsoFor(f: typeof dayFilter): string {
+    const base = new Date();
+    const offset = f === 'yesterday' ? -1 : f === 'tomorrow' ? 1 : 0;
+    return new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() + offset)).toISOString();
+  }
+
+  const listEvents = useMemo(
+    () => dayFilterIso ? events.filter(e => String(e.due_date).slice(0, 10) === dayFilterIso) : events,
+    [events, dayFilterIso]);
+
   const stats = useMemo(() => ({
     total: events.length,
     approved: events.filter(e => e.status === 'Approved').length,
@@ -123,6 +153,7 @@ export default function Calendar() {
   }), [events]);
 
   function shift(n: number) {
+    setDayFilter('all');
     const d = new Date(Date.UTC(year, month - 1 + n, 1));
     setYear(d.getUTCFullYear()); setMonth(d.getUTCMonth() + 1);
   }
@@ -138,24 +169,32 @@ export default function Calendar() {
           <button className="btn btn-s" onClick={() => shift(-1)} aria-label="Previous month">
             <Ic n="back" s={13} />
           </button>
-          <button className="btn btn-s" onClick={() => { setYear(now.getUTCFullYear()); setMonth(now.getUTCMonth() + 1); }}>
+          <button className="btn btn-s" onClick={() => { setDayFilter('all'); setYear(now.getUTCFullYear()); setMonth(now.getUTCMonth() + 1); }}>
             Today
           </button>
           <button className="btn btn-s" onClick={() => shift(1)} aria-label="Next month">
             <Ic n="chevR" s={13} />
           </button>
         </div>
-        <h2 style={{ minWidth: 168 }}>{MONTHS[month - 1]} {year}</h2>
 
         <select value={entity} onChange={e => setEntity(e.target.value)}>
-          <option value="">All my entities</option>
+          <option value="">Entities</option>
           {entities.map(e => <option key={e.id} value={e.id}>{e.short_name} ({e.country_code})</option>)}
         </select>
 
         <div className="row g4">
+          <select value={dayFilter} onChange={e => applyDayFilter(e.target.value as typeof dayFilter)}
+                  aria-label="Filter to a specific day">
+            <option value="all">Full month</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="today">Today</option>
+            <option value="tomorrow">Tomorrow</option>
+          </select>
           <button className={`btn btn-s${view === 'month' ? ' btn-p' : ''}`} onClick={() => setView('month')}>Month</button>
           <button className={`btn btn-s${view === 'list' ? ' btn-p' : ''}`} onClick={() => setView('list')}>List</button>
         </div>
+
+        <h2 style={{ minWidth: 168 }}>{MONTHS[month - 1]} {year}</h2>
 
         <div className="grow" />
         {canManage && (
@@ -169,8 +208,8 @@ export default function Calendar() {
       <div className="grid g-4 mb16">
         {[
           ['Falling due this month', stats.total, 'Across the selected scope'],
-          ['Already approved', stats.approved, 'Evidence accepted'],
-          ['Still open', stats.open, 'Needs filing or review'],
+          ['Approved', stats.approved, 'Evidence accepted'],
+          ['Open', stats.open, 'Needs filing or review'],
           ['Overdue', stats.overdue, 'Past due, not filed'],
         ].map(([l, v, s]) => (
           <div className="card kpi" key={String(l)}>
@@ -249,10 +288,14 @@ export default function Calendar() {
                 <th>Risk</th><th>Status</th>
               </tr></thead>
               <tbody>
-                {events.length === 0 && (
-                  <tr><td colSpan={6}><div className="empty">Nothing falls due in {MONTHS[month - 1]} {year}.</div></td></tr>
+                {listEvents.length === 0 && (
+                  <tr><td colSpan={6}><div className="empty">
+                    {dayFilter === 'all'
+                      ? `Nothing falls due in ${MONTHS[month - 1]} ${year}.`
+                      : `Nothing falls due ${dayFilter}.`}
+                  </div></td></tr>
                 )}
-                {events.map(e => (
+                {listEvents.map(e => (
                   <tr key={e.id} className="click"
                       onClick={() => { window.location.href = `/register?obligation=${e.id}`; }}>
                     <td className="num nowrap">{fmtDate(String(e.due_date))}

@@ -195,9 +195,6 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
     }, {
       Metric: 'Queries open with preparers', Value: overall.queryRaised,
       Basis: 'Reviewer raised a query and returned the item',
-    }, {
-      Metric: 'Average filing delay', Value: `${overall.avgDelayDays} days`,
-      Basis: 'Across obligations filed after the due date',
     }];
     extraSheets = [
       { name: 'By country', rows: cb.map(c => ({

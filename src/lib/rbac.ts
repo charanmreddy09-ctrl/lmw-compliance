@@ -15,6 +15,10 @@ export type SessionUser = {
   entities: string[];      // '*' means all
   canFile: string[];
   canReview: string[];
+  /** Compliance categories ("laws") this user is restricted to — null means
+      unrestricted (every category). Assigned by an Admin when creating or
+      editing a preparer; every other role is unrestricted by default. */
+  allowedCategories: string[] | null;
 };
 
 export function can(user: SessionUser | null, perm: Permission): boolean {
@@ -46,6 +50,11 @@ export function canFileEntity(user: SessionUser | null, entityId: string): boole
   if (!user) return false;
   if (!can(user, 'compliance.file')) return false;
   return user.canFile.includes('*') || user.canFile.includes(entityId);
+}
+
+export function canSeeCategory(user: SessionUser | null, categoryId: string): boolean {
+  if (!user) return false;
+  return user.allowedCategories === null || user.allowedCategories.includes(categoryId);
 }
 
 /** The CFO deliberately does not review individual filings. */

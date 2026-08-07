@@ -11,10 +11,12 @@ type User = {
   id: string; email: string; full_name: string; role_id: string; role_name: string;
   status: string; must_reset: boolean; last_login_at: string | null; created_at: string;
   entities: string | null; can_review: boolean | null; can_file: boolean | null;
+  category_ids: string[] | null;
   invited_by_email: string | null;
 };
 type Role = { id: string; name: string; description: string | null; permissions: string[] };
 type Ent = { id: string; short_name: string; name: string; country_code: string };
+type Cat = { id: string; name: string };
 type Deleg = {
   id: string; scope_type: string; scope_value: string | null;
   valid_from: string; valid_to: string | null; note: string | null; is_active: boolean;
@@ -36,6 +38,7 @@ export default function Admin() {
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [ents, setEnts] = useState<Ent[]>([]);
+  const [cats, setCats] = useState<Cat[]>([]);
   const [delegs, setDelegs] = useState<Deleg[]>([]);
   const [dRefs, setDRefs] = useState<{
     candidates: { id: string; full_name: string; email: string; role_name: string }[];
@@ -62,7 +65,7 @@ export default function Admin() {
       if (perms.includes('users.manage')) {
         tasks.push(fetch('/api/users').then(async r => {
           const d = await r.json();
-          if (r.ok) { setUsers(d.users); setRoles(d.roles); setEnts(d.entities); }
+          if (r.ok) { setUsers(d.users); setRoles(d.roles); setEnts(d.entities); setCats(d.categories); }
         }));
       }
       tasks.push(fetch('/api/delegations').then(async r => {
@@ -131,6 +134,11 @@ export default function Admin() {
         <div className="t2 row g4 mt4">
           {r.can_file && <span className="pill p-mute nd tiny">can file</span>}
           {r.can_review && <span className="pill p-info nd tiny">can review</span>}
+          {!!r.category_ids?.length && (
+            <span className="pill p-warn nd tiny" title={r.category_ids.join(', ')}>
+              {r.category_ids.length} categor{r.category_ids.length === 1 ? 'y' : 'ies'} only
+            </span>
+          )}
         </div>
       </>) },
     { key: 'last_login_at', label: 'Last sign-in', sort: true, cls: 'small nowrap',
@@ -365,7 +373,7 @@ export default function Admin() {
       )}
 
       {invite && (
-        <InviteModal roles={roles} entities={ents}
+        <InviteModal roles={roles} entities={ents} categories={cats}
                      onClose={() => setInvite(false)}
                      onCreated={c => { setInvite(false); setCreated(c); loadAll(); }} />
       )}
@@ -387,7 +395,7 @@ export default function Admin() {
       )}
 
       {editUser && (
-        <ScopeModal user={editUser} entities={ents} roles={roles}
+        <ScopeModal user={editUser} entities={ents} roles={roles} categories={cats}
                     onClose={() => setEditUser(null)}
                     onSaved={() => { setEditUser(null); loadAll(); }} />
       )}
@@ -401,8 +409,8 @@ export default function Admin() {
 }
 
 /* ------------------------------------------------------------------ invite */
-function InviteModal({ roles, entities, onClose, onCreated }: {
-  roles: Role[]; entities: Ent[];
+function InviteModal({ roles, entities, categories, onClose, onCreated }: {
+  roles: Role[]; entities: Ent[]; categories: Cat[];
   onClose: () => void;
   onCreated: (c: { email: string; initialPassword: string; note: string }) => void;
 }) {
@@ -412,6 +420,8 @@ function InviteModal({ roles, entities, onClose, onCreated }: {
   const [role, setRole] = useState('PREPARER');
   const [all, setAll] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
+  const [allCats, setAllCats] = useState(true);
+  const [pickedCats, setPickedCats] = useState<string[]>([]);
   const [canFile, setCanFile] = useState(true);
   const [canReview, setCanReview] = useState(false);
   const [approve, setApprove] = useState(false);
@@ -437,6 +447,7 @@ function InviteModal({ roles, entities, onClose, onCreated }: {
           email, full_name: name, role_id: role,
           entities: all ? ['*'] : picked,
           can_file: canFile, can_review: canReview, approve,
+          category_ids: role === 'PREPARER' && !allCats ? pickedCats : [],
         }),
       });
       const j = await res.json();
@@ -514,6 +525,34 @@ function InviteModal({ roles, entities, onClose, onCreated }: {
         </div>
       </div>
 
+      {role === 'PREPARER' && (
+        <div className="f">
+          <label>Compliance categories (laws) this preparer can file</label>
+          <label className="small row g6 mb8" style={{ cursor: 'pointer' }}>
+            <input type="checkbox" checked={allCats} onChange={e => setAllCats(e.target.checked)} style={{ width: 'auto' }} />
+            All categories
+          </label>
+          {!allCats && (
+            <div style={{
+              maxHeight: 190, overflowY: 'auto', border: '1px solid var(--line)',
+              borderRadius: 'var(--r)', padding: 8,
+            }}>
+              {categories.map(cat => (
+                <label key={cat.id} className="small row g6" style={{ cursor: 'pointer', padding: '2px 0' }}>
+                  <input type="checkbox" checked={pickedCats.includes(cat.id)} style={{ width: 'auto' }}
+                         onChange={e => setPickedCats(p => e.target.checked ? [...p, cat.id] : p.filter(x => x !== cat.id))} />
+                  {cat.name}
+                </label>
+              ))}
+            </div>
+          )}
+          <div className="h">
+            Restricting this leaves every other compliance category invisible to this preparer —
+            in the register and when filing. Leave "All categories" ticked for no restriction.
+          </div>
+        </div>
+      )}
+
       <div className="f">
         <label className="small row g6" style={{ cursor: 'pointer' }}>
           <input type="checkbox" checked={approve} onChange={e => setApprove(e.target.checked)} style={{ width: 'auto' }} />
@@ -529,8 +568,8 @@ function InviteModal({ roles, entities, onClose, onCreated }: {
 }
 
 /* ------------------------------------------------------------------- scope */
-function ScopeModal({ user, entities, roles, onClose, onSaved }: {
-  user: User; entities: Ent[]; roles: Role[]; onClose: () => void; onSaved: () => void;
+function ScopeModal({ user, entities, roles, categories, onClose, onSaved }: {
+  user: User; entities: Ent[]; roles: Role[]; categories: Cat[]; onClose: () => void; onSaved: () => void;
 }) {
   const toast = useToast();
   const wasAll = (user.entities ?? '').includes('All entities');
@@ -541,6 +580,8 @@ function ScopeModal({ user, entities, roles, onClose, onSaved }: {
     wasAll ? [] : (user.entities ?? '').split(',').map(s => s.trim()).filter(Boolean));
   const [canFile, setCanFile] = useState(!!user.can_file);
   const [canReview, setCanReview] = useState(!!user.can_review);
+  const [allCats, setAllCats] = useState(!(user.category_ids?.length));
+  const [pickedCats, setPickedCats] = useState<string[]>(user.category_ids ?? []);
   const [busy, setBusy] = useState(false);
 
   async function save() {
@@ -551,6 +592,7 @@ function ScopeModal({ user, entities, roles, onClose, onSaved }: {
         body: JSON.stringify({
           id: user.id, role_id: role, full_name: name,
           entities: all ? ['*'] : picked, can_file: canFile, can_review: canReview,
+          category_ids: allCats ? [] : pickedCats,
         }),
       });
       const j = await res.json();
@@ -612,6 +654,28 @@ function ScopeModal({ user, entities, roles, onClose, onSaved }: {
           </label>
         </div>
       </div>
+
+      {role === 'PREPARER' && (
+        <div className="f">
+          <label>Compliance categories (laws) this preparer can file</label>
+          <label className="small row g6 mb8" style={{ cursor: 'pointer' }}>
+            <input type="checkbox" checked={allCats} onChange={e => setAllCats(e.target.checked)} style={{ width: 'auto' }} />
+            All categories
+          </label>
+          {!allCats && (
+            <div style={{ maxHeight: 190, overflowY: 'auto', border: '1px solid var(--line)', borderRadius: 'var(--r)', padding: 8 }}>
+              {categories.map(cat => (
+                <label key={cat.id} className="small row g6" style={{ cursor: 'pointer', padding: '2px 0' }}>
+                  <input type="checkbox" checked={pickedCats.includes(cat.id)} style={{ width: 'auto' }}
+                         onChange={e => setPickedCats(p => e.target.checked ? [...p, cat.id] : p.filter(x => x !== cat.id))} />
+                  {cat.name}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <Note kind="i">Changing entity access rewrites this user&apos;s scope. It takes effect the next
         time they load a page.</Note>
     </Modal>

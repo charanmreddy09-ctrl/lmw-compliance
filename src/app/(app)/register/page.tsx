@@ -48,7 +48,6 @@ function RegisterInner() {
   const [entity, setEntity] = useState(search.get('entity') ?? '');
   const [status, setStatus] = useState('');
   const [cat, setCat] = useState('');
-  const [scopeMine, setScopeMine] = useState(false);
   const [q, setQ] = useState('');
 
   const [openId, setOpenId] = useState<string | null>(search.get('obligation'));
@@ -84,10 +83,9 @@ function RegisterInner() {
     (!entity || r.entity_id === entity) &&
     (!status || r.status === status) &&
     (!cat || r.category === cat) &&
-    (!scopeMine || (user && r.assigned_to === user.id)) &&
     (!q || `${r.title} ${r.code} ${r.reference} ${r.form_reference ?? ''} ${r.period_label}`
       .toLowerCase().includes(q.toLowerCase()))
-  ), [rows, entity, status, cat, scopeMine, q, user]);
+  ), [rows, entity, status, cat, q]);
 
   const counts = useMemo(() => ({
     actionable: shown.filter(r => ['Not Started', 'Evidence Pending', 'Overdue', 'Query Raised', 'Rejected'].includes(r.status)).length,
@@ -140,13 +138,6 @@ function RegisterInner() {
           <Ic n="search" s={14} />
           <input placeholder="Search compliance, form or reference…" value={q} onChange={e => setQ(e.target.value)} />
         </div>
-        {user?.permissions.includes('compliance.file') && (
-          <label className="small row g6" style={{ cursor: 'pointer' }}>
-            <input type="checkbox" checked={scopeMine} onChange={e => setScopeMine(e.target.checked)}
-                   style={{ width: 'auto' }} />
-            Assigned to me
-          </label>
-        )}
         <div className="grow" />
         <span className="small muted">{shown.length} of {rows.length}</span>
         <button className="btn btn-s" onClick={load} disabled={loading}>
