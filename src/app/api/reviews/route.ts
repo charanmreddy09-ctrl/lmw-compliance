@@ -10,6 +10,11 @@ import { canFileEntity, canReviewEntity, canSeeEntity } from '@/lib/rbac';
 
 export const dynamic = 'force-dynamic';
 
+/* Target turnaround for a review, in hours. Matches the first rung of the
+   escalation matrix (a reminder once evidence has sat unreviewed for two
+   days), so the workbench and the escalation job describe the same promise. */
+const SLA_REVIEW_HOURS = 48;
+
 type Action = 'approve' | 'reject' | 'query' | 'comment' | 'escalate' | 'reopen' | 'resubmit';
 
 const TRANSITION: Record<Action, { to: string | null; stage: string | null; needsComment: boolean }> = {
@@ -48,7 +53,60 @@ export const GET = handler(async () => {
        CASE o.status WHEN 'Submitted' THEN 1 WHEN 'Under Review' THEN 2 ELSE 3 END,
        o.due_date`, all ? [] : [u.canReview]);
 
-  return ok({ queue: rows, canReviewAll: all });
+  /* ------------------------------------------------------------------ B8
+     The reviewer's own performance, over a rolling 90 days. Review time is
+     measured from the submission that put the item in front of them to the
+     decision they took on it — not from the obligation's creation, which
+     would charge the reviewer for however long the preparer sat on it.
+
+     A decision is matched to the most recent 'submit' that preceded it, so a
+     query-and-resubmit cycle is counted as two separate reviews rather than
+     one very slow one. */
+  const stats = await one<{
+    decisions: string; approved: string; queried: string; rejected: string;
+    avg_hours: string | null; within_sla: string; measured: string;
+  }>(`
+    WITH decided AS (
+      SELECT ra.action,
+             ra.created_at AS decided_at,
+             (SELECT max(s.created_at)
+                FROM review_actions s
+               WHERE s.obligation_id = ra.obligation_id
+                 AND s.action = 'submit'
+                 AND s.created_at <= ra.created_at) AS submitted_at
+        FROM review_actions ra
+        JOIN obligations o ON o.id = ra.obligation_id
+       WHERE ra.actor_id = $1
+         AND ra.action IN ('approve','reject','query')
+         AND ra.created_at > now() - INTERVAL '90 days'
+         AND o.deleted_at IS NULL
+    )
+    SELECT count(*)                                                   AS decisions,
+           count(*) FILTER (WHERE action = 'approve')                 AS approved,
+           count(*) FILTER (WHERE action = 'query')                   AS queried,
+           count(*) FILTER (WHERE action = 'reject')                  AS rejected,
+           count(*) FILTER (WHERE submitted_at IS NOT NULL)           AS measured,
+           avg(EXTRACT(EPOCH FROM (decided_at - submitted_at)) / 3600)
+             FILTER (WHERE submitted_at IS NOT NULL)                  AS avg_hours,
+           count(*) FILTER (WHERE submitted_at IS NOT NULL
+                              AND decided_at - submitted_at <= INTERVAL '${SLA_REVIEW_HOURS} hours') AS within_sla
+      FROM decided`, [u.id]);
+
+  const measured = Number(stats?.measured ?? 0);
+  return ok({
+    queue: rows,
+    canReviewAll: all,
+    slaHours: SLA_REVIEW_HOURS,
+    stats: {
+      decisions: Number(stats?.decisions ?? 0),
+      approved: Number(stats?.approved ?? 0),
+      queried: Number(stats?.queried ?? 0),
+      rejected: Number(stats?.rejected ?? 0),
+      avgHours: stats?.avg_hours ? Math.round(Number(stats.avg_hours) * 10) / 10 : null,
+      slaRate: measured ? Math.round((Number(stats?.within_sla ?? 0) / measured) * 1000) / 10 : null,
+      measured,
+    },
+  });
 });
 
 export const POST = handler(async (req: Request) => {

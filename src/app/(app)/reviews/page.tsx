@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import {
   Ic, Modal, Note, Spinner, StatusPill, DataTable, ValidationChecks, type Col,
   fmtDate, fmtDateTime, fmtBytes, daysFromToday, RISK_TONE, useToast, downloadFile, Kpi,
+  Lifecycle, scoreColor,
 } from '@/components/ui';
 
 type QRow = {
@@ -26,6 +27,11 @@ type EvFile = {
 type Trail = {
   id: number; action: string; comment: string | null; from_status: string | null;
   to_status: string | null; created_at: string; actor: string | null; actor_role: string | null;
+};
+/** B8 — the signed-in reviewer's own record over a rolling 90 days. */
+type Stats = {
+  decisions: number; approved: number; queried: number; rejected: number;
+  avgHours: number | null; slaRate: number | null; measured: number;
 };
 
 const ACTIONS: { id: string; label: string; cls: string; icon: string; needsComment: boolean; hint: string }[] = [
@@ -50,6 +56,8 @@ function ReviewsInner() {
   const [q, setQ] = useState('');
   const [openId, setOpenId] = useState<string | null>(search.get('obligation'));
   const [escRunning, setEscRunning] = useState(false);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [slaHours, setSlaHours] = useState(48);
 
   async function runEscalations() {
     setEscRunning(true);
@@ -73,6 +81,8 @@ function ReviewsInner() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? 'Unable to load the review queue.');
       setRows(d.queue);
+      setStats(d.stats ?? null);
+      setSlaHours(d.slaHours ?? 48);
       setErr(null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Unable to load the review queue.');
@@ -153,6 +163,64 @@ function ReviewsInner() {
         </div>
       </div>
 
+      {/* ------------------------------------------------------------- B8
+          Your own record, not the queue's. The queue says what is left to do;
+          this says how you have been doing it. Measured from the submission
+          that put each item in front of you to the decision you took, over a
+          rolling 90 days — so a query-and-resubmit counts as two reviews
+          rather than one very slow one. */}
+      {stats && stats.decisions > 0 && (
+        <div className="card mb16">
+          <div className="card-h">
+            <div>
+              <h3>Your review record</h3>
+              <span className="tiny muted">Last 90 days · target turnaround {slaHours} hours</span>
+            </div>
+          </div>
+          <div className="card-b row g24 wrap">
+            <div>
+              <div className="tiny dim">Decisions taken</div>
+              <div className="num strong" style={{ fontSize: 22, lineHeight: 1.1 }}>{stats.decisions}</div>
+            </div>
+            <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--line-2)' }} />
+            <div>
+              <div className="tiny dim">Average turnaround</div>
+              <div className="num strong" style={{ fontSize: 22, lineHeight: 1.1 }}>
+                {stats.avgHours == null ? '—' : <>{stats.avgHours}<span style={{ fontSize: 13, fontFamily: 'var(--font-sans)', marginLeft: 2 }}>h</span></>}
+              </div>
+            </div>
+            <div>
+              <div className="tiny dim">Within {slaHours}h</div>
+              <div className="num strong" style={{
+                fontSize: 22, lineHeight: 1.1,
+                color: stats.slaRate == null ? undefined : scoreColor(stats.slaRate),
+              }}>
+                {stats.slaRate == null ? '—' : <>{stats.slaRate}<span style={{ fontSize: 13, fontFamily: 'var(--font-sans)' }}>%</span></>}
+              </div>
+            </div>
+            <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--line-2)' }} />
+            <div>
+              <div className="tiny dim">Approved</div>
+              <div className="num strong" style={{ fontSize: 17, color: 'var(--ok-700)' }}>{stats.approved}</div>
+            </div>
+            <div>
+              <div className="tiny dim">Queried</div>
+              <div className="num strong" style={{ fontSize: 17, color: 'var(--warn-700)' }}>{stats.queried}</div>
+            </div>
+            <div>
+              <div className="tiny dim">Rejected</div>
+              <div className="num strong" style={{ fontSize: 17, color: 'var(--bad-600)' }}>{stats.rejected}</div>
+            </div>
+            {stats.measured < stats.decisions && (
+              <div className="grow tiny dim" style={{ alignSelf: 'flex-end', textAlign: 'right', minWidth: 160 }}>
+                {stats.decisions - stats.measured} decision{stats.decisions - stats.measured === 1 ? '' : 's'} had no
+                matching submission on record and are excluded from the timing figures.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="grid g-4 mb16">
         <Kpi label="Awaiting your review" value={buckets.pending.length}
              sub="Submitted with evidence" barColor="var(--navy-600)"
@@ -217,7 +285,11 @@ function ReviewsInner() {
 /* ========================================================================= */
 function ReviewDrawer({ id, onClose, onDone }: { id: string; onClose: () => void; onDone: () => void }) {
   const toast = useToast();
-  const [d, setD] = useState<{ obligation: Record<string, unknown>; files: EvFile[]; trail: Trail[] } | null>(null);
+  const [d, setD] = useState<{
+    obligation: Record<string, unknown>; files: EvFile[]; trail: Trail[];
+    changes: { old_due_date: string; new_due_date: string; reason: string | null; changed_at: string; source: string | null }[];
+  } | null>(null);
+  const [pane, setPane] = useState<'detail' | 'evidence' | 'timeline'>('detail');
   const [err, setErr] = useState<string | null>(null);
   const [action, setAction] = useState<string>('approve');
   const [comment, setComment] = useState('');
@@ -306,51 +378,93 @@ function ReviewDrawer({ id, onClose, onDone }: { id: string; onClose: () => void
             </Note></div>
           )}
 
-          <dl className="kv mb16">
-            <dt>Entity</dt><dd>{String(o.entity_name)} · {String(o.country_name)}</dd>
-            <dt>Category</dt><dd>{String(o.category)}</dd>
-            <dt>Applicable law</dt><dd>{o.applicable_law ? String(o.applicable_law) : '—'}</dd>
-            <dt>Form / reference</dt><dd>{o.form_reference ? String(o.form_reference) : '—'}</dd>
-            <dt>Due date</dt>
-            <dd className="num strong">{fmtDate(String(o.due_date))}
-              {overdue != null && overdue < 0 && !o.filed_date && (
-                <span style={{ color: 'var(--bad-600)' }}> · {-overdue} d overdue</span>
-              )}</dd>
-            <dt>Date of filing</dt><dd className="num">{fmtDate(o.filed_date ? String(o.filed_date) : null)}</dd>
-            <dt>Filed by</dt><dd>{o.assigned_to_name ? String(o.assigned_to_name) : '—'}</dd>
-            <dt>Assigned reviewer</dt><dd>{o.reviewer_name ? String(o.reviewer_name) : '—'}</dd>
-          </dl>
+          {/* ----------------------------------------------------- B10 / B11
+              A workspace rather than one long scroll: the record, the
+              documents and the full lifecycle are separate panes, while the
+              decision controls opposite stay visible throughout — a reviewer
+              never has to navigate away from what they are deciding in order
+              to see why. */}
+          <div className="tabs no-print" style={{ marginBottom: 12 }}>
+            {([
+              ['detail', 'Overview'],
+              ['evidence', `Evidence (${d.files.length})`],
+              ['timeline', `Timeline (${d.trail.length})`],
+            ] as const).map(([id, label]) => (
+              <button key={id} className={`tab${pane === id ? ' on' : ''}`}
+                      onClick={() => setPane(id)}>{label}</button>
+            ))}
+          </div>
 
-          <div className="cap mb8">Evidence on file ({d.files.length})</div>
-          {d.files.length === 0 && (
-            <Note kind="b">No document is attached. Do not approve — raise a query asking the
-              preparer to upload the filed return.</Note>
+          {pane === 'detail' && (
+            <dl className="kv mb16">
+              <dt>Entity</dt><dd>{String(o.entity_name)} · {String(o.country_name)}</dd>
+              <dt>Category</dt><dd>{String(o.category)}</dd>
+              <dt>Applicable law</dt><dd>{o.applicable_law ? String(o.applicable_law) : '—'}</dd>
+              <dt>Form / reference</dt><dd>{o.form_reference ? String(o.form_reference) : '—'}</dd>
+              <dt>Due date</dt>
+              <dd className="num strong">{fmtDate(String(o.due_date))}
+                {overdue != null && overdue < 0 && !o.filed_date && (
+                  <span style={{ color: 'var(--bad-600)' }}> · {-overdue} d overdue</span>
+                )}</dd>
+              <dt>Date of filing</dt><dd className="num">{fmtDate(o.filed_date ? String(o.filed_date) : null)}</dd>
+              <dt>Filed by</dt><dd>{o.assigned_to_name ? String(o.assigned_to_name) : '—'}</dd>
+              <dt>Assigned reviewer</dt><dd>{o.reviewer_name ? String(o.reviewer_name) : '—'}</dd>
+            </dl>
           )}
-          {d.files.map(f => (
-            <div key={f.id} className="row between g8 wrap"
-                 style={{ padding: '8px 0', borderBottom: '1px solid var(--line-2)' }}>
-              <div className="grow" style={{ minWidth: 0 }}>
-                <div className="row g6">
-                  <Ic n="doc" s={13} />
-                  <span className="small strong" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.file_name}</span>
-                  {f.status === 'Superseded' && <span className="pill p-mute nd tiny">superseded</span>}
+
+          {pane === 'evidence' && (
+            <>
+              {d.files.length === 0 && (
+                <Note kind="b">No document is attached. Do not approve — raise a query asking the
+                  preparer to upload the filed return.</Note>
+              )}
+              {d.files.map(f => (
+                <div key={f.id} className="row between g8 wrap"
+                     style={{ padding: '8px 0', borderBottom: '1px solid var(--line-2)' }}>
+                  <div className="grow" style={{ minWidth: 0 }}>
+                    <div className="row g6">
+                      <Ic n="doc" s={13} />
+                      <span className="small strong" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.file_name}</span>
+                      {f.status === 'Superseded' && <span className="pill p-mute nd tiny">superseded</span>}
+                    </div>
+                    <div className="tiny muted mt4">
+                      v{f.version} · {fmtBytes(Number(f.size_bytes))} · {f.doc_type ?? 'Unclassified'} ·
+                      {' '}uploaded {fmtDateTime(f.uploaded_at)} by {f.uploaded_by_name ?? 'unknown'}
+                    </div>
+                  </div>
+                  <div className="row g6">
+                    <a className="btn btn-xs" href={`/api/evidence/${f.id}`} target="_blank" rel="noopener noreferrer">
+                      <Ic n="eye" s={12} /> View
+                    </a>
+                    <button className="btn btn-xs"
+                            onClick={() => downloadFile(`/api/evidence/${f.id}?dl=1`, f.file_name, toast)}>
+                      <Ic n="download" s={12} />
+                    </button>
+                  </div>
                 </div>
-                <div className="tiny muted mt4">
-                  v{f.version} · {fmtBytes(Number(f.size_bytes))} · {f.doc_type ?? 'Unclassified'} ·
-                  {' '}uploaded {fmtDateTime(f.uploaded_at)} by {f.uploaded_by_name ?? 'unknown'}
-                </div>
-              </div>
-              <div className="row g6">
-                <a className="btn btn-xs" href={`/api/evidence/${f.id}`} target="_blank" rel="noopener noreferrer">
-                  <Ic n="eye" s={12} /> View
-                </a>
-                <button className="btn btn-xs"
-                        onClick={() => downloadFile(`/api/evidence/${f.id}?dl=1`, f.file_name, toast)}>
-                  <Ic n="download" s={12} />
-                </button>
-              </div>
-            </div>
-          ))}
+              ))}
+            </>
+          )}
+
+          {pane === 'timeline' && (
+            <>
+              <Lifecycle trail={d.trail} />
+              {d.changes.length > 0 && (
+                <>
+                  <div className="cap mb8 mt16">Due date changes</div>
+                  {d.changes.map((c, i) => (
+                    <div key={i} className="small" style={{ padding: '6px 0', borderBottom: '1px solid var(--line-2)' }}>
+                      <span className="num">{fmtDate(c.old_due_date)}</span>
+                      {' '}<Ic n="arrowR" s={11} />{' '}
+                      <span className="num strong">{fmtDate(c.new_due_date)}</span>
+                      {c.reason && <div className="tiny muted mt4">{c.reason}</div>}
+                      <div className="tiny dim mt4">{fmtDateTime(c.changed_at)}{c.source ? ` · ${c.source}` : ''}</div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </>
+          )}
         </div>
 
         <div>
@@ -394,17 +508,17 @@ function ReviewDrawer({ id, onClose, onDone }: { id: string; onClose: () => void
                         : 'Any note to record with the approval.'} />
           </div>
 
-          <div className="cap mb8 mt16">History</div>
-          <div className="tl">
-            {d.trail.slice(-6).reverse().map(t => (
-              <div key={t.id} className={`tl-i ${t.action === 'approve' ? 'ok'
-                : t.action === 'reject' ? 'bad' : t.action === 'query' ? 'warn' : ''}`}>
-                <div className="tl-t small"><strong>{t.actor ?? 'System'}</strong> {t.action}</div>
-                {t.comment && <div className="tiny muted mt4">{t.comment}</div>}
-                <div className="tl-m mt4">{fmtDateTime(t.created_at)}</div>
-              </div>
-            ))}
+          {/* The last few events for context while deciding. The Timeline tab
+              opposite carries the complete, audit-grade record. */}
+          <div className="row between g8 mb8 mt16">
+            <span className="cap">Recent history</span>
+            {d.trail.length > 4 && pane !== 'timeline' && (
+              <button className="btn btn-xs no-print" onClick={() => setPane('timeline')}>
+                Full timeline
+              </button>
+            )}
           </div>
+          <Lifecycle trail={d.trail} limit={4} />
         </div>
       </div>
     </Modal>
