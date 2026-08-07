@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  Ic, Dial, Kpi, Note, Spinner, StatusPill, DataTable,
+  Ic, Gauge, Kpi, Note, Spinner, StatusPill, DataTable, Stat, Delta, Priority, HBar, scoreBand,
   scoreColor, fmtDate, fmtDateTime, daysFromToday, downloadFile, useToast,
 } from '@/components/ui';
 import type { SessionUser } from '@/lib/rbac';
@@ -93,11 +93,6 @@ const CAT_TABS = [
 function Pctu() {
   return <span style={{ fontSize: 13, fontFamily: 'var(--font-sans)', fontWeight: 400, marginLeft: 1 }}>%</span>;
 }
-function Pct({ n, of }: { n: number; of: number }) {
-  const pct = of ? Math.round((n / of) * 100) : 0;
-  return <span className="tiny dim" style={{ fontFamily: 'var(--font-sans)', marginLeft: 5 }}>({pct}%)</span>;
-}
-
 export default function Dashboard() {
   const toast = useToast();
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -184,6 +179,53 @@ export default function Dashboard() {
     return n != null && n <= WINDOW_DAYS[upcomingWindow];
   });
 
+  /* --------------------------------------------------------- executive read
+     Everything below is derived from the payload already on screen — no extra
+     request, and every figure traces back to a number the score engine
+     produced, so the tiles can never disagree with the table under them. */
+
+  /* Destinations are role-aware. A preparer has no reports.generate and a CFO
+     deliberately has no review queue, so the same tile points each of them at
+     the screen where they can actually act. */
+  const canReport = user.permissions.includes('reports.generate');
+  const canReview = user.permissions.includes('compliance.review');
+  const overdueHref = canReport ? '/reports?r=overdue' : '/register';
+  const evidenceHref = canReport ? '/reports?r=evidence' : '/register';
+  const reviewHref = canReview ? '/reviews' : isCfo ? '/reports?r=executive' : '/register';
+
+  const trendDelta = d.trend.length >= 2
+    ? d.trend[d.trend.length - 1].score - d.trend[d.trend.length - 2].score
+    : 0;
+
+  /* Critical and high-risk items already past due. Counted from the same
+     45-day window the table below draws on, so the tile and the rows behind
+     it can never tell different stories. */
+  const criticalRisks = d.upcoming.filter(u => {
+    const n = daysFromToday(u.due_date);
+    return n != null && n < 0 && (u.risk_level === 'Critical' || u.risk_level === 'High');
+  }).length;
+  const dueThisWeek = d.upcoming.filter(u => {
+    const n = daysFromToday(u.due_date);
+    return n != null && n >= 0 && n <= 7;
+  }).length;
+  const openQueries = o.queryRaised + o.rejected;
+  const band = scoreBand(o.score);
+
+  /* One sentence explaining the score, chosen by what is actually true rather
+     than a fixed template — the CFO's first question is always "why". */
+  const insight =
+    o.total === 0
+      ? 'No obligations have fallen due in this scope yet, so there is nothing to score.'
+    : o.overdue > 0 && o.overdue / o.total > 0.1
+      ? `${o.overdue} of ${o.total} obligations are past due with no evidence — that is what is holding the score down.`
+    : trendDelta > 0.05
+      ? `Improved on last month: ${o.approved} obligations now carry reviewer-approved evidence.`
+    : trendDelta < -0.05
+      ? `Down on last month — ${o.overdue} overdue and ${awaitingReviewer} still sitting with reviewers.`
+    : awaitingReviewer > 0
+      ? `${awaitingReviewer} submission${awaitingReviewer === 1 ? '' : 's'} awaiting review; clearing them is what moves the score next.`
+      : 'Stable. Evidence coverage and approvals are keeping pace with the filing calendar.';
+
   const TABS = [
     { id: 'overview', label: 'Overview' },
     { id: 'overall', label: 'Overall by country' },
@@ -207,70 +249,75 @@ export default function Dashboard() {
 
   return (
     <>
-      {/* ------------------------------------------------------------ headline */}
-      <div className="card mb16">
-        <div className="card-h">
-          <div>
-            <h3>Group compliance score</h3>
-            <div className="tiny muted mt4">
-              Derived only from obligations carrying reviewer-approved evidence · {d.scopeLabel}
-            </div>
-          </div>
-          <div className="row g12 no-print">
-            <span className="tiny muted" title={new Date(d.syncedAt).toLocaleString()}>
-              <Ic n="swap" s={12} c={syncing ? 'var(--navy-600)' : 'var(--ink-4)'} />
-              {' '}Auto-sync · updated {new Date(d.syncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-            <select value={fyFilter} onChange={e => setFyFilter(e.target.value ? Number(e.target.value) : '')} aria-label="Filter by financial year">
-              {d.availableFys.map(f => <option key={f.startYear} value={f.startYear}>{f.label}</option>)}
-            </select>
-            <select value={countryFilter} onChange={e => setCountryFilter(e.target.value)} aria-label="Filter by country">
-              <option value="">All countries</option>
-              {d.byCountry.map(c => <option key={c.countryCode} value={c.countryCode}>{c.countryName}</option>)}
-            </select>
-            <button className="btn btn-s"
-                    onClick={() => downloadFile('/api/reports/executive?format=xlsx', 'Executive summary.xlsx', toast)}>
-              <Ic n="download" s={13} /> Executive summary
-            </button>
-          </div>
-        </div>
-        <div className="card-b row g24 wrap">
-          <Dial value={o.score} size={112} />
-          <div className="grow" style={{ minWidth: 260 }}>
-            <div className="stack">
-              <div><span className="k">{countryFilter ? 'Total Obligations Applicable' : 'Applicable obligations'}</span><span className="v num">{o.total}</span></div>
-              <div><span className="k">Approved with evidence</span><span className="v num">{o.approved}<Pct n={o.approved} of={o.total} /></span></div>
-              <div><span className="k">Awaiting reviewer</span><span className="v num">{awaitingReviewer}</span></div>
-              <div><span className="k">Query raised / rejected</span><span className="v num">{o.queryRaised + o.rejected}</span></div>
-              <div><span className="k">Not started</span><span className="v num">{o.notStarted + o.evidencePending}</span></div>
-              {o.overdue > 0 && (
-                <div className="tiny" style={{ borderTop: '1px solid var(--line-2)', paddingTop: 6, marginTop: -1, color: 'var(--bad-600)' }}>
-                  {o.overdue} of them are past the due date with no evidence uploaded.
+      {/* --------------------------------------------------------- page chrome
+          Scope controls sit above the content as page chrome rather than
+          inside a card — they govern everything below, so they should not
+          look like they belong to any one panel. */}
+      <div className="page-bar no-print">
+        <select value={fyFilter} onChange={e => setFyFilter(e.target.value ? Number(e.target.value) : '')}
+                aria-label="Filter by financial year">
+          {d.availableFys.map(f => <option key={f.startYear} value={f.startYear}>{f.label}</option>)}
+        </select>
+        <select value={countryFilter} onChange={e => setCountryFilter(e.target.value)}
+                aria-label="Filter by country">
+          <option value="">All countries</option>
+          {d.byCountry.map(c => <option key={c.countryCode} value={c.countryCode}>{c.countryName}</option>)}
+        </select>
+        <span className="grow" />
+        <span className="tiny dim" title={new Date(d.syncedAt).toLocaleString()}>
+          <Ic n="swap" s={12} c={syncing ? 'var(--navy-600)' : 'var(--ink-4)'} />
+          {' '}Synced {new Date(d.syncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+        {canReport && (
+          <button className="btn btn-s"
+                  onClick={() => downloadFile('/api/reports/executive?format=xlsx', 'Executive summary.xlsx', toast)}>
+            <Ic n="download" s={13} /> Executive summary
+          </button>
+        )}
+      </div>
+
+      {/* ------------------------------------------------------ executive row */}
+      <div className="exec-grid mb16">
+        <div className="card hero-card">
+          <div className="hero-b">
+            <Gauge value={o.score} />
+            <div className="hero-fig grow">
+              <div className="cap">Compliance health</div>
+              <div className="row g12 wrap">
+                <span className={`pill ${band.tone === 'ok' ? 'p-ok' : band.tone === 'warn' ? 'p-warn' : 'p-bad'}`}>
+                  {band.label}
+                </span>
+                <Delta value={trendDelta} />
+              </div>
+              <div className="hero-note">{insight}</div>
+              <div className="row g24 wrap mt8">
+                <div>
+                  <div className="tiny dim">Applicable</div>
+                  <div className="num strong" style={{ fontSize: 17 }}>{o.total}</div>
                 </div>
-              )}
-            </div>
-            <div className="row between g12" style={{ marginTop: 10, padding: '8px 10px', background: 'var(--surface-2)', borderRadius: 'var(--r)' }}>
-              <span className="small muted">Future obligations <span className="dim">(not yet due — excluded from the figures above)</span></span>
-              <span className="v num">{futureCount}</span>
-            </div>
-          </div>
-          <div style={{ minWidth: 260 }}>
-            <div className="cap mb8">{activeCat.label} — filing quality</div>
-            <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <Kpi label="Evidence coverage" value={<>{catScore.evidenceCoverage}<Pctu /></>}
-                   sub="Obligations with a document" bar={catScore.evidenceCoverage} />
-              <Kpi label="On-time filing" value={<>{catScore.onTimeRate}<Pctu /></>}
-                   sub="Filed by the due date" bar={catScore.onTimeRate} />
-              <Kpi label="Awaiting review" value={catScore.submitted + catScore.underReview}
-                   sub={isCfo ? 'Across all reviewers' : 'In the review queue'}
-                   bar={catScore.total ? ((catScore.submitted + catScore.underReview) / catScore.total) * 100 : 0}
-                   barColor="var(--navy-600)" />
-              <Kpi label="Average delay" value={<>{catScore.avgDelayDays}<span style={{ fontSize: 13, fontFamily: 'var(--font-sans)', marginLeft: 2 }}>d</span></>}
-                   sub="Where filed after due date"
-                   bar={Math.min(100, catScore.avgDelayDays * 4)} barColor="var(--warn-600)" />
+                <div>
+                  <div className="tiny dim">Approved</div>
+                  <div className="num strong" style={{ fontSize: 17, color: 'var(--ok-700)' }}>{o.approved}</div>
+                </div>
+                <div>
+                  <div className="tiny dim">Not yet due</div>
+                  <div className="num strong" style={{ fontSize: 17, color: 'var(--ink-3)' }}>{futureCount}</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+
+        <Stat label="Critical risks" value={criticalRisks} icon="alert" tone="bad"
+              sub="Critical or high risk, past due" href={overdueHref} cta="View details" />
+        <Stat label="Overdue" value={o.overdue} icon="clock" tone="warn"
+              sub="Past due, no evidence filed" href={overdueHref} cta="View report" />
+        <Stat label="Pending reviews" value={awaitingReviewer} icon="review" tone="info"
+              sub={isCfo ? 'Across all reviewers' : 'Waiting on a decision'} href={reviewHref}
+              cta={canReview ? 'Open queue' : 'View details'} />
+        <Stat label="Evidence coverage" value={o.evidenceCoverage} unit="%" icon="shield"
+              tone={o.evidenceCoverage >= 90 ? 'ok' : 'warn'}
+              sub="Obligations with a document" href={evidenceHref} cta="View evidence" />
       </div>
 
       {o.overdue > 0 && (
@@ -280,7 +327,7 @@ export default function Dashboard() {
             {worst.length > 0 && (
               <>Weakest countries: {worst.map(w => `${w.countryName} (${w.score})`).join(', ')}. </>
             )}
-            <Link href="/reports?r=overdue" className="strong">Open the overdue report</Link>
+            <Link href={overdueHref} className="strong">Open the overdue report</Link>
           </Note>
         </div>
       )}
@@ -300,22 +347,35 @@ export default function Dashboard() {
             {countryFilter ? d.byCountry.find(c => c.countryCode === countryFilter)?.countryName : 'All countries'}
           </span>
         </div>
-        <div className="card-b row g24 wrap">
-          <div className="center" style={{ minWidth: 90 }}>
-            <div className="num strong" style={{ fontSize: 30, color: scoreColor(catPct), lineHeight: 1 }}>
-              {catPct}<span style={{ fontSize: 15, fontFamily: 'var(--font-sans)', marginLeft: 1 }}>%</span>
-            </div>
-            <div className="tiny dim mt4">followed</div>
-          </div>
-          <div className="stack" style={{ width: 300, flexShrink: 0 }}>
-            <div><span className="k">Applicable</span><span className="v num">{catTotals.total}</span></div>
-            <div><span className="k">Approved with evidence</span><span className="v num">{catTotals.approved}</span></div>
-            <div><span className="k">Overdue and unfiled</span>
-              <span className="v num" style={{ color: catTotals.overdue ? 'var(--bad-600)' : undefined }}>{catTotals.overdue}</span></div>
-          </div>
-          <div className="grow" />
-          {catTotals.total === 0 && (
+        {/* One compact strip rather than a second scorecard — the category
+            view answers "how is this act doing", not "what is the group
+            score", which the hero above already owns. */}
+        <div className="card-b">
+          {catTotals.total === 0 ? (
             <div className="small muted">No applicable obligations in this category for the current filter.</div>
+          ) : (
+            <div className="row g24 wrap">
+              <div>
+                <div className="tiny dim">Followed</div>
+                <div className="num strong" style={{ fontSize: 26, lineHeight: 1.1, color: scoreColor(catPct) }}>
+                  {catPct}<span style={{ fontSize: 14, fontFamily: 'var(--font-sans)', marginLeft: 1 }}>%</span>
+                </div>
+              </div>
+              <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--line-2)' }} />
+              {([
+                ['Applicable', catTotals.total, undefined],
+                ['Approved', catTotals.approved, 'var(--ok-700)'],
+                ['Overdue', catTotals.overdue, catTotals.overdue ? 'var(--bad-600)' : undefined],
+                ['Evidence coverage', `${catScore.evidenceCoverage}%`, undefined],
+                ['On-time filing', `${catScore.onTimeRate}%`, undefined],
+                ['Average delay', `${catScore.avgDelayDays} d`, catScore.avgDelayDays > 0 ? 'var(--warn-700)' : undefined],
+              ] as const).map(([label, value, colour]) => (
+                <div key={label}>
+                  <div className="tiny dim">{label}</div>
+                  <div className="num strong" style={{ fontSize: 17, color: colour }}>{value}</div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -331,76 +391,180 @@ export default function Dashboard() {
       {/* ------------------------------------------------------------ OVERVIEW */}
       {tab === 'overview' && (
         <>
-          <div className="card mb16">
-            <div className="card-h"><h3>Recent due date changes</h3></div>
-            <div className="card-b">
-              {d.dueChanges.length === 0 && <div className="small muted">No due date changes recorded.</div>}
-              <div className="grid g-3">
-                {d.dueChanges.slice(0, 6).map(c => (
-                  <div key={c.id} className="row-t g8" style={{ padding: '7px 0', borderBottom: '1px solid var(--line-2)' }}>
-                    <span className="pill p-mute nd tiny">{c.country_code}</span>
-                    <div className="grow">
-                      <div className="small strong">{c.title ?? 'Obligation'}</div>
-                      <div className="tiny muted">
-                        {fmtDate(c.old_due_date)} <Ic n="arrowR" s={10} /> <strong>{fmtDate(c.new_due_date)}</strong>
-                        {c.entity ? ` · ${c.entity}` : ''}
-                      </div>
-                      {c.reason && <div className="tiny dim mt4">{c.reason}</div>}
-                    </div>
-                  </div>
-                ))}
+          <div className="grid g-side-r mb16">
+            {/* ------------------------------------------- today's priorities
+                The action list. Four rows, each a count plus the one thing to
+                do about it, each opening the screen where it gets done. */}
+            <div className="card">
+              <div className="card-h">
+                <h3>Today&apos;s priorities</h3>
+                <span className="tiny dim">{d.scopeLabel}</span>
               </div>
-              {d.dueChanges.length > 0 && (
-                <Link href="/calendar" className="btn btn-s mt12 no-print"><Ic n="cal" s={13} /> Open calendar</Link>
-              )}
+              <div className="prio">
+                <Priority count={o.overdue} icon="alert" tone={o.overdue ? 'bad' : 'ok'}
+                          title={o.overdue ? 'Overdue filings' : 'Nothing overdue'}
+                          sub={o.overdue ? 'Past due with no evidence — act first' : 'Every due obligation has evidence'}
+                          href={overdueHref} />
+                <Priority count={dueThisWeek} icon="cal" tone={dueThisWeek ? 'warn' : 'ok'}
+                          title="Due this week"
+                          sub={dueThisWeek ? 'Falling due in the next 7 days' : 'Nothing falls due in the next 7 days'}
+                          href="/calendar" />
+                <Priority count={awaitingReviewer} icon="review" tone={awaitingReviewer ? 'info' : 'ok'}
+                          title={canReview ? 'Awaiting your approval' : 'Awaiting approval'}
+                          sub={awaitingReviewer ? 'Submitted with evidence, not yet decided' : 'No submissions waiting'}
+                          href={reviewHref} />
+                <Priority count={openQueries} icon="flag" tone={openQueries ? 'warn' : 'ok'}
+                          title={openQueries ? 'Queries and rejections' : 'No outstanding queries'}
+                          sub={openQueries ? 'Returned to the preparer for correction' : 'Nothing sitting with preparers'}
+                          href={canReview ? '/reviews' : '/register'} />
+              </div>
+            </div>
+
+            {/* --------------------------------------------- compliance due
+                The heart of the screen. The row itself opens the obligation;
+                the trailing control is a quiet view action rather than a
+                primary button, so the table reads as a register and not as a
+                column of calls to action. */}
+            <div className="card">
+              <div className="card-h">
+                <div>
+                  <h3>{isCfo ? 'Compliance due' : 'Your compliance due'}</h3>
+                  <span className="tiny muted">{upcomingShown.length} obligation{upcomingShown.length === 1 ? '' : 's'} in this window</span>
+                </div>
+                <div className="seg no-print">
+                  {([['day', 'Today'], ['15d', '15 days'], ['month', '30 days']] as const).map(([id, label]) => (
+                    <button key={id} className={upcomingWindow === id ? 'on' : ''}
+                            onClick={() => setUpcomingWindow(id)}>{label}</button>
+                  ))}
+                </div>
+              </div>
+              <DataTable<Upcoming & Record<string, unknown>>
+                rows={upcomingShown as (Upcoming & Record<string, unknown>)[]}
+                rowKey={r => r.id}
+                pageSize={8}
+                onRow={r => { window.location.href = `/register?obligation=${r.id}`; }}
+                empty="Nothing falls due in this window."
+                cols={[
+                  { key: 'due_date', label: 'Due date', sort: true, cls: 'nowrap',
+                    render: r => <span className="num">{fmtDate(r.due_date)}</span> },
+                  { key: 'title', label: 'Compliance', sort: true, cls: 'w',
+                    render: r => (<><div className="t1">{r.title}</div>
+                      <div className="t2">{r.period_label}{r.form_reference ? ` · ${r.form_reference}` : ''}</div></>) },
+                  { key: 'entity', label: 'Entity / country', sort: true, cls: 'nowrap',
+                    render: r => (<><div className="t1" style={{ fontWeight: 500 }}>{r.entity}</div>
+                      <div className="t2">{r.country_code}</div></>) },
+                  /* The upcoming payload carries the assigned preparer, not a
+                     reviewer — labelled for what it actually is rather than
+                     borrowing a heading the data cannot support. */
+                  { key: 'owner', label: 'Owner', sort: true, cls: 'nowrap small',
+                    render: r => r.owner ?? <span className="dim">Unassigned</span> },
+                  { key: 'status', label: 'Status', sort: true, render: r => <StatusPill s={r.status} /> },
+                  { key: 'days', label: 'Days left', sort: true, cls: 'nowrap right',
+                    value: r => daysFromToday(r.due_date) ?? 9999,
+                    render: r => {
+                      const n = daysFromToday(r.due_date);
+                      if (n == null) return <span className="dim">—</span>;
+                      const late = n < 0;
+                      return (
+                        <span className="num strong"
+                              style={{ color: late ? 'var(--bad-600)' : n <= 3 ? 'var(--warn-700)' : 'var(--ink-3)' }}>
+                          {late ? `−${-n}` : n === 0 ? 'Today' : n}
+                        </span>
+                      );
+                    } },
+                  { key: 'actions', label: '', cls: 'nowrap right no-print',
+                    render: r => (
+                      <Link href={`/register?obligation=${r.id}`} className="rowact"
+                            aria-label={`Open ${r.title}`} title="Open this obligation"
+                            onClick={e => e.stopPropagation()}>
+                        <Ic n="eye" s={15} />
+                      </Link>
+                    ) },
+                ]}
+              />
             </div>
           </div>
 
-          <div className="card">
-            <div className="card-h">
-              <div>
-                <h3>{isCfo ? 'Compliance due' : 'Your compliance due'}</h3>
-                <span className="tiny muted">{upcomingShown.length} items</span>
+          {/* ------------------------------------------------- supporting read
+              Three panels, each answering one board-level question: which
+              country needs attention, which way is the score moving, and what
+              has just happened. Nothing here is decorative. */}
+          <div className="grid g-3">
+            <div className="card">
+              <div className="card-h">
+                <h3>Where attention is needed</h3>
+                <button className="btn btn-xs no-print" onClick={() => setTab('overall')}>By country</button>
               </div>
-              <div className="row g4 no-print">
-                {([['day', 'Day'], ['15d', '15 days'], ['month', 'Month']] as const).map(([id, label]) => (
-                  <button key={id} className={`btn btn-s${upcomingWindow === id ? ' btn-p' : ''}`}
-                          onClick={() => setUpcomingWindow(id)}>{label}</button>
+              <div className="card-b">
+                {d.byCountry.length === 0 && <div className="small muted">No country data in scope.</div>}
+                {[...d.byCountry].sort((a, b) => a.score - b.score).slice(0, 6).map(c => (
+                  <HBar key={c.countryCode} label={c.countryName} value={c.score}
+                        sub={`${c.approved} of ${c.total} followed`} />
                 ))}
               </div>
             </div>
-            <DataTable<Upcoming & Record<string, unknown>>
-              rows={upcomingShown as (Upcoming & Record<string, unknown>)[]}
-              rowKey={r => r.id}
-              pageSize={12}
-              onRow={r => { window.location.href = `/register?obligation=${r.id}`; }}
-              empty="Nothing falls due in this window."
-              cols={[
-                { key: 'due_date', label: 'Due', sort: true, cls: 'nowrap',
-                  render: r => {
-                    const n = daysFromToday(r.due_date);
-                    return (
-                      <>
-                        <div className="num">{fmtDate(r.due_date)}</div>
-                        <div className="t2" style={{ color: n != null && n < 0 ? 'var(--bad-600)' : undefined }}>
-                          {n == null ? '' : n < 0 ? `${-n} d overdue` : n === 0 ? 'today' : `in ${n} d`}
-                        </div>
-                      </>
-                    );
-                  } },
-                { key: 'title', label: 'Compliance', sort: true, cls: 'w',
-                  render: r => (<><div className="t1">{r.title}</div>
-                    <div className="t2">{r.entity} · {r.period_label}{r.form_reference ? ` · ${r.form_reference}` : ''}</div></>) },
-                { key: 'status', label: 'Status', sort: true, render: r => <StatusPill s={r.status} /> },
-                { key: 'actions', label: '', cls: 'nowrap no-print',
-                  render: r => (
-                    <Link href={`/register?obligation=${r.id}`} className="btn btn-p btn-xs"
-                          onClick={e => e.stopPropagation()}>
-                      <Ic n="upload" s={12} /> File
-                    </Link>
-                  ) },
-              ]}
-            />
+
+            <div className="card">
+              <div className="card-h">
+                <h3>Score trend</h3>
+                <span className="tiny dim">Last 6 months</span>
+              </div>
+              <div className="card-b">
+                {(() => {
+                  const w = 320, h = 122, padX = 12, padY = 20;
+                  const pts = d.trend;
+                  if (pts.length < 2) return <div className="small muted">Not enough history yet.</div>;
+                  const x = (i: number) => padX + (i / (pts.length - 1)) * (w - padX * 2);
+                  const y = (v: number) => h - padY - (v / 100) * (h - padY * 2);
+                  const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(p.score)}`).join(' ');
+                  const area = `${line} L ${x(pts.length - 1)} ${h - padY} L ${x(0)} ${h - padY} Z`;
+                  return (
+                    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 132 }} role="img"
+                         aria-label={`Compliance score over the last ${pts.length} months`}>
+                      {[0, 50, 100].map(g => (
+                        <line key={g} x1={padX} x2={w - padX} y1={y(g)} y2={y(g)} stroke="var(--line-2)" strokeWidth={1} />
+                      ))}
+                      <path d={area} fill="var(--navy-050)" />
+                      <path d={line} fill="none" stroke="var(--navy-600)" strokeWidth={2}
+                            strokeLinejoin="round" strokeLinecap="round" />
+                      {pts.map((p, i) => (
+                        <circle key={p.monthEnd} cx={x(i)} cy={y(p.score)} r={i === pts.length - 1 ? 4 : 2.5}
+                                fill={i === pts.length - 1 ? scoreColor(p.score) : 'var(--navy-600)'} />
+                      ))}
+                      {pts.map((p, i) => (
+                        <text key={p.monthEnd} x={x(i)} y={h - 5} textAnchor="middle" fontSize={9.5}
+                              fill="var(--ink-4)">{p.label}</text>
+                      ))}
+                    </svg>
+                  );
+                })()}
+                <div className="row between mt8">
+                  <span className="tiny dim">Current</span>
+                  <span className="num strong" style={{ color: scoreColor(o.score) }}>{o.score.toFixed(1)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="card">
+              <div className="card-h">
+                <h3>Recent activity</h3>
+                <button className="btn btn-xs no-print" onClick={() => setTab('activity')}>View all</button>
+              </div>
+              <div className="card-b">
+                {d.activity.length === 0 && <div className="small muted">No activity recorded yet.</div>}
+                <div className="tl">
+                  {d.activity.slice(0, 5).map(a => (
+                    <div className={`tl-i ${ACTION_TONE[a.action] ?? ''}`} key={a.id}>
+                      <div className="tl-t">
+                        <strong>{a.actor ?? 'System'}</strong> {ACTION_LABEL[a.action] ?? a.action}{' '}
+                        {a.title}
+                      </div>
+                      <div className="tl-m mt4">{fmtDateTime(a.created_at)} · {a.entity}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </>
       )}
