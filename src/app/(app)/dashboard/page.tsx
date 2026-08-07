@@ -376,36 +376,6 @@ export default function Dashboard() {
               <span className="small muted">Future obligations <span className="dim">(not yet due — excluded from the figures above)</span></span>
               <span className="v num">{futureCount}</span>
             </div>
-
-            {/* How the weighted score was actually arrived at. A governance
-                score nobody can decompose is a score nobody trusts, so the
-                three inputs and the raw points are stated on the face of it. */}
-            <div style={{ marginTop: 10, padding: '9px 10px', border: '1px solid var(--line-2)', borderRadius: 'var(--r)' }}>
-              <div className="row between g8 wrap">
-                <span className="cap">How this score is built</span>
-                <Link href="/reports?r=methodology" className="tiny strong no-print">Methodology</Link>
-              </div>
-              <div className="row g24 wrap mt8">
-                <div>
-                  <div className="tiny dim">Weighted points</div>
-                  <div className="num strong">{o.earnedPoints.toLocaleString()} <span className="dim" style={{ fontWeight: 400 }}>of {o.maxPoints.toLocaleString()}</span></div>
-                </div>
-                <div>
-                  <div className="tiny dim">Evidence quality</div>
-                  <div className="num strong" style={{ color: scoreColor(o.evidenceQuality) }}>{o.evidenceQuality}%</div>
-                </div>
-                <div>
-                  <div className="tiny dim">Critical / high risk</div>
-                  <div className="num strong">{o.criticalShare}%</div>
-                </div>
-                {o.criticalOverdue > 0 && (
-                  <div>
-                    <div className="tiny dim">Critical overdue</div>
-                    <div className="num strong" style={{ color: 'var(--bad-600)' }}>{o.criticalOverdue}</div>
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
           <div style={{ minWidth: 260 }}>
             <div className="cap mb8">{activeCat.label} — filing quality</div>
