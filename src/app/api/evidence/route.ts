@@ -7,7 +7,7 @@
    =========================================================================== */
 import { handler, ok, fail, auth, writeAudit } from '@/lib/api';
 import { q, one, tx } from '@/lib/db';
-import { canFileEntity, canSeeEntity } from '@/lib/rbac';
+import { canFileEntity, canReviewEntity, canSeeEntity } from '@/lib/rbac';
 import { validateUpload, MAX_UPLOAD_BYTES, isAllowedEvidence } from '@/lib/validate';
 import { extractFiledDate } from '@/lib/extract-date';
 import { createHash } from 'node:crypto';
@@ -204,7 +204,22 @@ export const DELETE = handler(async (req: Request) => {
       WHERE ev.id = $1 AND ev.deleted_at IS NULL`, [id]);
   if (!row) return fail(404, 'Document not found.');
   if (!canSeeEntity(u, row.entity_id)) return fail(403, 'You are not assigned to this entity.');
-  if (row.status === 'Approved' && !u.permissions.includes('compliance.review'))
+
+  /* Seeing an entity is not permission to destroy its evidence. This
+     previously checked visibility alone, which let every read-only role
+     withdraw documents: an Auditor holds audit.view over all entities and no
+     filing rights at all, yet could soft-delete any unapproved document in
+     the group — in a platform whose whole claim is that each entry is backed
+     by the document proving it. Withdrawal now needs filing or review rights
+     on that specific entity. */
+  if (!canFileEntity(u, row.entity_id) && !canReviewEntity(u, row.entity_id))
+    return fail(403, 'Your role does not permit withdrawing documents for this entity.');
+
+  /* Approved evidence is the score's proof, so only a reviewer for that
+     entity may pull it. The check was on the global compliance.review
+     permission, so a reviewer scoped to one country could withdraw an
+     approved document belonging to another. */
+  if (row.status === 'Approved' && !canReviewEntity(u, row.entity_id))
     return fail(403, 'An approved document cannot be withdrawn. Ask the reviewer to reopen the item first.');
 
   await q(`UPDATE evidence SET deleted_at = now() WHERE id = $1`, [id]);

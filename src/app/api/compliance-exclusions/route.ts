@@ -11,14 +11,38 @@
 import { handler, ok, fail, authWith, body, writeAudit } from '@/lib/api';
 import { q, one, tx } from '@/lib/db';
 import { HttpError } from '@/lib/auth';
+import { canReviewEntity } from '@/lib/rbac';
+import type { SessionUser } from '@/lib/rbac';
 
 export const dynamic = 'force-dynamic';
+
+/* Holding compliance.review is not the same as holding it over a given
+   entity. Excluding a compliance flips that entity's obligations to Not
+   Applicable, which removes them from the score outright — so without an
+   entity check a reviewer scoped to one country could quietly lift another
+   country's obligations out of the group figure. Every mutation below is
+   gated on review rights for the entity actually being changed. */
+function guardEntity(u: SessionUser, entityId: string) {
+  if (!canReviewEntity(u, entityId)) {
+    throw new HttpError(403, 'You do not have review authority for this entity.');
+  }
+}
 
 export const GET = handler(async (req: Request) => {
   const u = await authWith('compliance.review');
   const p = new URL(req.url).searchParams;
   const entityId = p.get('entity_id');
-  const where = entityId ? 'WHERE ce.entity_id = $1' : '';
+
+  /* Scoped to what this reviewer actually covers. The list previously
+     returned every exclusion in the group to anyone holding compliance.review
+     regardless of their entity scope, which is the same visibility leak the
+     register and the review queue already guard against. */
+  const vals: unknown[] = [];
+  const clauses: string[] = [];
+  if (entityId) { vals.push(entityId); clauses.push(`ce.entity_id = $${vals.length}`); }
+  if (!u.entities.includes('*')) { vals.push(u.entities); clauses.push(`ce.entity_id = ANY($${vals.length})`); }
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+
   const rows = await q(`
     SELECT ce.id, ce.compliance_id, ce.entity_id, ce.reason, ce.excluded_at,
            c.code, c.title, e.short_name AS entity_name, ub.full_name AS excluded_by
@@ -27,7 +51,7 @@ export const GET = handler(async (req: Request) => {
       JOIN entities e ON e.id = ce.entity_id
       LEFT JOIN users ub ON ub.id = ce.excluded_by
       ${where}
-     ORDER BY ce.excluded_at DESC`, entityId ? [entityId] : []);
+     ORDER BY ce.excluded_at DESC`, vals);
   return ok({ exclusions: rows, canManage: !!u });
 });
 
@@ -40,6 +64,7 @@ export const POST = handler(async (req: Request) => {
   if (!comp) return fail(404, 'Compliance not found.');
   const ent = await one<{ short_name: string }>(`SELECT short_name FROM entities WHERE id = $1`, [b.entity_id]);
   if (!ent) return fail(404, 'Entity not found.');
+  guardEntity(u, b.entity_id);
 
   const affected = await tx(async c => {
     const existing = await c.query(
@@ -84,6 +109,7 @@ export const DELETE = handler(async (req: Request) => {
        JOIN entities e ON e.id = ce.entity_id
       WHERE ce.compliance_id = $1 AND ce.entity_id = $2`, [complianceId, entityId]);
   if (!row) return fail(404, 'Exclusion not found.');
+  guardEntity(u, entityId);
 
   const affected = await tx(async c => {
     await c.query(`DELETE FROM compliance_exclusions WHERE compliance_id = $1 AND entity_id = $2`,
