@@ -645,3 +645,16 @@ input[type="file"] { padding: 6px; }
 @media (max-width: 1080px) { .hero-row { grid-template-columns: 1fr; } }
 .qa .card-b { display: grid; gap: var(--s2); }
 .qa .btn { justify-content: flex-start; }
+
+/* Immediate attention — the count sits next to its label, not pushed to the
+   far edge of the card, and the whole row is the control. */
+.sev-list { display: flex; flex-direction: column; }
+.sev-row {
+  display: flex; align-items: center; gap: var(--s2);
+  padding: 7px var(--s2); margin: 0 calc(var(--s2) * -1); border-radius: var(--r);
+  color: var(--ink); transition: background .12s ease;
+}
+.sev-row:hover { background: var(--navy-050); text-decoration: none; }
+.sev-row .sev-n { font-size: 17px; font-weight: 700; min-width: 30px; color: var(--navy-900); }
+.sev-row > svg { color: var(--ink-4); }
+.sev-row:hover > svg { color: var(--navy-700); }

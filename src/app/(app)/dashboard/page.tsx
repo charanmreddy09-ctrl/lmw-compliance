@@ -224,8 +224,6 @@ export default function Dashboard() {
   const b = d.brief;
   const movedYesterday = b.approved + b.submitted + b.queries + b.rejected + b.escalated;
   const attention = b.severity.Critical + b.severity.High + b.severity.Medium + b.severity.Low;
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   const TABS = [
     { id: 'overview', label: 'Overview' },
@@ -258,7 +256,7 @@ export default function Dashboard() {
       <div className="card mb16">
         <div className="card-h">
           <div>
-            <h3>{greeting}, {user.name.split(' ')[0]}</h3>
+            <h3>Executive brief</h3>
             <span className="tiny muted">
               {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
               {' · '}{d.scopeLabel}
@@ -291,19 +289,25 @@ export default function Dashboard() {
             {attention === 0 ? (
               <div className="small muted">Nothing due is currently unapproved.</div>
             ) : (
-              <div className="stack">
+              {/* Count sits against its label rather than pushed to the far
+                  edge, and each row opens the register filtered to that risk
+                  level — a severity figure a CFO cannot drill into is just
+                  a statistic. */}
+              <div className="sev-list">
                 {(['Critical', 'High', 'Medium', 'Low'] as const)
                   .filter(k => b.severity[k] > 0)
                   .map(k => (
-                    <div key={k}>
-                      <span className="k">
-                        <span className={`pill ${SEV_TONE[k]} nd tiny`} style={{ marginRight: 6 }}>{k}</span>
-                        {b.severityOverdue[k] > 0 && (
-                          <span className="tiny" style={{ color: 'var(--bad-600)' }}>{b.severityOverdue[k]} overdue</span>
-                        )}
-                      </span>
-                      <span className="v num">{b.severity[k]}</span>
-                    </div>
+                    <Link key={k} href={`/register?risk=${k}`} className="sev-row">
+                      <span className="num sev-n">{b.severity[k]}</span>
+                      <span className={`pill ${SEV_TONE[k]} nd tiny`}>{k}</span>
+                      {b.severityOverdue[k] > 0 && (
+                        <span className="tiny" style={{ color: 'var(--bad-600)' }}>
+                          {b.severityOverdue[k]} overdue
+                        </span>
+                      )}
+                      <span className="grow" />
+                      <Ic n="chevR" s={14} />
+                    </Link>
                   ))}
               </div>
             )}
