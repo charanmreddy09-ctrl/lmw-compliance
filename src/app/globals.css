@@ -148,6 +148,21 @@ img { display: block; max-width: 100%; }
 }
 .crumbs { font-size: 11px; color: var(--ink-4); }
 .crumbs b { color: var(--ink-2); font-weight: 600; }
+/* The first crumb is a real control once you are off the dashboard, so it
+   looks like text but behaves like the link it is. */
+.crumb-link {
+  background: none; border: none; padding: 0; font: inherit; cursor: pointer;
+  color: var(--ink-3); font-weight: 600;
+}
+.crumb-link:hover { color: var(--red-700); text-decoration: underline; }
+
+/* page footer */
+.foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  margin-top: 28px; padding-top: 12px; border-top: 1px solid var(--line);
+  font-size: 11px; color: var(--ink-4);
+}
+.foot a { color: var(--ink-3); }
 .topbar h1 { font-size: 15px; }
 .content { padding: 16px 18px 48px; }
 .content.narrow { max-width: 860px; }
