@@ -122,6 +122,43 @@ export async function getSession(): Promise<SessionUser | null> {
   };
 }
 
+/** Whether some OTHER user (not the caller) actually has review/file rights
+    on an entity — via their own user_entities scope or an active delegation.
+    Used before an obligation is assigned to someone, so "assigned reviewer"
+    can never point at a person who won't see the item in their own queue. */
+async function userHasEntityRight(userId: string, entityId: string, right: 'can_review' | 'can_file', perm: Permission): Promise<boolean> {
+  const row = await one<{ ok: boolean }>(
+    `SELECT EXISTS (
+        SELECT 1 FROM user_entities ue
+        JOIN users u ON u.id = ue.user_id AND u.status = 'active' AND u.deleted_at IS NULL
+        JOIN roles r ON r.id = u.role_id
+       WHERE ue.user_id = $1
+         AND (ue.entity_id = $2 OR ue.entity_id = '*')
+         AND ue.${right}
+         AND r.permissions @> $3::jsonb
+     ) OR (
+       $4 = 'can_review' AND EXISTS (
+        SELECT 1 FROM delegations d
+        LEFT JOIN entities e ON e.id = $2
+       WHERE d.to_user_id = $1 AND d.is_active
+         AND d.valid_from <= CURRENT_DATE
+         AND (d.valid_to IS NULL OR d.valid_to >= CURRENT_DATE)
+         AND (d.scope_type = 'all'
+              OR (d.scope_type = 'entity' AND d.scope_value = $2)
+              OR (d.scope_type = 'country' AND d.scope_value = e.country_code))
+     )) AS ok`,
+    [userId, entityId, JSON.stringify([perm]), right]);
+  return !!row?.ok;
+}
+
+export async function userCanReviewEntity(userId: string, entityId: string): Promise<boolean> {
+  return userHasEntityRight(userId, entityId, 'can_review', 'compliance.review');
+}
+
+export async function userCanFileEntity(userId: string, entityId: string): Promise<boolean> {
+  return userHasEntityRight(userId, entityId, 'can_file', 'compliance.file');
+}
+
 /** Throwing guard for API routes. */
 export async function requireSession(): Promise<SessionUser> {
   const s = await getSession();

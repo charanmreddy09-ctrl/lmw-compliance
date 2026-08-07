@@ -25,5 +25,10 @@ export const GET = handler(async (req: Request) => {
   const secret = process.env.CRON_SECRET;
   const authHeader = req.headers.get('authorization');
   if (!secret || authHeader !== `Bearer ${secret}`) return fail(401, 'Not authorized.');
-  return ok(await runEscalations());
+  const summary = await runEscalations();
+  await writeAudit({
+    actor: null, action: 'escalation.run', objectType: 'obligation',
+    detail: `Reminders ${summary.reminders}, department head ${summary.deptHead}, CFO ${summary.cfo}, audit committee ${summary.auditCommittee}`,
+  });
+  return ok(summary);
 });

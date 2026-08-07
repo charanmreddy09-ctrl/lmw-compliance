@@ -1,6 +1,7 @@
 import { handler, ok, fail, auth, body, writeAudit } from '@/lib/api';
 import { q, one } from '@/lib/db';
 import { canSeeEntity, canSeeCategory } from '@/lib/rbac';
+import { userCanReviewEntity, userCanFileEntity } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,6 +65,25 @@ export const PATCH = handler(async (req: Request, ctx: { params: { id: string } 
                     u.permissions.includes('users.manage');
   if ((b.assigned_to !== undefined || b.reviewer_id !== undefined) && !mayAssign)
     return fail(403, 'Your role does not permit reassignment.');
+
+  /* An "assigned reviewer" who has no review rights on this entity would
+     never see the item in their own /reviews queue — visibility there is
+     driven entirely by entity scope, not by this field. Refuse the
+     assignment up front rather than letting it silently go nowhere. */
+  if (b.reviewer_id) {
+    const target = await one<{ full_name: string }>(
+      `SELECT full_name FROM users WHERE id = $1 AND deleted_at IS NULL AND status = 'active'`, [b.reviewer_id]);
+    if (!target) return fail(400, 'That user does not exist or is not an active account.');
+    if (!(await userCanReviewEntity(b.reviewer_id, cur.entity_id)))
+      return fail(400, `${target.full_name} does not have review rights on this entity yet. Grant review access in Administration -> Users (or delegate it) before assigning them here.`);
+  }
+  if (b.assigned_to) {
+    const target = await one<{ full_name: string }>(
+      `SELECT full_name FROM users WHERE id = $1 AND deleted_at IS NULL AND status = 'active'`, [b.assigned_to]);
+    if (!target) return fail(400, 'That user does not exist or is not an active account.');
+    if (!(await userCanFileEntity(b.assigned_to, cur.entity_id)))
+      return fail(400, `${target.full_name} does not have filing rights on this entity yet. Grant it in Administration -> Users before assigning them here.`);
+  }
 
   const row = await one(`
     UPDATE obligations

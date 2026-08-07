@@ -71,9 +71,7 @@ async function runSync(actor: SessionUser | null) {
     }
   }
 
-  if (actor) {
-    await writeAudit({ actor, action: 'duedate.sync', objectType: 'compliance', detail: `Checked ${checked}, proposed ${proposed} change(s).` });
-  }
+  await writeAudit({ actor, action: 'duedate.sync', objectType: 'compliance', detail: `Checked ${checked}, proposed ${proposed} change(s).` });
   return { checked, proposed };
 }
 

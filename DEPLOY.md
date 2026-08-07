@@ -6,6 +6,7 @@ Two environment variables, one database. Nothing else.
 |---|---|---|
 | `DATABASE_URL` | yes | Any PostgreSQL 14+ connection string |
 | `AUTH_SECRET` | yes | Long random string, 32+ characters. Signs session cookies. |
+| `CRON_SECRET` | yes | Any random string. Without it, the two daily Vercel Crons (due-date sync, escalation matrix — see `vercel.json`) get rejected with 401 every single run, silently, forever. Set it in Vercel's Environment Variables; Vercel then signs its cron requests with it automatically. |
 | `SEED_PASSWORD` | no | Initial password for seeded accounts. Defaults to `ChangeMe@2026`. |
 | `ORG_NAME` | no | Display name shown in the app header/sign-in screen. Defaults to `Your Company Name`. |
 
@@ -76,6 +77,7 @@ repository, and add the environment variables before the first deploy:
 ```
 DATABASE_URL   = <the pooler URI from step 1>
 AUTH_SECRET    = <your generated secret>
+CRON_SECRET    = <another random string — enables the daily crons>
 ```
 
 Framework preset is detected automatically as Next.js. Deploy.
@@ -157,6 +159,12 @@ Before this carries real filings:
 7. **Turn on database backups.** Supabase includes daily backups on paid plans.
    The evidence documents live in Postgres, so a database backup is a complete
    backup.
+8. **Confirm the daily crons are actually running.** Set `CRON_SECRET` in Vercel
+   (see the table above) — without it both crons 401 forever with nothing
+   visible to tell you. A day after deploy, check Administration → Audit trail
+   for `duedate.sync` and `escalation.run` entries attributed to `system`. No
+   entries after 24h means `CRON_SECRET` isn't set, or Vercel Crons aren't
+   enabled for the project's plan.
 
 ---
 
