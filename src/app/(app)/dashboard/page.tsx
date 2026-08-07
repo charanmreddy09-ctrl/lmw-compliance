@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  Ic, Dial, Kpi, Note, Spinner, StatusPill, DataTable, RISK_TONE,
+  Ic, Gauge, Stat, Delta, Kpi, Note, Spinner, StatusPill, DataTable, RISK_TONE,
   scoreColor, fmtDate, fmtDateTime, daysFromToday, downloadFile, useToast,
 } from '@/components/ui';
 import type { SessionUser } from '@/lib/rbac';
@@ -207,6 +207,20 @@ export default function Dashboard() {
   const canReport = user.permissions.includes('reports.generate');
   const canReview = user.permissions.includes('compliance.review') && !isCfo;
 
+  /* Month-on-month movement, from the reconstructed trend series. */
+  const trendDelta = d.trend.length >= 2
+    ? d.trend[d.trend.length - 1].score - d.trend[d.trend.length - 2].score
+    : 0;
+  /* Critical and high-risk items already past due, counted from the same
+     window the table below draws on so tile and rows always agree. */
+  const criticalRisks = d.upcoming.filter(x => {
+    const n = daysFromToday(x.due_date);
+    return n != null && n < 0 && (x.risk_level === 'Critical' || x.risk_level === 'High');
+  }).length;
+  const overdueHref = canReport ? '/reports?r=overdue' : '/register';
+  const evidenceHref = canReport ? '/reports?r=evidence' : '/register';
+  const reviewHref = canReview ? '/reviews' : isCfo ? '/reports?r=executive' : '/register';
+
   const b = d.brief;
   const movedYesterday = b.approved + b.submitted + b.queries + b.rejected + b.escalated;
   const attention = b.severity.Critical + b.severity.High + b.severity.Medium + b.severity.Low;
@@ -336,34 +350,68 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ------------------------------------------------------- QUICK ACTIONS
-          The four places people go straight from the dashboard. Each is
-          role-aware: a preparer has no reports.generate, so it is offered the
-          register rather than a report it would be refused. Nothing here is
-          new capability — it is a shortcut to a screen that already exists. */}
-      <div className="card mb16">
-        <div className="card-h"><h3>Quick actions</h3></div>
-        <div className="card-b row g8 wrap">
-          <Link href="/calendar" className="btn btn-s">
-            <Ic n="cal" s={13} /> Compliance calendar
-          </Link>
-          <Link href={canReport ? '/reports?r=overdue' : '/register'} className="btn btn-s">
-            <Ic n="alert" s={13} /> Overdue report
-          </Link>
-          {canReport && (
-            <button className="btn btn-s"
-                    onClick={() => downloadFile('/api/reports/executive?format=xlsx', 'Executive summary.xlsx', toast)}>
-              <Ic n="download" s={13} /> Executive summary
-            </button>
-          )}
-          <Link href="/entities" className="btn btn-s">
-            <Ic n="building" s={13} /> Entity performance
-          </Link>
-          {canReview && (
-            <Link href="/reviews" className="btn btn-s">
-              <Ic n="review" s={13} /> Review queue
+      {/* ----------------------------------------------------- EXECUTIVE ROW
+          Health score, the four figures that decide what happens next, and
+          the shortcuts people actually use. Every tile is a link — a number
+          on this dashboard is never a dead end — and every destination is
+          role-aware, so a preparer holding no reports.generate is sent to the
+          register rather than a report it would be refused. */}
+      <div className="hero-row mb16">
+        <div className="card">
+          <div className="card-h"><h3>Compliance health score</h3></div>
+          <div className="card-b" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+            <Gauge value={o.score} />
+            <Delta value={trendDelta} />
+            <div className="tiny dim center">
+              {d.availableFys.find(f => f.startYear === fyFilter)?.label ?? 'All years'}
+              {' · '}
+              {countryFilter ? d.byCountry.find(c => c.countryCode === countryFilter)?.countryName : 'All countries'}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid g-4" style={{ gap: 16, alignContent: 'start' }}>
+          <Stat label="Critical risks" value={criticalRisks} icon="alert" tone="bad"
+                sub="Critical or high risk, past due" href={overdueHref} cta="View details" />
+          <Stat label="Overdue obligations" value={o.overdue} icon="clock" tone="warn"
+                sub="Past due, no evidence filed" href={overdueHref} cta="View report" />
+          <Stat label="Pending reviews" value={awaitingReviewer} icon="review" tone="info"
+                sub={isCfo ? 'Across all reviewers' : 'Awaiting a decision'} href={reviewHref}
+                cta={canReview ? 'Open queue' : 'View details'} />
+          <Stat label="Evidence coverage" value={o.evidenceCoverage} unit="%" icon="shield"
+                tone={o.evidenceCoverage >= 90 ? 'ok' : 'warn'}
+                sub="Obligations with a document" href={evidenceHref} cta="View evidence" />
+        </div>
+
+        <div className="card qa">
+          <div className="card-h"><h3>Quick actions</h3></div>
+          <div className="card-b">
+            <Link href="/calendar" className="btn btn-s">
+              <Ic n="cal" s={13} /> Compliance calendar
             </Link>
-          )}
+            <Link href={overdueHref} className="btn btn-s">
+              <Ic n="alert" s={13} /> Overdue report
+            </Link>
+            {canReport && (
+              <>
+                <button className="btn btn-s"
+                        onClick={() => downloadFile('/api/reports/executive?format=xlsx', 'Executive summary.xlsx', toast)}>
+                  <Ic n="sheet" s={13} /> Executive summary (Excel)
+                </button>
+                <Link href="/reports?r=executive&print=1" className="btn btn-s">
+                  <Ic n="doc" s={13} /> Executive summary (PDF)
+                </Link>
+              </>
+            )}
+            <Link href="/entities" className="btn btn-s">
+              <Ic n="building" s={13} /> Entity performance
+            </Link>
+            {canReview && (
+              <Link href="/reviews" className="btn btn-s">
+                <Ic n="review" s={13} /> Review queue
+              </Link>
+            )}
+          </div>
         </div>
       </div>
 
@@ -371,7 +419,7 @@ export default function Dashboard() {
       <div className="card mb16">
         <div className="card-h">
           <div>
-            <h3>Group compliance score</h3>
+            <h3>Score breakdown</h3>
             <div className="tiny muted mt4">
               Derived only from obligations carrying reviewer-approved evidence · {d.scopeLabel}
             </div>
@@ -394,9 +442,7 @@ export default function Dashboard() {
             </button>
           </div>
         </div>
-        <div className="card-b row g24 wrap">
-          <Dial value={o.score} size={112} />
-          <div className="grow" style={{ minWidth: 260 }}>
+        <div className="card-b row g24 wrap">          <div className="grow" style={{ minWidth: 260 }}>
             <div className="stack">
               <div><span className="k">{countryFilter ? 'Total Obligations Applicable' : 'Applicable obligations'}</span><span className="v num">{o.total}</span></div>
               <div><span className="k">Approved with evidence</span><span className="v num">{o.approved}<Pct n={o.approved} of={o.total} /></span></div>
