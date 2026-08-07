@@ -287,6 +287,68 @@ export async function countryBreakdown(entityIds?: string[], fy?: number): Promi
   });
 }
 
+export type TrendPoint = { label: string; monthEnd: string; score: number; total: number; approved: number; overdue: number };
+
+/** The score "as of" a past date, reconstructed from the real timestamps on
+    each obligation and its evidence rather than a daily snapshot job — an
+    obligation counts as approved as of that date only if a reviewer had
+    already approved its evidence by then, and as overdue only if it was
+    still unfiled by then. This lets the dashboard show a genuine month-on-
+    month trend from day one, with no history-gathering period required. */
+async function scoreAsOf(asOf: string, entityIds?: string[]): Promise<ScoreBreakdown> {
+  const vals: unknown[] = [asOf];
+  let scopeSql = '';
+  if (entityIds && entityIds.length) { vals.push(entityIds); scopeSql = `AND o.entity_id = ANY($${vals.length})`; }
+
+  const rows = await q<Agg>(`
+    SELECT '' AS entity_id,
+           count(*) AS total,
+           count(*) FILTER (WHERE EXISTS (
+              SELECT 1 FROM evidence e WHERE e.obligation_id = o.id AND e.deleted_at IS NULL
+                AND e.status = 'Approved' AND e.reviewed_at <= $1::date)) AS approved,
+           '0' AS submitted, '0' AS under_review, '0' AS query_raised,
+           '0' AS evidence_pending, '0' AS not_started, '0' AS in_review_ct,
+           count(*) FILTER (WHERE o.due_date < $1::date
+                              AND (o.filed_date IS NULL OR o.filed_date > $1::date)
+                              AND NOT EXISTS (
+                                SELECT 1 FROM evidence e2 WHERE e2.obligation_id = o.id AND e2.deleted_at IS NULL
+                                  AND e2.status = 'Approved' AND e2.reviewed_at <= $1::date)) AS overdue,
+           count(*) FILTER (WHERE o.filed_date IS NOT NULL AND o.filed_date <= $1::date
+                              AND o.filed_date > o.due_date) AS filed_late,
+           avg(NULLIF(o.delay_days, 0)) FILTER (WHERE o.delay_days > 0
+                              AND o.filed_date IS NOT NULL AND o.filed_date <= $1::date) AS avg_delay,
+           count(*) FILTER (WHERE EXISTS (
+              SELECT 1 FROM evidence e3 WHERE e3.obligation_id = o.id AND e3.deleted_at IS NULL
+                AND e3.uploaded_at <= $1::date)) AS with_evidence,
+           count(*) FILTER (WHERE o.filed_date IS NOT NULL AND o.filed_date <= $1::date) AS filed_total,
+           count(*) FILTER (WHERE o.filed_date IS NOT NULL AND o.filed_date <= $1::date
+                              AND o.filed_date <= o.due_date) AS filed_ontime
+      FROM obligations o
+     WHERE o.deleted_at IS NULL AND o.status <> 'Not Applicable' AND o.due_date <= $1::date
+       ${scopeSql}`, vals);
+
+  return build(rows[0] ?? {
+    entity_id: '', total: '0', approved: '0', submitted: '0', under_review: '0',
+    query_raised: '0', rejected: '0', evidence_pending: '0', not_started: '0',
+    overdue: '0', filed_late: '0', avg_delay: null, with_evidence: '0',
+    filed_total: '0', filed_ontime: '0', in_review_ct: '0',
+  });
+}
+
+export async function monthlyTrend(entityIds?: string[], months = 6): Promise<TrendPoint[]> {
+  const now = new Date();
+  const monthEnds: Date[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    monthEnds.push(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i + 1, 0)));
+  }
+  const scores = await Promise.all(monthEnds.map(d => scoreAsOf(d.toISOString().slice(0, 10), entityIds)));
+  return monthEnds.map((d, i) => ({
+    label: d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }),
+    monthEnd: d.toISOString().slice(0, 10),
+    score: scores[i].score, total: scores[i].total, approved: scores[i].approved, overdue: scores[i].overdue,
+  }));
+}
+
 export function scoreBand(score: number): { label: string; tone: 'good' | 'warn' | 'bad' } {
   if (score >= 90) return { label: 'Strong', tone: 'good' };
   if (score >= 75) return { label: 'Acceptable', tone: 'warn' };

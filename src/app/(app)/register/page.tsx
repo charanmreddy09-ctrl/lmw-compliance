@@ -206,6 +206,7 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
   const [file, setFile] = useState<File | null>(null);
   const [docType, setDocType] = useState('');
   const [comment, setComment] = useState('');
+  const [lateReason, setLateReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [pct, setPct] = useState(0);
   const [over, setOver] = useState(false);
@@ -215,9 +216,16 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
   const o = d?.obligation;
   const canFile = !!(o && user && user.permissions.includes('compliance.file') &&
     (user.canFile.includes('*') || user.canFile.includes(o.entity_id)));
+  /* Filing today, past the due date, with nothing filed yet — the reason is
+     mandatory before either an upload or a nil filing can go through. */
+  const filingLate = !!o && o.status !== 'Approved' && !o.filed_date && (daysFromToday(o.due_date) ?? 0) < 0;
 
   async function upload() {
     if (!file || !o || busy) return;
+    if (filingLate && !lateReason.trim()) {
+      toast('A reason for the late filing is required before this can be submitted.', 'warn');
+      return;
+    }
     setBusy(true); setPct(8); setResult(null);
     try {
       const fd = new FormData();
@@ -225,6 +233,7 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
       fd.append('file', file);
       if (docType) fd.append('docType', docType);
       if (comment) fd.append('comment', comment);
+      if (filingLate) fd.append('lateReason', lateReason);
       fd.append('period', o.period_label);
 
       /* XHR rather than fetch so the progress bar is real, not simulated */
@@ -244,7 +253,7 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
 
       setResult(j.validation);
       setDetectedDate(j.filedDate ?? null);
-      setFile(null); setComment('');
+      setFile(null); setComment(''); setLateReason('');
       if (inputRef.current) inputRef.current.value = '';
       const dateNote = j.filedDate?.source === 'extracted'
         ? ` Filing date detected from the document: ${fmtDate(j.filedDate.date)}.`
@@ -268,6 +277,10 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
 
   async function nilFile() {
     if (!o || busy) return;
+    if (filingLate && !lateReason.trim()) {
+      toast('A reason for the late filing is required before this can be submitted.', 'warn');
+      return;
+    }
     if (!confirm(`File "${o.title}" (${o.period_label}) as Nil / Not Applicable? This is sent to the reviewer for approval, same as a normal filing.`)) return;
     setBusy(true);
     try {
@@ -275,12 +288,13 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
       fd.append('obligationId', o.id);
       fd.append('nil', '1');
       if (comment) fd.append('comment', comment);
+      if (filingLate) fd.append('lateReason', lateReason);
       fd.append('period', o.period_label);
       const res = await fetch('/api/evidence', { method: 'POST', body: fd });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? `Could not file as nil (${res.status}).`);
       toast('Filed as Nil and sent to the reviewer.', 'ok');
-      setComment('');
+      setComment(''); setLateReason('');
       await load();
       onChanged();
       setTab('documents');
@@ -479,10 +493,23 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
                             placeholder="Acknowledgement number, portal reference, or anything the reviewer should know." />
                 </div>
 
-                <button className="btn btn-p btn-block" onClick={upload} disabled={!file || busy}>
+                {filingLate && (
+                  <div className="f mt8">
+                    <label htmlFor="lr">
+                      Reason for late filing <span style={{ color: 'var(--bad-600)' }}>(required)</span>
+                    </label>
+                    <textarea id="lr" value={lateReason} disabled={busy}
+                              onChange={e => setLateReason(e.target.value)}
+                              placeholder="Why is this being filed after the due date?" />
+                  </div>
+                )}
+
+                <button className="btn btn-p btn-block" onClick={upload}
+                        disabled={!file || busy || (filingLate && !lateReason.trim())}>
                   {busy ? `Uploading… ${pct}%` : 'Upload and send for review'}
                 </button>
-                <button className="btn btn-block mt8" onClick={nilFile} disabled={busy}>
+                <button className="btn btn-block mt8" onClick={nilFile}
+                        disabled={busy || (filingLate && !lateReason.trim())}>
                   <Ic n="alert" s={13} /> File as Nil / Not Applicable for this period
                 </button>
                 <div className="tiny dim mt4">

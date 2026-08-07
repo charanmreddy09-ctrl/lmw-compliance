@@ -199,7 +199,7 @@ async function main() {
     if (RESET) {
       log('Dropping existing objects…');
       await client.query(`
-        DROP TABLE IF EXISTS score_snapshots, audit_log, notifications, review_actions,
+        DROP TABLE IF EXISTS score_snapshots, audit_log, notifications, escalation_log, review_actions,
           evidence, compliance_exclusions, due_date_changes, obligations, compliance_history,
           compliances, delegations, user_categories, user_entities, users, roles, entity_jurisdictions, entities,
           categories, divisions, jurisdictions, countries, app_settings CASCADE;

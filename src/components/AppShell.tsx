@@ -38,6 +38,8 @@ const NAV: { section: string; items: NavItem[] }[] = [
       { href: '/calendar', label: 'Compliance calendar', icon: 'cal', show: () => true },
       { href: '/reviews', label: 'Reviews', icon: 'review',
         show: u => has(u, 'compliance.review') && !isCfo(u) },
+      { href: '/exclusions', label: 'Not applicable', icon: 'trash',
+        show: u => has(u, 'compliance.review') },
     ],
   },
   {

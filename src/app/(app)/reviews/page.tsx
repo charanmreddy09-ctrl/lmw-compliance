@@ -49,6 +49,22 @@ function ReviewsInner() {
   const [entity, setEntity] = useState('');
   const [q, setQ] = useState('');
   const [openId, setOpenId] = useState<string | null>(search.get('obligation'));
+  const [escRunning, setEscRunning] = useState(false);
+
+  async function runEscalations() {
+    setEscRunning(true);
+    try {
+      const res = await fetch('/api/escalations/run', { method: 'POST' });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error);
+      toast(
+        `Escalation check complete — ${j.reminders} reminder${j.reminders === 1 ? '' : 's'}, `
+        + `${j.deptHead} to department head, ${j.cfo} to the CFO, ${j.auditCommittee} to the Audit Committee.`,
+        'ok');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'The escalation check could not run.', 'bad');
+    } finally { setEscRunning(false); }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -113,6 +129,22 @@ function ReviewsInner() {
 
   return (
     <>
+      <div className="card mb16">
+        <div className="card-h">
+          <div>
+            <h3>Escalation matrix</h3>
+            <span className="tiny muted">
+              Runs automatically once a day. Reminder at 15 days before due, escalation to the
+              department head at 7 days, to the CFO once overdue, and to the Audit Committee for
+              significant non-compliance (14+ days overdue, or any delay on a Critical/High risk item).
+            </span>
+          </div>
+          <button className="btn btn-s no-print" onClick={runEscalations} disabled={escRunning}>
+            <Ic n="swap" s={13} /> {escRunning ? 'Checking…' : 'Run check now'}
+          </button>
+        </div>
+      </div>
+
       <div className="grid g-4 mb16">
         <Kpi label="Awaiting your review" value={buckets.pending.length}
              sub="Submitted with evidence" barColor="var(--navy-600)"

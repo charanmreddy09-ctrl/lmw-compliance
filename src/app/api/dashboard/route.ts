@@ -1,7 +1,7 @@
 /* One request powers the whole dashboard, so there is no waterfall of loaders. */
 import { handler, ok, auth, entityFilter } from '@/lib/api';
 import { q } from '@/lib/db';
-import { overallScore, entityScores, countryBreakdown, countryScores, categoryScores } from '@/lib/score';
+import { overallScore, entityScores, countryBreakdown, countryScores, categoryScores, monthlyTrend } from '@/lib/score';
 import { fyLabel } from '@/lib/dates';
 
 export const dynamic = 'force-dynamic';
@@ -26,13 +26,14 @@ export const GET = handler(async (req: Request) => {
   const fy = fyParam ? parseInt(fyParam, 10) : null;
   const { sql: scopeSql, vals: scopeVals } = buildScope(scope, fy);
 
-  const [overall, byEntity, byCountry, byCountryScore, byCategoryScore, fyRows] = await Promise.all([
+  const [overall, byEntity, byCountry, byCountryScore, byCategoryScore, fyRows, trend] = await Promise.all([
     overallScore(ids, fy ?? undefined), entityScores(ids, fy ?? undefined),
     countryBreakdown(ids, fy ?? undefined), countryScores(ids, fy ?? undefined), categoryScores(ids, fy ?? undefined),
     q<{ fy_start_year: number }>(`
       SELECT DISTINCT o.fy_start_year FROM obligations o
        WHERE o.deleted_at IS NULL ${scope ? 'AND o.entity_id = ANY($1)' : ''}
        ORDER BY o.fy_start_year DESC`, scope ? [scope] : []),
+    monthlyTrend(ids, 6),
   ]);
   const availableFys = fyRows.map(r => ({ startYear: r.fy_start_year, label: fyLabel(r.fy_start_year) }));
 
@@ -141,7 +142,7 @@ export const GET = handler(async (req: Request) => {
      ORDER BY ddc.changed_at DESC LIMIT 10`, scope ? [scope] : []);
 
   return ok({
-    overall, byEntity, byCountry, byCountryScore, byCategoryScore, entities, byDivision, byCategory, heat,
+    overall, byEntity, byCountry, byCountryScore, byCategoryScore, entities, byDivision, byCategory, heat, trend,
     upcoming, activity, dueChanges, futureByCountry, futureOverall, availableFys, selectedFy: fy,
     pendingReview: Number(pendingReview[0]?.n ?? 0),
     scopeLabel: scope ? `${entities.length} assigned entit${entities.length === 1 ? 'y' : 'ies'}` : 'All entities',

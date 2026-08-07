@@ -28,6 +28,7 @@ type DueChange = {
   id: number; country_code: string; old_due_date: string; new_due_date: string;
   reason: string | null; changed_at: string; title: string | null; entity: string | null;
 };
+type TrendPoint = { label: string; monthEnd: string; score: number; total: number; approved: number; overdue: number };
 type Payload = {
   overall: ScoreBreakdown;
   byEntity: Record<string, ScoreBreakdown>;
@@ -38,6 +39,7 @@ type Payload = {
   byDivision: Grp[];
   byCategory: Grp[];
   heat: Heat[];
+  trend: TrendPoint[];
   upcoming: Upcoming[];
   activity: Activity[];
   dueChanges: DueChange[];
@@ -182,8 +184,22 @@ export default function Dashboard() {
     { id: 'overview', label: 'Overview' },
     { id: 'overall', label: 'Overall by country' },
     { id: 'entities', label: 'Entity scores' },
+    { id: 'trends', label: 'Trends & heat map' },
     { id: 'activity', label: 'Recent activity' },
   ];
+
+  /* Country x category grid, coloured by % followed — the same d.heat rows
+     already computed for the act tabs, just pivoted for a heat map instead
+     of read one category at a time. */
+  const heatRows = d.heat;
+  const heatCategories = [...new Set(heatRows.map(h => h.category))].sort();
+  const heatCountries = d.byCountry.map(c => ({ code: c.countryCode, name: c.countryName }));
+  function heatCell(countryCode: string, category: string) {
+    const h = heatRows.find(x => x.country_code === countryCode && x.category === category);
+    if (!h || Number(h.total) === 0) return null;
+    const total = Number(h.total), approved = Number(h.approved);
+    return { pct: Math.round((approved / total) * 100), total, approved, overdue: Number(h.overdue) };
+  }
 
   return (
     <>
@@ -202,7 +218,6 @@ export default function Dashboard() {
               {' '}Auto-sync · updated {new Date(d.syncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
             <select value={fyFilter} onChange={e => setFyFilter(e.target.value ? Number(e.target.value) : '')} aria-label="Filter by financial year">
-              <option value="">All years</option>
               {d.availableFys.map(f => <option key={f.startYear} value={f.startYear}>{f.label}</option>)}
             </select>
             <select value={countryFilter} onChange={e => setCountryFilter(e.target.value)} aria-label="Filter by country">
@@ -563,6 +578,85 @@ export default function Dashboard() {
             </table>
           </div>
         </div>
+      )}
+
+      {/* --------------------------------------------------- TRENDS & HEAT MAP */}
+      {tab === 'trends' && (
+        <>
+          <div className="card mb16">
+            <div className="card-h">
+              <h3>Group compliance score — last 6 months</h3>
+              <span className="tiny muted">Reconstructed from approval and filing dates, not a point-in-time reading</span>
+            </div>
+            <div className="card-b">
+              {(() => {
+                const w = 640, h = 140, pad = 28;
+                const pts = d.trend;
+                const max = 100, min = 0;
+                const x = (i: number) => pad + (i / Math.max(1, pts.length - 1)) * (w - pad * 2);
+                const y = (v: number) => h - pad - ((v - min) / (max - min)) * (h - pad * 2);
+                const path = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(p.score)}`).join(' ');
+                return (
+                  <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 160 }}>
+                    {[0, 25, 50, 75, 100].map(g => (
+                      <line key={g} x1={pad} x2={w - pad} y1={y(g)} y2={y(g)}
+                            stroke="var(--line-2)" strokeWidth={1} />
+                    ))}
+                    <path d={path} fill="none" stroke="var(--navy-600)" strokeWidth={2.5} />
+                    {pts.map((p, i) => (
+                      <g key={p.monthEnd}>
+                        <circle cx={x(i)} cy={y(p.score)} r={4} fill={scoreColor(p.score)} />
+                        <text x={x(i)} y={y(p.score) - 10} textAnchor="middle" fontSize={11} fontWeight={600}
+                              fill="var(--ink-2)">{p.score}</text>
+                        <text x={x(i)} y={h - 6} textAnchor="middle" fontSize={11} fill="var(--ink-4)">{p.label}</text>
+                      </g>
+                    ))}
+                  </svg>
+                );
+              })()}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-h">
+              <h3>Heat map — country × category</h3>
+              <span className="tiny muted">% of applicable obligations followed, current FY scope</span>
+            </div>
+            <div className="tw">
+              <table className="dt">
+                <thead>
+                  <tr>
+                    <th>Country</th>
+                    {heatCategories.map(c => <th key={c} className="center">{c}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {heatCountries.map(co => (
+                    <tr key={co.code}>
+                      <td className="t1 nowrap">{co.name}</td>
+                      {heatCategories.map(cat => {
+                        const cell = heatCell(co.code, cat);
+                        return (
+                          <td key={cat} className="center" style={{ padding: 4 }}>
+                            {cell ? (
+                              <div title={`${cell.approved} of ${cell.total} followed${cell.overdue ? `, ${cell.overdue} overdue` : ''}`}
+                                   style={{
+                                     background: scoreColor(cell.pct), color: '#fff', borderRadius: 4,
+                                     padding: '4px 6px', fontSize: 12, fontWeight: 600, opacity: 0.15 + (cell.pct / 100) * 0.85,
+                                   }}>
+                                {cell.pct}%
+                              </div>
+                            ) : <span className="dim">—</span>}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
 
       {/* ----------------------------------------------------------- ACTIVITY */}

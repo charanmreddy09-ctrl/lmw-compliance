@@ -112,7 +112,6 @@ export default function Library() {
   const [cat, setCat] = useState('');
   const [freq, setFreq] = useState('');
   const [verified, setVerified] = useState('');
-  const [archived, setArchived] = useState(false);
   const [q, setQ] = useState('');
 
   const [edit, setEdit] = useState<typeof emptyForm | null>(null);
@@ -129,7 +128,6 @@ export default function Library() {
       if (cat) p.set('category', cat);
       if (freq) p.set('frequency', freq);
       if (verified) p.set('verified', verified);
-      if (archived) p.set('archived', 'yes');
       if (q) p.set('search', q);
       const res = await fetch(`/api/compliances?${p}`);
       const d = await res.json();
@@ -144,7 +142,7 @@ export default function Library() {
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Unable to load the compliance library.');
     } finally { setLoading(false); }
-  }, [country, juris, fy, cat, freq, verified, archived, q]);
+  }, [country, juris, fy, cat, freq, verified, q]);
 
   useEffect(() => {
     const t = setTimeout(load, q ? 260 : 0);   // debounce only the free-text search
@@ -165,7 +163,6 @@ export default function Library() {
   const stats = useMemo(() => ({
     total: rows.length,
     state: rows.filter(r => r.jurisdiction_level && r.jurisdiction_level !== 'federal').length,
-    verified: rows.filter(r => r.verified).length,
     inUse: rows.filter(r => Number(r.instances) > 0).length,
   }), [rows]);
 
@@ -360,7 +357,6 @@ export default function Library() {
           ))}
         </select>
         <select value={fy} onChange={e => setFy(e.target.value)} aria-label="Filter by financial year">
-          <option value="">All years</option>
           {ref.availableFys.map(f => <option key={f.startYear} value={f.startYear}>{f.label}</option>)}
         </select>
         <select value={cat} onChange={e => setCat(e.target.value)}>
@@ -376,21 +372,16 @@ export default function Library() {
           <option value="yes">Reviewed</option>
           <option value="no">New obligation/amendment</option>
         </select>
-        <label className="small row g6" style={{ cursor: 'pointer' }}>
-          <input type="checkbox" checked={archived} onChange={e => setArchived(e.target.checked)} style={{ width: 'auto' }} />
-          Archived
-        </label>
         <div className="search">
           <Ic n="search" s={14} />
           <input placeholder="Search title, law, form or code…" value={q} onChange={e => setQ(e.target.value)} />
         </div>
       </div>
 
-      <div className="grid g-4 mb16">
+      <div className="grid g-3 mb16">
         {[
           ['Compliance list', stats.total, 'Matching the current filters'],
           ['State / provincial', stats.state, 'Apply only where registered'],
-          ['Reviewed', stats.verified, `${stats.total ? Math.round((stats.verified / stats.total) * 100) : 0}% of shown`],
           ['Applicable Obligations', stats.inUse, 'Live in the register'],
         ].map(([l, v, s]) => (
           <div className="card kpi" key={String(l)}>

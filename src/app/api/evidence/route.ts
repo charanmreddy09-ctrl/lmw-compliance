@@ -25,6 +25,7 @@ export const POST = handler(async (req: Request) => {
   const docType = form.get('docType') ? String(form.get('docType')) : null;
   const period = form.get('period') ? String(form.get('period')) : null;
   const comment = form.get('comment') ? String(form.get('comment')) : null;
+  const lateReason = form.get('lateReason') ? String(form.get('lateReason')).trim() : null;
 
   if (!obligationId) return fail(400, 'Obligation reference is missing.');
   if (!isNil) {
@@ -36,8 +37,9 @@ export const POST = handler(async (req: Request) => {
       return fail(415, `"${file.name}" is not an accepted evidence format. Upload a PDF, Excel, Word, ZIP, CSV or image file.`);
   }
 
-  const obl = await one<{ entity_id: string; status: string; period_label: string }>(
-    `SELECT entity_id, status, period_label FROM obligations WHERE id = $1 AND deleted_at IS NULL`,
+  const obl = await one<{ entity_id: string; status: string; period_label: string; filed_date: string | null; is_late: boolean }>(
+    `SELECT entity_id, status, period_label, filed_date, (filed_date IS NULL AND due_date < CURRENT_DATE) AS is_late
+       FROM obligations WHERE id = $1 AND deleted_at IS NULL`,
     [obligationId]);
   if (!obl) return fail(404, 'That obligation no longer exists.');
   if (obl.status === 'Not Applicable')
@@ -45,12 +47,16 @@ export const POST = handler(async (req: Request) => {
   if (!canSeeEntity(u, obl.entity_id)) return fail(403, 'You are not assigned to this entity.');
   if (!canFileEntity(u, obl.entity_id))
     return fail(403, 'Your role does not permit filing for this entity.');
+  if (obl.is_late && !lateReason)
+    return fail(400, 'A reason for the late filing is required before this can be submitted.');
 
   /* Nil / Not Applicable filing: no document, but still goes through the
      same reviewer approval queue as a real filing — it just carries a
      placeholder "record" instead of a document, marked is_nil so the UI can
      tell the two apart. Skips file-shaped checks (type/size/duplicate/date
      extraction) that don't mean anything for a nil filing. */
+  const comment2 = lateReason ? `Reason for late filing: ${lateReason}${comment ? ` — ${comment}` : ''}` : comment;
+
   if (isNil) {
     const result = await tx(async c => {
       const prev = await c.query<{ v: number }>(
@@ -76,7 +82,7 @@ export const POST = handler(async (req: Request) => {
             from_status, to_status, comment)
          VALUES ($1,$2,'submit',$3,$4,$5,'Submitted',$6)`,
         [obligationId, ev.rows[0].id, u.id, u.role, obl.status,
-         comment || 'Filed as Nil / Not Applicable for this period.']);
+         comment2 || 'Filed as Nil / Not Applicable for this period.']);
       const rv = await c.query<{ reviewer_id: string | null; title: string; country_code: string }>(
         `SELECT o.reviewer_id, c.title, e.country_code
            FROM obligations o JOIN compliances c ON c.id = o.compliance_id
@@ -158,7 +164,7 @@ export const POST = handler(async (req: Request) => {
           from_status, to_status, comment)
        VALUES ($1,$2,'submit',$3,$4,$5,'Submitted',$6)`,
       [obligationId, ev.rows[0].id, u.id, u.role, obl.status,
-       comment || `Evidence uploaded (${f.name}). Automatic validation: ${validation.outcome}.`]);
+       comment2 || `Evidence uploaded (${f.name}). Automatic validation: ${validation.outcome}.`]);
 
     /* tell the reviewer there is something waiting */
     const rv = await c.query<{ reviewer_id: string | null; title: string; country_code: string }>(

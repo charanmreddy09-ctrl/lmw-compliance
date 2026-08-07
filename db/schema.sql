@@ -311,6 +311,18 @@ CREATE TABLE IF NOT EXISTS compliance_exclusions (
 );
 CREATE INDEX IF NOT EXISTS idx_ce_entity ON compliance_exclusions(entity_id);
 
+-- Escalation matrix: one row per obligation per level ever fired, so the
+-- daily check (src/lib/escalation.ts) never nags the same threshold twice
+-- for the same obligation. Level order: reminder (T-15) -> dept_head (T-7)
+-- -> cfo (overdue) -> audit_committee (significantly overdue / high risk).
+CREATE TABLE IF NOT EXISTS escalation_log (
+  id              BIGSERIAL    PRIMARY KEY,
+  obligation_id   UUID         NOT NULL REFERENCES obligations(id) ON DELETE CASCADE,
+  level           TEXT         NOT NULL CHECK (level IN ('reminder','dept_head','cfo','audit_committee')),
+  created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  UNIQUE (obligation_id, level)
+);
+
 -- ---------------------------------------------------------------- workflow
 CREATE TABLE IF NOT EXISTS review_actions (
   id              BIGSERIAL    PRIMARY KEY,

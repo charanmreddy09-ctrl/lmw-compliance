@@ -8,15 +8,13 @@ type Report = {
   type: string; title: string; rows: Record<string, unknown>[];
   extraSheets: { name: string; rows: Record<string, unknown>[] }[];
   generatedAt: string; generatedBy: string;
+  availableFys: { startYear: number; label: string }[];
+  categories: { id: string; name: string }[];
 };
 
 const REPORTS = [
   { id: 'executive', name: 'Executive summary', icon: 'report',
     d: 'The headline numbers for the Board: score, coverage, timeliness and exposure, with country and entity annexures.' },
-  { id: 'country', name: 'Country compliance', icon: 'globe',
-    d: 'Applicable versus followed for each country, with entity count, overdue items and score.' },
-  { id: 'entity', name: 'Entity scorecard', icon: 'building',
-    d: 'Every entity with its applicable obligations, approvals, coverage, on-time rate and score.' },
   { id: 'division', name: 'Division summary', icon: 'dash',
     d: 'Compliance position by operating division.' },
   { id: 'category', name: 'Category summary', icon: 'book',
@@ -27,6 +25,8 @@ const REPORTS = [
     d: 'Filings made after the due date, the delay in days and the penalty exposure recorded against each.' },
   { id: 'evidence', name: 'Evidence register', icon: 'doc',
     d: 'Full document inventory: what was uploaded, by whom, when, its version and validation outcome.' },
+  { id: 'methodology', name: 'Score methodology', icon: 'info',
+    d: 'How the compliance score shown across this platform is actually calculated.' },
 ];
 
 function ReportsInner() {
@@ -34,23 +34,33 @@ function ReportsInner() {
   const toast = useToast();
   const [active, setActive] = useState(search.get('r') ?? 'executive');
   const [data, setData] = useState<Report | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(active !== 'methodology');
   const [err, setErr] = useState<string | null>(null);
+  const [fy, setFy] = useState<number | ''>('');
+  const [category, setCategory] = useState('');
 
-  const load = useCallback(async (type: string) => {
+  const load = useCallback(async (type: string, fyVal: number | '') => {
+    if (type === 'methodology') { setLoading(false); setData(null); setErr(null); return; }
     setLoading(true); setErr(null);
     try {
-      const res = await fetch(`/api/reports/${type}`);
+      const p = new URLSearchParams();
+      if (fyVal !== '') p.set('fy', String(fyVal));
+      if (type === 'delay' && category) p.set('category', category);
+      const res = await fetch(`/api/reports/${type}?${p}`);
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? 'Unable to generate the report.');
       setData(j);
+      /* Default to the most recent financial year, same rule as the
+         dashboard and the compliance library — a report should open on the
+         current FY, not every FY blended together. */
+      if (fyVal === '' && j.availableFys?.length) setFy(j.availableFys[0].startYear);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Unable to generate the report.');
       setData(null);
     } finally { setLoading(false); }
-  }, []);
+  }, [category]);
 
-  useEffect(() => { load(active); }, [active, load]);
+  useEffect(() => { load(active, fy); }, [active, fy, load]);
 
   const meta = REPORTS.find(r => r.id === active);
   const cols = data?.rows.length ? Object.keys(data.rows[0]) : [];
@@ -120,18 +130,37 @@ function ReportsInner() {
                 <h3>{meta?.name ?? 'Report'}</h3>
                 <div className="tiny muted mt4">{meta?.d}</div>
               </div>
-              <div className="row g6 no-print">
-                <button className="btn btn-s" onClick={() => window.print()}>
-                  <Ic n="doc" s={13} /> Print / PDF
-                </button>
-                <button className="btn btn-p btn-s"
-                        onClick={() => downloadFile(`/api/reports/${active}?format=xlsx`,
-                          `SGCMP_${active}.xlsx`, toast)}>
-                  <Ic n="download" s={13} /> Excel
-                </button>
-              </div>
+              {active !== 'methodology' && (
+                <div className="row g6 no-print">
+                  {data && data.availableFys.length > 0 && (
+                    <select value={fy} onChange={e => setFy(e.target.value ? Number(e.target.value) : '')}
+                            aria-label="Filter by financial year">
+                      {data.availableFys.map(f => <option key={f.startYear} value={f.startYear}>{f.label}</option>)}
+                    </select>
+                  )}
+                  {active === 'delay' && data && data.categories.length > 0 && (
+                    <select value={category} onChange={e => setCategory(e.target.value)}
+                            aria-label="Filter by law / category">
+                      <option value="">All laws / categories</option>
+                      {data.categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  )}
+                  <button className="btn btn-s" onClick={() => window.print()}>
+                    <Ic n="doc" s={13} /> Print / PDF
+                  </button>
+                  <button className="btn btn-p btn-s"
+                          onClick={() => {
+                            const p = new URLSearchParams({ format: 'xlsx' });
+                            if (fy !== '') p.set('fy', String(fy));
+                            if (active === 'delay' && category) p.set('category', category);
+                            downloadFile(`/api/reports/${active}?${p}`, `SGCMP_${active}.xlsx`, toast);
+                          }}>
+                    <Ic n="download" s={13} /> Excel
+                  </button>
+                </div>
+              )}
             </div>
-            {data && (
+            {data && active !== 'methodology' && (
               <div className="card-f row between wrap g8">
                 <span className="tiny muted">
                   Generated {fmtDateTime(data.generatedAt)} by {data.generatedBy} ·
@@ -142,10 +171,48 @@ function ReportsInner() {
             )}
           </div>
 
-          {err && <Note kind="b">{err}</Note>}
-          {loading && <Spinner label="Generating the report…" />}
+          {active === 'methodology' && (
+            <div className="card">
+              <div className="card-b">
+                <p className="small mb12">
+                  The compliance score shown across this platform — on the dashboard, in the
+                  register and in every report — is derived only from obligations that carry
+                  reviewer-approved documentary evidence. It cannot be inflated by self-declaration,
+                  and it is calculated the same way for every entity, country and the group overall.
+                </p>
+                <dl className="kv mb16">
+                  <dt>Applicable obligations</dt>
+                  <dd>Every obligation due on or before today for the entities and financial year in
+                    scope, excluding anything a reviewer has marked not applicable.</dd>
+                  <dt>Base score</dt>
+                  <dd className="num">100 × (approved obligations ÷ applicable obligations)</dd>
+                  <dt>Overdue penalty</dt>
+                  <dd>Up to 15 points deducted, scaled by the proportion of applicable obligations
+                    that are past their due date with no evidence uploaded.</dd>
+                  <dt>Delay penalty</dt>
+                  <dd>Up to 5 points deducted for chronic lateness, scaled by the average number of
+                    days obligations were filed after their due date.</dd>
+                  <dt>Final score</dt>
+                  <dd className="num">Base score − overdue penalty − delay penalty, floored at 0 and capped at 100.</dd>
+                  <dt>Evidence coverage</dt>
+                  <dd>% of applicable obligations with at least one uploaded document, approved or not.</dd>
+                  <dt>On-time filing rate</dt>
+                  <dd>% of filed obligations filed on or before their due date.</dd>
+                </dl>
+                <p className="small muted">
+                  An obligation only counts as &quot;approved&quot; once a reviewer has accepted its
+                  evidence — a submission awaiting review, a query, or a rejection does not add to the
+                  score until it is resolved. Obligations not yet due are excluded entirely rather than
+                  counted against the group.
+                </p>
+              </div>
+            </div>
+          )}
 
-          {!loading && data && (
+          {active !== 'methodology' && err && <Note kind="b">{err}</Note>}
+          {active !== 'methodology' && loading && <Spinner label="Generating the report…" />}
+
+          {active !== 'methodology' && !loading && data && (
             <>
               {data.rows.length === 0 ? (
                 <div className="card"><div className="empty">
