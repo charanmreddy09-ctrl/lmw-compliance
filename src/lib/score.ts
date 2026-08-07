@@ -1,19 +1,35 @@
 /* ===========================================================================
-   COMPLIANCE SCORE ENGINE
-   The platform's headline output. This replaces the representation letter: the
-   score is derived only from obligations that carry approved documentary
-   evidence, so it cannot be inflated by self-declaration.
+   COMPLIANCE SCORE ENGINE  (Phase A — weighted, modules A1 / A2 / A3)
+   ---------------------------------------------------------------------------
+   The platform's headline output. The score is derived only from obligations
+   that carry reviewer-approved evidence, so it cannot be inflated by
+   self-declaration.
 
-   score = 100 * (approved obligations / applicable obligations)
-           with deductions for overdue items and filing delays.
-   Every component is returned so the number is always explainable.
+   Until v1.1 the score was a flat ratio — approved ÷ applicable, less two
+   penalties. That treated a missed GST return and a late professional-tax
+   return as the same event, and treated an approval backed by a government
+   acknowledgement as identical to one backed by a screenshot.
 
-   Every aggregate below can additionally be scoped to a single financial
-   year (fy_start_year) — the dashboard's FY selector passes this through so
-   "Applicable obligations" reflects one FY's filings, not every FY ever
-   generated. Omitting fy keeps the previous "all FYs" behaviour.
+   It is now a weighted engine:
+
+       score = Σ (outcome points × criticality) / Σ (100 × criticality) × 100
+
+   where outcome points come from what actually happened to the obligation,
+   criticality comes from the compliance library's own risk_level, and the
+   points are scaled by the quality of the evidence on file. Every weight
+   lives in src/lib/scoring-config.ts, and every component is returned in the
+   breakdown so the number is always explainable.
+
+   Every aggregate can additionally be scoped to a single financial year
+   (fy_start_year) — the dashboard's FY selector passes this through so
+   "applicable obligations" reflects one year's filing calendar rather than
+   every FY ever generated.
    =========================================================================== */
 import { q } from './db';
+import {
+  OUTCOME_POINTS, DEDUCTIONS, EVIDENCE_NONE,
+  criticalitySql, evidenceQualitySql, evidenceFactorSql,
+} from './scoring-config';
 
 export type ScoreBreakdown = {
   total: number;
@@ -29,10 +45,22 @@ export type ScoreBreakdown = {
   avgDelayDays: number;
   evidenceCoverage: number;   // % of applicable obligations with at least one file
   onTimeRate: number;         // % of filed obligations filed on or before due date
-  base: number;               // approved / total
+  base: number;               // unweighted approved / total — kept for continuity
   overduePenalty: number;
   delayPenalty: number;
-  score: number;
+  score: number;              // the weighted compliance health score
+
+  /* --- weighted engine detail (Phase A) --------------------------------- */
+  /** Points actually earned, criticality-weighted. */
+  earnedPoints: number;
+  /** Points that were available to earn, criticality-weighted. */
+  maxPoints: number;
+  /** Mean quality (0–100) of the evidence on obligations that carry any. */
+  evidenceQuality: number;
+  /** Share of applicable obligations that are Critical or High risk. */
+  criticalShare: number;
+  /** Count of Critical-risk obligations currently overdue. */
+  criticalOverdue: number;
 };
 
 type Agg = {
@@ -42,11 +70,69 @@ type Agg = {
   overdue: string; filed_late: string; avg_delay: string | null;
   with_evidence: string; filed_total: string; filed_ontime: string;
   in_review_ct: string;
+  w_points: string | null; w_max: string | null; avg_eq: string | null;
+  critical_high: string; critical_overdue: string;
 };
 
+/* ---------------------------------------------------------------- SQL parts
+   Assembled once from the configuration so the query and the documented
+   weights can never drift apart. `o` is obligations, `c` is compliances. */
+
+const CRIT = criticalitySql('c.risk_level');
+
+/* Evidence is summarised once per obligation in a LATERAL join rather than
+   re-queried inside each aggregate. The same figures are needed by the points
+   expression, the coverage count and the quality average; as correlated
+   subqueries that was three scans of `evidence` per row, on a query that runs
+   four times per dashboard load. */
+const EVIDENCE_LATERAL = `
+    LEFT JOIN LATERAL (
+      SELECT max(${evidenceQualitySql('ev.doc_type', 'ev.file_name', 'ev.is_nil')}) AS quality,
+             count(*) AS docs
+        FROM evidence ev
+       WHERE ev.obligation_id = o.id AND ev.deleted_at IS NULL
+    ) evx ON TRUE`;
+
+/** Best-quality document on the obligation, 0 when there is none. */
+const EQ = `COALESCE(evx.quality, ${EVIDENCE_NONE.toFixed(2)})`;
+const HAS_EVIDENCE = `(evx.docs > 0)`;
+
+/** The same compliance was already filed late for this entity in an earlier
+    period — a pattern rather than a one-off slip. */
+const REPEATED_DELAY = `EXISTS (
+      SELECT 1 FROM obligations o2
+       WHERE o2.compliance_id = o.compliance_id
+         AND o2.entity_id     = o.entity_id
+         AND o2.id           <> o.id
+         AND o2.deleted_at IS NULL
+         AND o2.filed_date IS NOT NULL
+         AND o2.filed_date  > o2.due_date
+         AND o2.due_date    < o.due_date)`;
+
+const IS_OVERDUE = `(o.filed_date IS NULL AND o.due_date < CURRENT_DATE AND o.status <> 'Approved')`;
+
+/* A1 — what happened to this obligation, out of 100. */
+const BASE_POINTS = `CASE
+      WHEN o.status = 'Approved' AND (o.filed_date IS NULL OR o.filed_date <= o.due_date)
+                                              THEN ${OUTCOME_POINTS.approvedOnTime}
+      WHEN o.status = 'Approved'              THEN ${OUTCOME_POINTS.approvedLate}
+      WHEN o.status IN ('Submitted','Under Review') THEN ${OUTCOME_POINTS.awaitingReview}
+      WHEN o.status = 'Query Raised'          THEN ${OUTCOME_POINTS.queryRaised}
+      WHEN o.status = 'Rejected'              THEN ${OUTCOME_POINTS.rejected}
+      ELSE ${OUTCOME_POINTS.notStarted} END`;
+
+const ADJUSTMENTS = `(
+      CASE WHEN o.delay_days > 0 AND ${REPEATED_DELAY} THEN ${DEDUCTIONS.repeatedDelay} ELSE 0 END
+    + CASE WHEN c.risk_level = 'Critical' AND ${IS_OVERDUE} THEN ${DEDUCTIONS.criticalOverdue} ELSE 0 END
+    + CASE WHEN o.due_date < CURRENT_DATE AND o.status <> 'Approved' AND NOT ${HAS_EVIDENCE}
+             THEN ${DEDUCTIONS.missingEvidence} ELSE 0 END)`;
+
+/* A3 — evidence quality scales what the outcome earned. */
+const POINTS = `GREATEST(0, LEAST(100, ${BASE_POINTS} + ${ADJUSTMENTS})) * ${evidenceFactorSql(EQ)}`;
+
 /** Builds the `entity_id = ANY(...)` / `fy_start_year = ...` filter shared by
-    every aggregate query below, with placeholder numbers that always match
-    the values array — so callers never have to track $1/$2 by hand. */
+    every aggregate below, with placeholder numbers that always match the
+    values array — so callers never have to track $1/$2 by hand. */
 function scopeFilter(entityIds?: string[], fy?: number): { sql: string; vals: unknown[] } {
   const vals: unknown[] = [];
   const parts: string[] = [];
@@ -55,13 +141,24 @@ function scopeFilter(entityIds?: string[], fy?: number): { sql: string; vals: un
   return { sql: parts.join(' '), vals };
 }
 
-/* The select list is shared; entity_id is added only when grouping by entity.
-   Only counts obligations that are actually due by today — a period that
-   hasn't come up yet can't be filed, so it shouldn't count against the score
+/* One builder for every grouping. The entity, country and category aggregates
+   were three near-identical 30-line queries; they differ only in what they
+   group by and which table that column comes from, so that is all they now
+   state. Only counts obligations actually due by today — a period that has
+   not come up yet cannot be filed, so it should not count against the score
    (or appear as "applicable") until its due date arrives. */
-function aggSql(groupByEntity: boolean, extraWhere = ''): string {
+type Grouping = { select: string; join: string; groupBy: string };
+
+const GROUPINGS = {
+  none:     { select: `'' AS entity_id`,             join: '', groupBy: '' },
+  entity:   { select: `o.entity_id`,                 join: '', groupBy: 'GROUP BY o.entity_id' },
+  country:  { select: `e.country_code AS entity_id`, join: 'JOIN entities e ON e.id = o.entity_id', groupBy: 'GROUP BY e.country_code' },
+  category: { select: `cat.name AS entity_id`,       join: 'JOIN categories cat ON cat.id = c.category_id', groupBy: 'GROUP BY cat.name' },
+} satisfies Record<string, Grouping>;
+
+function aggSql(g: Grouping, extraWhere = ''): string {
   return `
-  SELECT ${groupByEntity ? 'o.entity_id,' : `'' AS entity_id,`}
+  SELECT ${g.select},
          count(*)                                                        AS total,
          count(*) FILTER (WHERE o.status = 'Approved')                    AS approved,
          count(*) FILTER (WHERE o.status = 'Submitted')                   AS submitted,
@@ -78,34 +175,50 @@ function aggSql(groupByEntity: boolean, extraWhere = ''): string {
          count(*) FILTER (WHERE o.filed_date IS NOT NULL
                             AND o.filed_date > o.due_date)                AS filed_late,
          avg(NULLIF(o.delay_days, 0)) FILTER (WHERE o.delay_days > 0)     AS avg_delay,
-         count(*) FILTER (WHERE EXISTS (
-            SELECT 1 FROM evidence e WHERE e.obligation_id = o.id AND e.deleted_at IS NULL))
-                                                                          AS with_evidence,
+         count(*) FILTER (WHERE ${HAS_EVIDENCE})                          AS with_evidence,
          count(*) FILTER (WHERE o.filed_date IS NOT NULL)                 AS filed_total,
          count(*) FILTER (WHERE o.filed_date IS NOT NULL
-                            AND o.filed_date <= o.due_date)               AS filed_ontime
+                            AND o.filed_date <= o.due_date)               AS filed_ontime,
+         -- weighted engine
+         sum(${POINTS} * ${CRIT})                                         AS w_points,
+         sum(100.0 * ${CRIT})                                             AS w_max,
+         avg(${EQ}) FILTER (WHERE ${HAS_EVIDENCE})                        AS avg_eq,
+         count(*) FILTER (WHERE c.risk_level IN ('Critical','High'))      AS critical_high,
+         count(*) FILTER (WHERE c.risk_level = 'Critical' AND ${IS_OVERDUE}) AS critical_overdue
     FROM obligations o
+    JOIN compliances c ON c.id = o.compliance_id
+    ${EVIDENCE_LATERAL}
+    ${g.join}
    WHERE o.deleted_at IS NULL
      AND o.status <> 'Not Applicable'
      AND o.due_date <= CURRENT_DATE
      ${extraWhere}
-   ${groupByEntity ? 'GROUP BY o.entity_id' : ''}`;
+   ${g.groupBy}`;
 }
 
+function n(v: string | null): number { return Number(v ?? 0); }
+function r1(v: number): number { return Math.round(v * 10) / 10; }
+
 function build(a: Agg): ScoreBreakdown {
-  const n = (v: string | null) => Number(v ?? 0);
   const total = n(a.total);
   const approved = n(a.approved);
   const overdue = n(a.overdue);
   const filedTotal = n(a.filed_total);
   const avgDelay = a.avg_delay ? Number(a.avg_delay) : 0;
 
+  const earned = n(a.w_points);
+  const max = n(a.w_max);
+
+  /* The weighted score. Outcome, criticality and evidence quality are all
+     already priced into the points, so the old flat overdue/delay penalties
+     are deliberately NOT subtracted again — doing so would charge for the
+     same lateness twice. They remain in the breakdown because reports and
+     the methodology page still report them as standalone indicators. */
+  const score = max > 0 ? Math.max(0, Math.min(100, (earned / max) * 100)) : 0;
+
   const base = total ? (approved / total) * 100 : 0;
-  // Overdue items bite harder than slow ones: up to 15 points.
   const overduePenalty = total ? Math.min(15, (overdue / total) * 100 * 0.5) : 0;
-  // Chronic lateness costs up to 5 points.
   const delayPenalty = Math.min(5, avgDelay / 6);
-  const score = Math.max(0, Math.min(100, base - overduePenalty - delayPenalty));
 
   return {
     total,
@@ -118,130 +231,57 @@ function build(a: Agg): ScoreBreakdown {
     notStarted: n(a.not_started),
     overdue,
     filedLate: n(a.filed_late),
-    avgDelayDays: Math.round(avgDelay * 10) / 10,
-    evidenceCoverage: total ? Math.round((n(a.with_evidence) / total) * 1000) / 10 : 0,
-    onTimeRate: filedTotal ? Math.round((n(a.filed_ontime) / filedTotal) * 1000) / 10 : 0,
-    base: Math.round(base * 10) / 10,
-    overduePenalty: Math.round(overduePenalty * 10) / 10,
-    delayPenalty: Math.round(delayPenalty * 10) / 10,
-    score: Math.round(score * 10) / 10,
+    avgDelayDays: r1(avgDelay),
+    evidenceCoverage: total ? r1((n(a.with_evidence) / total) * 100) : 0,
+    onTimeRate: filedTotal ? r1((n(a.filed_ontime) / filedTotal) * 100) : 0,
+    base: r1(base),
+    overduePenalty: r1(overduePenalty),
+    delayPenalty: r1(delayPenalty),
+    score: r1(score),
+
+    earnedPoints: Math.round(earned),
+    maxPoints: Math.round(max),
+    evidenceQuality: a.avg_eq ? r1(Number(a.avg_eq) * 100) : 0,
+    criticalShare: total ? r1((n(a.critical_high) / total) * 100) : 0,
+    criticalOverdue: n(a.critical_overdue),
   };
 }
 
-export async function entityScores(
-  entityIds?: string[], fy?: number
-): Promise<Record<string, ScoreBreakdown>> {
+const EMPTY_AGG: Agg = {
+  entity_id: '', total: '0', approved: '0', submitted: '0', under_review: '0',
+  query_raised: '0', rejected: '0', evidence_pending: '0', not_started: '0',
+  overdue: '0', filed_late: '0', avg_delay: null, with_evidence: '0',
+  filed_total: '0', filed_ontime: '0', in_review_ct: '0',
+  w_points: '0', w_max: '0', avg_eq: null, critical_high: '0', critical_overdue: '0',
+};
+
+async function grouped(g: Grouping, entityIds?: string[], fy?: number): Promise<Record<string, ScoreBreakdown>> {
   const { sql, vals } = scopeFilter(entityIds, fy);
-  const rows = await q<Agg>(aggSql(true, sql), vals);
+  const rows = await q<Agg>(aggSql(g, sql), vals);
   const out: Record<string, ScoreBreakdown> = {};
-  rows.forEach(r => { out[r.entity_id] = build(r); });
+  rows.forEach(row => { out[row.entity_id] = build(row); });
   return out;
+}
+
+export async function entityScores(entityIds?: string[], fy?: number): Promise<Record<string, ScoreBreakdown>> {
+  return grouped(GROUPINGS.entity, entityIds, fy);
+}
+
+/** The same breakdown grouped by country — lets the dashboard's country
+    filter re-scope the headline score exactly, with no client-side guesswork. */
+export async function countryScores(entityIds?: string[], fy?: number): Promise<Record<string, ScoreBreakdown>> {
+  return grouped(GROUPINGS.country, entityIds, fy);
+}
+
+/** Grouped by compliance category, for the dashboard's category tabs. */
+export async function categoryScores(entityIds?: string[], fy?: number): Promise<Record<string, ScoreBreakdown>> {
+  return grouped(GROUPINGS.category, entityIds, fy);
 }
 
 export async function overallScore(entityIds?: string[], fy?: number): Promise<ScoreBreakdown> {
   const { sql, vals } = scopeFilter(entityIds, fy);
-  const rows = await q<Agg>(aggSql(false, sql), vals);
-  if (!rows.length) {
-    return build({
-      entity_id: '', total: '0', approved: '0', submitted: '0', under_review: '0',
-      query_raised: '0', rejected: '0', evidence_pending: '0', not_started: '0',
-      overdue: '0', filed_late: '0', avg_delay: null, with_evidence: '0',
-      filed_total: '0', filed_ontime: '0', in_review_ct: '0',
-    });
-  }
-  return build(rows[0]);
-}
-
-/* The same breakdown as entityScores/overallScore, grouped by country instead
-   — lets the dashboard's country filter re-scope the headline score exactly,
-   with no client-side approximation. */
-function aggSqlByCountry(extraWhere = ''): string {
-  return `
-  SELECT e.country_code AS entity_id,
-         count(*)                                                        AS total,
-         count(*) FILTER (WHERE o.status = 'Approved')                    AS approved,
-         count(*) FILTER (WHERE o.status = 'Submitted')                   AS submitted,
-         count(*) FILTER (WHERE o.status = 'Under Review')                AS under_review,
-         count(*) FILTER (WHERE o.status = 'Query Raised')                AS query_raised,
-         count(*) FILTER (WHERE o.status = 'Rejected')                    AS rejected,
-         count(*) FILTER (WHERE o.status = 'Evidence Pending')            AS evidence_pending,
-         count(*) FILTER (WHERE o.status = 'Not Started')                 AS not_started,
-         count(*) FILTER (WHERE o.status <> 'Approved'
-                            AND o.status <> 'Not Applicable'
-                            AND o.filed_date IS NULL
-                            AND o.due_date < CURRENT_DATE)                AS overdue,
-         count(*) FILTER (WHERE o.status IN ('Submitted','Under Review')) AS in_review_ct,
-         count(*) FILTER (WHERE o.filed_date IS NOT NULL
-                            AND o.filed_date > o.due_date)                AS filed_late,
-         avg(NULLIF(o.delay_days, 0)) FILTER (WHERE o.delay_days > 0)     AS avg_delay,
-         count(*) FILTER (WHERE EXISTS (
-            SELECT 1 FROM evidence e2 WHERE e2.obligation_id = o.id AND e2.deleted_at IS NULL))
-                                                                          AS with_evidence,
-         count(*) FILTER (WHERE o.filed_date IS NOT NULL)                 AS filed_total,
-         count(*) FILTER (WHERE o.filed_date IS NOT NULL
-                            AND o.filed_date <= o.due_date)               AS filed_ontime
-    FROM obligations o
-    JOIN entities e ON e.id = o.entity_id
-   WHERE o.deleted_at IS NULL
-     AND o.status <> 'Not Applicable'
-     AND o.due_date <= CURRENT_DATE
-     ${extraWhere}
-   GROUP BY e.country_code`;
-}
-
-export async function countryScores(entityIds?: string[], fy?: number): Promise<Record<string, ScoreBreakdown>> {
-  const { sql, vals } = scopeFilter(entityIds, fy);
-  const rows = await q<Agg>(aggSqlByCountry(sql), vals);
-  const out: Record<string, ScoreBreakdown> = {};
-  rows.forEach(r => { out[r.entity_id] = build(r); });
-  return out;
-}
-
-/* Same breakdown again, grouped by compliance category — lets the dashboard's
-   category tabs show their own Evidence coverage / On-time filing / Awaiting
-   review / Average delay, not just the group-wide numbers, when a tab is
-   selected. */
-function aggSqlByCategory(extraWhere = ''): string {
-  return `
-  SELECT cat.name AS entity_id,
-         count(*)                                                        AS total,
-         count(*) FILTER (WHERE o.status = 'Approved')                    AS approved,
-         count(*) FILTER (WHERE o.status = 'Submitted')                   AS submitted,
-         count(*) FILTER (WHERE o.status = 'Under Review')                AS under_review,
-         count(*) FILTER (WHERE o.status = 'Query Raised')                AS query_raised,
-         count(*) FILTER (WHERE o.status = 'Rejected')                    AS rejected,
-         count(*) FILTER (WHERE o.status = 'Evidence Pending')            AS evidence_pending,
-         count(*) FILTER (WHERE o.status = 'Not Started')                 AS not_started,
-         count(*) FILTER (WHERE o.status <> 'Approved'
-                            AND o.status <> 'Not Applicable'
-                            AND o.filed_date IS NULL
-                            AND o.due_date < CURRENT_DATE)                AS overdue,
-         count(*) FILTER (WHERE o.status IN ('Submitted','Under Review')) AS in_review_ct,
-         count(*) FILTER (WHERE o.filed_date IS NOT NULL
-                            AND o.filed_date > o.due_date)                AS filed_late,
-         avg(NULLIF(o.delay_days, 0)) FILTER (WHERE o.delay_days > 0)     AS avg_delay,
-         count(*) FILTER (WHERE EXISTS (
-            SELECT 1 FROM evidence e2 WHERE e2.obligation_id = o.id AND e2.deleted_at IS NULL))
-                                                                          AS with_evidence,
-         count(*) FILTER (WHERE o.filed_date IS NOT NULL)                 AS filed_total,
-         count(*) FILTER (WHERE o.filed_date IS NOT NULL
-                            AND o.filed_date <= o.due_date)               AS filed_ontime
-    FROM obligations o
-    JOIN compliances c ON c.id = o.compliance_id
-    JOIN categories cat ON cat.id = c.category_id
-   WHERE o.deleted_at IS NULL
-     AND o.status <> 'Not Applicable'
-     AND o.due_date <= CURRENT_DATE
-     ${extraWhere}
-   GROUP BY cat.name`;
-}
-
-export async function categoryScores(entityIds?: string[], fy?: number): Promise<Record<string, ScoreBreakdown>> {
-  const { sql, vals } = scopeFilter(entityIds, fy);
-  const rows = await q<Agg>(aggSqlByCategory(sql), vals);
-  const out: Record<string, ScoreBreakdown> = {};
-  rows.forEach(r => { out[r.entity_id] = build(r); });
-  return out;
+  const rows = await q<Agg>(aggSql(GROUPINGS.none, sql), vals);
+  return build(rows.length ? rows[0] : EMPTY_AGG);
 }
 
 export type CountryRow = {
@@ -252,13 +292,14 @@ export type CountryRow = {
   approved: number;
   overdue: number;
   score: number;
+  /** A13 — position in the group league table, 1 = strongest. */
+  rank: number;
 };
 
-/** Country-wise applicable vs followed — the CFO "Overall" tab and the
-    country/executive/board reports. Scores come from countryScores(), which
-    runs through the same build() formula (including the delay penalty) as
-    every entity and overall score — country, entity and overall figures
-    must always foot to the same numbers when scoped the same way. */
+/** Country-wise applicable vs followed, ranked. Scores come from
+    countryScores(), which runs the same build() as every entity and overall
+    score — country, entity and group figures must always foot to the same
+    numbers when scoped the same way. */
 export async function countryBreakdown(entityIds?: string[], fy?: number): Promise<CountryRow[]> {
   const { sql, vals } = scopeFilter(entityIds, fy);
   const [names, scores] = await Promise.all([
@@ -275,16 +316,23 @@ export async function countryBreakdown(entityIds?: string[], fy?: number): Promi
       vals),
     countryScores(entityIds, fy),
   ]);
-  return names.map(r => {
-    const s = scores[r.country_code] ?? null;
+
+  const rows = names.map(row => {
+    const s = scores[row.country_code] ?? null;
     return {
-      countryCode: r.country_code,
-      countryName: r.country_name,
-      entities: Number(r.entities),
+      countryCode: row.country_code,
+      countryName: row.country_name,
+      entities: Number(row.entities),
       total: s?.total ?? 0, approved: s?.approved ?? 0, overdue: s?.overdue ?? 0,
       score: s?.score ?? 0,
+      rank: 0,
     };
   });
+
+  /* Ranked strongest first, then written back onto the alphabetical list so
+     callers keep a stable order and gain the position. */
+  [...rows].sort((a, b) => b.score - a.score).forEach((row, i) => { row.rank = i + 1; });
+  return rows;
 }
 
 export type TrendPoint = { label: string; monthEnd: string; score: number; total: number; approved: number; overdue: number };
@@ -292,22 +340,25 @@ export type TrendPoint = { label: string; monthEnd: string; score: number; total
 /** The score "as of" a past date, reconstructed from the real timestamps on
     each obligation and its evidence rather than a daily snapshot job — an
     obligation counts as approved as of that date only if a reviewer had
-    already approved its evidence by then, and as overdue only if it was
-    still unfiled by then. This lets the dashboard show a genuine month-on-
-    month trend from day one, with no history-gathering period required. */
+    already approved its evidence by then, and as overdue only if it was still
+    unfiled by then. This lets the dashboard show a genuine month-on-month
+    trend from day one, with no history-gathering period required.
+
+    Deliberately still the simple ratio: reconstructing criticality-weighted
+    points at an arbitrary past date would need the evidence rows as they
+    stood that day, which is not recoverable. The trend therefore shows the
+    shape of movement, and the headline score shows today's weighted position. */
 async function scoreAsOf(asOf: string, entityIds?: string[]): Promise<ScoreBreakdown> {
   const vals: unknown[] = [asOf];
   let scopeSql = '';
   if (entityIds && entityIds.length) { vals.push(entityIds); scopeSql = `AND o.entity_id = ANY($${vals.length})`; }
 
-  const rows = await q<Agg>(`
-    SELECT '' AS entity_id,
-           count(*) AS total,
+  const rows = await q<{ total: string; approved: string; overdue: string; filed_late: string;
+    avg_delay: string | null; with_evidence: string; filed_total: string; filed_ontime: string }>(`
+    SELECT count(*) AS total,
            count(*) FILTER (WHERE EXISTS (
               SELECT 1 FROM evidence e WHERE e.obligation_id = o.id AND e.deleted_at IS NULL
                 AND e.status = 'Approved' AND e.reviewed_at <= $1::date)) AS approved,
-           '0' AS submitted, '0' AS under_review, '0' AS query_raised,
-           '0' AS evidence_pending, '0' AS not_started, '0' AS in_review_ct,
            count(*) FILTER (WHERE o.due_date < $1::date
                               AND (o.filed_date IS NULL OR o.filed_date > $1::date)
                               AND NOT EXISTS (
@@ -327,11 +378,19 @@ async function scoreAsOf(asOf: string, entityIds?: string[]): Promise<ScoreBreak
      WHERE o.deleted_at IS NULL AND o.status <> 'Not Applicable' AND o.due_date <= $1::date
        ${scopeSql}`, vals);
 
-  return build(rows[0] ?? {
-    entity_id: '', total: '0', approved: '0', submitted: '0', under_review: '0',
-    query_raised: '0', rejected: '0', evidence_pending: '0', not_started: '0',
-    overdue: '0', filed_late: '0', avg_delay: null, with_evidence: '0',
-    filed_total: '0', filed_ontime: '0', in_review_ct: '0',
+  const row = rows[0];
+  if (!row) return build(EMPTY_AGG);
+
+  /* Historic points use the ratio directly: everything approved as at that
+     date scored, everything else did not. */
+  const total = Number(row.total ?? 0);
+  const approved = Number(row.approved ?? 0);
+  return build({
+    ...EMPTY_AGG,
+    total: row.total, approved: row.approved, overdue: row.overdue,
+    filed_late: row.filed_late, avg_delay: row.avg_delay,
+    with_evidence: row.with_evidence, filed_total: row.filed_total, filed_ontime: row.filed_ontime,
+    w_points: String(approved * 100), w_max: String(total * 100),
   });
 }
 

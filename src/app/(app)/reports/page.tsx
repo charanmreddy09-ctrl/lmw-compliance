@@ -3,6 +3,10 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Ic, Note, Spinner, useToast, downloadFile, fmtDateTime, scoreColor } from '@/components/ui';
+import {
+  OUTCOME_POINTS, DEDUCTIONS, CRITICALITY_WEIGHT, EVIDENCE_TIERS,
+  EVIDENCE_UNCLASSIFIED, EVIDENCE_FLOOR,
+} from '@/lib/scoring-config';
 
 type Report = {
   type: string; title: string; rows: Record<string, unknown>[];
@@ -180,30 +184,105 @@ function ReportsInner() {
                   reviewer-approved documentary evidence. It cannot be inflated by self-declaration,
                   and it is calculated the same way for every entity, country and the group overall.
                 </p>
+                <Note kind="i">
+                  <strong>Changed in version 1.2.</strong> The score was previously a flat ratio of
+                  approved to applicable obligations. It is now weighted by how critical each
+                  compliance is and by the quality of the evidence behind it, so a missed GST return
+                  no longer costs the same as a late professional-tax return. Scores moved when this
+                  took effect; the underlying filings did not.
+                </Note>
+
+                <div className="cap mt16 mb8">The formula</div>
+                <div className="note note-i num mb16" style={{ display: 'block', textAlign: 'center' }}>
+                  score = Σ (outcome points × criticality) ÷ Σ (100 × criticality) × 100
+                </div>
+
+                <div className="cap mb8">1 · Outcome points, per obligation</div>
+                <div className="tw mb16">
+                  <table className="dt">
+                    <thead><tr><th>Outcome</th><th className="right">Points</th></tr></thead>
+                    <tbody>
+                      {([
+                        ['Approved, filed on or before the due date', OUTCOME_POINTS.approvedOnTime],
+                        ['Approved, but filed late', OUTCOME_POINTS.approvedLate],
+                        ['Filed with evidence, awaiting a reviewer', OUTCOME_POINTS.awaitingReview],
+                        ['Query raised, back with the preparer', OUTCOME_POINTS.queryRaised],
+                        ['Rejected by the reviewer', OUTCOME_POINTS.rejected],
+                        ['Past due with no evidence', OUTCOME_POINTS.overdueNoEvidence],
+                      ] as const).map(([label, pts]) => (
+                        <tr key={label}><td>{label}</td><td className="right num strong">{pts}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="cap mb8">2 · Adjustments, applied then clamped to 0–100</div>
+                <div className="tw mb16">
+                  <table className="dt">
+                    <thead><tr><th>Condition</th><th className="right">Points</th></tr></thead>
+                    <tbody>
+                      <tr><td>Late, and this compliance was already filed late for this entity in an
+                        earlier period</td><td className="right num strong">{DEDUCTIONS.repeatedDelay}</td></tr>
+                      <tr><td>A Critical-risk obligation past its due date</td>
+                        <td className="right num strong">{DEDUCTIONS.criticalOverdue}</td></tr>
+                      <tr><td>Past due with no document on file at all</td>
+                        <td className="right num strong">{DEDUCTIONS.missingEvidence}</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="cap mb8">3 · Criticality multiplier</div>
+                <p className="small mb8">
+                  Taken from the risk level recorded against the compliance in the library. It
+                  multiplies both the points earned and the points available, so a portfolio of
+                  mostly critical obligations is not penalised simply for being critical.
+                </p>
+                <div className="row g8 wrap mb16">
+                  {Object.entries(CRITICALITY_WEIGHT).map(([level, w]) => (
+                    <span key={level} className="pill p-mute nd">{level} × {w.toFixed(2)}</span>
+                  ))}
+                </div>
+
+                <div className="cap mb8">4 · Evidence quality</div>
+                <p className="small mb8">
+                  Documents are classified from their type and file name. Quality scales the points
+                  an obligation earns by a factor of {EVIDENCE_FLOOR.toFixed(2)} to 1.00 — weak
+                  evidence shades the score rather than erasing the filing.
+                </p>
+                <div className="tw mb16">
+                  <table className="dt">
+                    <thead><tr><th>Evidence</th><th className="right">Quality</th></tr></thead>
+                    <tbody>
+                      {EVIDENCE_TIERS.map(t => (
+                        <tr key={t.key}><td>{t.label}</td>
+                          <td className="right num strong">{Math.round(t.quality * 100)}%</td></tr>
+                      ))}
+                      <tr><td className="muted">Unclassified document</td>
+                        <td className="right num">{Math.round(EVIDENCE_UNCLASSIFIED * 100)}%</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
                 <dl className="kv mb16">
                   <dt>Applicable obligations</dt>
                   <dd>Every obligation due on or before today for the entities and financial year in
                     scope, excluding anything a reviewer has marked not applicable.</dd>
-                  <dt>Base score</dt>
-                  <dd className="num">100 × (approved obligations ÷ applicable obligations)</dd>
-                  <dt>Overdue penalty</dt>
-                  <dd>Up to 15 points deducted, scaled by the proportion of applicable obligations
-                    that are past their due date with no evidence uploaded.</dd>
-                  <dt>Delay penalty</dt>
-                  <dd>Up to 5 points deducted for chronic lateness, scaled by the average number of
-                    days obligations were filed after their due date.</dd>
-                  <dt>Final score</dt>
-                  <dd className="num">Base score − overdue penalty − delay penalty, floored at 0 and capped at 100.</dd>
                   <dt>Evidence coverage</dt>
                   <dd>% of applicable obligations with at least one uploaded document, approved or not.</dd>
                   <dt>On-time filing rate</dt>
                   <dd>% of filed obligations filed on or before their due date.</dd>
+                  <dt>Overdue and delay indicators</dt>
+                  <dd>Still reported alongside the score. They are no longer subtracted from it —
+                    lateness is already priced into the outcome points above, and deducting it twice
+                    would charge for the same failure in two places.</dd>
                 </dl>
                 <p className="small muted">
-                  An obligation only counts as &quot;approved&quot; once a reviewer has accepted its
-                  evidence — a submission awaiting review, a query, or a rejection does not add to the
-                  score until it is resolved. Obligations not yet due are excluded entirely rather than
-                  counted against the group.
+                  An obligation only counts as fully approved once a reviewer has accepted its
+                  evidence. Obligations not yet due are excluded entirely rather than counted against
+                  the group. The month-on-month trend is reconstructed from historic approval dates
+                  and remains a simple ratio, because the evidence as it stood on a past date is not
+                  recoverable — the trend shows the shape of movement, the headline shows today&apos;s
+                  weighted position.
                 </p>
               </div>
             </div>
