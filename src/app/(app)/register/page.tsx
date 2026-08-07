@@ -96,7 +96,7 @@ function RegisterInner() {
     (!risk || r.risk_level === risk) &&
     (!q || `${r.title} ${r.code} ${r.reference} ${r.form_reference ?? ''} ${r.period_label}`
       .toLowerCase().includes(q.toLowerCase()))
-  ), [rows, entity, status, cat, q]);
+  ), [rows, entity, status, cat, risk, q]);
 
   const counts = useMemo(() => ({
     actionable: shown.filter(r => ['Not Started', 'Evidence Pending', 'Overdue', 'Query Raised', 'Rejected'].includes(r.status)).length,
