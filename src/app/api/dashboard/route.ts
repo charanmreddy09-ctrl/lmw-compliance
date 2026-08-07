@@ -2,28 +2,51 @@
 import { handler, ok, auth, entityFilter } from '@/lib/api';
 import { q } from '@/lib/db';
 import { overallScore, entityScores, countryBreakdown, countryScores, categoryScores } from '@/lib/score';
+import { fyLabel } from '@/lib/dates';
 
 export const dynamic = 'force-dynamic';
 
-export const GET = handler(async () => {
+/** `entity_id = ANY(...)` / `fy_start_year = ...`, with placeholder numbers
+    that always match the values array — shared by every raw query below so
+    the entity scope and FY filter compose without hand-tracking $1/$2. */
+function buildScope(scope: string[] | null, fy: number | null): { sql: string; vals: unknown[] } {
+  const vals: unknown[] = [];
+  const parts: string[] = [];
+  if (scope) { vals.push(scope); parts.push(`AND o.entity_id = ANY($${vals.length})`); }
+  if (fy != null) { vals.push(fy); parts.push(`AND o.fy_start_year = $${vals.length}`); }
+  return { sql: parts.join(' '), vals };
+}
+
+export const GET = handler(async (req: Request) => {
   const u = await auth();
   const scope = entityFilter(u);
   const ids = scope ?? undefined;
 
-  const [overall, byEntity, byCountry, byCountryScore, byCategoryScore] = await Promise.all([
-    overallScore(ids), entityScores(ids), countryBreakdown(ids), countryScores(ids), categoryScores(ids),
+  const fyParam = new URL(req.url).searchParams.get('fy');
+  const fy = fyParam ? parseInt(fyParam, 10) : null;
+  const { sql: scopeSql, vals: scopeVals } = buildScope(scope, fy);
+
+  const [overall, byEntity, byCountry, byCountryScore, byCategoryScore, fyRows] = await Promise.all([
+    overallScore(ids, fy ?? undefined), entityScores(ids, fy ?? undefined),
+    countryBreakdown(ids, fy ?? undefined), countryScores(ids, fy ?? undefined), categoryScores(ids, fy ?? undefined),
+    q<{ fy_start_year: number }>(`
+      SELECT DISTINCT o.fy_start_year FROM obligations o
+       WHERE o.deleted_at IS NULL ${scope ? 'AND o.entity_id = ANY($1)' : ''}
+       ORDER BY o.fy_start_year DESC`, scope ? [scope] : []),
   ]);
+  const availableFys = fyRows.map(r => ({ startYear: r.fy_start_year, label: fyLabel(r.fy_start_year) }));
 
   /* Obligations not yet due — excluded from the score (a period that hasn't
      come up yet can't be filed), but worth surfacing as an FYI line so the
-     CFO can see what's coming without it dragging the score down. */
+     CFO can see what's coming without it dragging the score down. Scoped to
+     the same FY as everything else: "future" means "later in this FY". */
   const futureRows = await q<{ country_code: string; n: string }>(`
     SELECT e.country_code, count(*) AS n
       FROM obligations o
       JOIN entities e ON e.id = o.entity_id
      WHERE o.deleted_at IS NULL AND o.status <> 'Not Applicable' AND o.due_date > CURRENT_DATE
-       ${scope ? 'AND o.entity_id = ANY($1)' : ''}
-     GROUP BY e.country_code`, scope ? [scope] : []);
+       ${scopeSql}
+     GROUP BY e.country_code`, scopeVals);
   const futureByCountry: Record<string, number> = {};
   let futureOverall = 0;
   futureRows.forEach(r => { futureByCountry[r.country_code] = Number(r.n); futureOverall += Number(r.n); });
@@ -48,8 +71,8 @@ export const GET = handler(async () => {
       JOIN entities e ON e.id = o.entity_id
       LEFT JOIN divisions d ON d.id = e.division_id
      WHERE o.deleted_at IS NULL AND o.status <> 'Not Applicable' AND o.due_date <= CURRENT_DATE
-       ${scope ? 'AND o.entity_id = ANY($1)' : ''}
-     GROUP BY d.name ORDER BY d.name`, scope ? [scope] : []);
+       ${scopeSql}
+     GROUP BY d.name ORDER BY d.name`, scopeVals);
 
   const byCategory = await q(`
     SELECT cat.name AS category,
@@ -61,8 +84,8 @@ export const GET = handler(async () => {
       JOIN compliances c ON c.id = o.compliance_id
       JOIN categories cat ON cat.id = c.category_id
      WHERE o.deleted_at IS NULL AND o.status <> 'Not Applicable' AND o.due_date <= CURRENT_DATE
-       ${scope ? 'AND o.entity_id = ANY($1)' : ''}
-     GROUP BY cat.name ORDER BY cat.name`, scope ? [scope] : []);
+       ${scopeSql}
+     GROUP BY cat.name ORDER BY cat.name`, scopeVals);
 
   const heat = await q(`
     SELECT e.country_code, cat.name AS category,
@@ -74,8 +97,8 @@ export const GET = handler(async () => {
       JOIN compliances c ON c.id = o.compliance_id
       JOIN categories cat ON cat.id = c.category_id
      WHERE o.deleted_at IS NULL AND o.status <> 'Not Applicable' AND o.due_date <= CURRENT_DATE
-       ${scope ? 'AND o.entity_id = ANY($1)' : ''}
-     GROUP BY e.country_code, cat.name`, scope ? [scope] : []);
+       ${scopeSql}
+     GROUP BY e.country_code, cat.name`, scopeVals);
 
   const upcoming = await q(`
     SELECT o.id, o.reference, o.due_date, o.status, o.period_label,
@@ -119,7 +142,7 @@ export const GET = handler(async () => {
 
   return ok({
     overall, byEntity, byCountry, byCountryScore, byCategoryScore, entities, byDivision, byCategory, heat,
-    upcoming, activity, dueChanges, futureByCountry, futureOverall,
+    upcoming, activity, dueChanges, futureByCountry, futureOverall, availableFys, selectedFy: fy,
     pendingReview: Number(pendingReview[0]?.n ?? 0),
     scopeLabel: scope ? `${entities.length} assigned entit${entities.length === 1 ? 'y' : 'ies'}` : 'All entities',
     syncedAt: new Date().toISOString(),

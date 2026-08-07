@@ -201,6 +201,11 @@ CREATE TABLE IF NOT EXISTS obligations (
   period_label    TEXT         NOT NULL,
   period_start    DATE,
   period_end      DATE,
+  /* The FY (Apr-Mar) this obligation's period belongs to, as its starting
+     calendar year — e.g. 2026 for FY2026-27. Stored explicitly rather than
+     derived from due_date, since a Q4 due date can fall in the FY's second
+     calendar year (e.g. a May due date for the preceding March quarter). */
+  fy_start_year   SMALLINT     NOT NULL,
   due_date        DATE         NOT NULL,
   original_due_date DATE,
   filed_date      DATE,
@@ -224,6 +229,7 @@ CREATE INDEX IF NOT EXISTS idx_obl_status   ON obligations(status)      WHERE de
 CREATE INDEX IF NOT EXISTS idx_obl_due      ON obligations(due_date)    WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_obl_reviewer ON obligations(reviewer_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_obl_assigned ON obligations(assigned_to) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_obl_fy       ON obligations(fy_start_year) WHERE deleted_at IS NULL;
 
 -- Due-date change log. Drives the country-specific popup notification.
 CREATE TABLE IF NOT EXISTS due_date_changes (

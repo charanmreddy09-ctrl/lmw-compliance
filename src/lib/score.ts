@@ -7,6 +7,11 @@
    score = 100 * (approved obligations / applicable obligations)
            with deductions for overdue items and filing delays.
    Every component is returned so the number is always explainable.
+
+   Every aggregate below can additionally be scoped to a single financial
+   year (fy_start_year) — the dashboard's FY selector passes this through so
+   "Applicable obligations" reflects one FY's filings, not every FY ever
+   generated. Omitting fy keeps the previous "all FYs" behaviour.
    =========================================================================== */
 import { q } from './db';
 
@@ -38,6 +43,17 @@ type Agg = {
   with_evidence: string; filed_total: string; filed_ontime: string;
   in_review_ct: string;
 };
+
+/** Builds the `entity_id = ANY(...)` / `fy_start_year = ...` filter shared by
+    every aggregate query below, with placeholder numbers that always match
+    the values array — so callers never have to track $1/$2 by hand. */
+function scopeFilter(entityIds?: string[], fy?: number): { sql: string; vals: unknown[] } {
+  const vals: unknown[] = [];
+  const parts: string[] = [];
+  if (entityIds && entityIds.length) { vals.push(entityIds); parts.push(`AND o.entity_id = ANY($${vals.length})`); }
+  if (fy != null) { vals.push(fy); parts.push(`AND o.fy_start_year = $${vals.length}`); }
+  return { sql: parts.join(' '), vals };
+}
 
 /* The select list is shared; entity_id is added only when grouping by entity.
    Only counts obligations that are actually due by today — a period that
@@ -113,24 +129,18 @@ function build(a: Agg): ScoreBreakdown {
 }
 
 export async function entityScores(
-  entityIds?: string[]
+  entityIds?: string[], fy?: number
 ): Promise<Record<string, ScoreBreakdown>> {
-  const scoped = !!(entityIds && entityIds.length);
-  const rows = await q<Agg>(
-    aggSql(true, scoped ? 'AND o.entity_id = ANY($1)' : ''),
-    scoped ? [entityIds] : []
-  );
+  const { sql, vals } = scopeFilter(entityIds, fy);
+  const rows = await q<Agg>(aggSql(true, sql), vals);
   const out: Record<string, ScoreBreakdown> = {};
   rows.forEach(r => { out[r.entity_id] = build(r); });
   return out;
 }
 
-export async function overallScore(entityIds?: string[]): Promise<ScoreBreakdown> {
-  const scoped = !!(entityIds && entityIds.length);
-  const rows = await q<Agg>(
-    aggSql(false, scoped ? 'AND o.entity_id = ANY($1)' : ''),
-    scoped ? [entityIds] : []
-  );
+export async function overallScore(entityIds?: string[], fy?: number): Promise<ScoreBreakdown> {
+  const { sql, vals } = scopeFilter(entityIds, fy);
+  const rows = await q<Agg>(aggSql(false, sql), vals);
   if (!rows.length) {
     return build({
       entity_id: '', total: '0', approved: '0', submitted: '0', under_review: '0',
@@ -179,18 +189,18 @@ function aggSqlByCountry(extraWhere = ''): string {
    GROUP BY e.country_code`;
 }
 
-export async function countryScores(entityIds?: string[]): Promise<Record<string, ScoreBreakdown>> {
-  const scoped = !!(entityIds && entityIds.length);
-  const rows = await q<Agg>(aggSqlByCountry(scoped ? 'AND o.entity_id = ANY($1)' : ''), scoped ? [entityIds] : []);
+export async function countryScores(entityIds?: string[], fy?: number): Promise<Record<string, ScoreBreakdown>> {
+  const { sql, vals } = scopeFilter(entityIds, fy);
+  const rows = await q<Agg>(aggSqlByCountry(sql), vals);
   const out: Record<string, ScoreBreakdown> = {};
   rows.forEach(r => { out[r.entity_id] = build(r); });
   return out;
 }
 
 /* Same breakdown again, grouped by compliance category — lets the dashboard's
-   category tabs (Direct Tax / GST / Companies Act / Labour Laws) show their
-   own Evidence coverage / On-time filing / Awaiting review / Average delay,
-   not just the group-wide numbers, when a tab is selected. */
+   category tabs show their own Evidence coverage / On-time filing / Awaiting
+   review / Average delay, not just the group-wide numbers, when a tab is
+   selected. */
 function aggSqlByCategory(extraWhere = ''): string {
   return `
   SELECT cat.name AS entity_id,
@@ -226,9 +236,9 @@ function aggSqlByCategory(extraWhere = ''): string {
    GROUP BY cat.name`;
 }
 
-export async function categoryScores(entityIds?: string[]): Promise<Record<string, ScoreBreakdown>> {
-  const scoped = !!(entityIds && entityIds.length);
-  const rows = await q<Agg>(aggSqlByCategory(scoped ? 'AND o.entity_id = ANY($1)' : ''), scoped ? [entityIds] : []);
+export async function categoryScores(entityIds?: string[], fy?: number): Promise<Record<string, ScoreBreakdown>> {
+  const { sql, vals } = scopeFilter(entityIds, fy);
+  const rows = await q<Agg>(aggSqlByCategory(sql), vals);
   const out: Record<string, ScoreBreakdown> = {};
   rows.forEach(r => { out[r.entity_id] = build(r); });
   return out;
@@ -245,8 +255,8 @@ export type CountryRow = {
 };
 
 /** Country-wise applicable vs followed — the CFO "Overall" tab. */
-export async function countryBreakdown(entityIds?: string[]): Promise<CountryRow[]> {
-  const filter = entityIds && entityIds.length ? ` AND o.entity_id = ANY($1)` : '';
+export async function countryBreakdown(entityIds?: string[], fy?: number): Promise<CountryRow[]> {
+  const { sql, vals } = scopeFilter(entityIds, fy);
   const rows = await q<{
     country_code: string; country_name: string; entities: string;
     total: string; approved: string; overdue: string;
@@ -262,10 +272,10 @@ export async function countryBreakdown(entityIds?: string[]): Promise<CountryRow
        JOIN entities e ON e.id = o.entity_id
        JOIN countries c ON c.code = e.country_code
       WHERE o.deleted_at IS NULL AND o.status <> 'Not Applicable'
-        AND o.due_date <= CURRENT_DATE${filter}
+        AND o.due_date <= CURRENT_DATE ${sql}
       GROUP BY c.code, c.name
       ORDER BY c.name`,
-    entityIds && entityIds.length ? [entityIds] : []
+    vals
   );
   return rows.map(r => {
     const total = Number(r.total), approved = Number(r.approved), overdue = Number(r.overdue);

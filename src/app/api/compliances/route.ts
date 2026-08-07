@@ -2,6 +2,7 @@
 import { handler, ok, fail, auth, authWith, body, writeAudit } from '@/lib/api';
 import { q, one, tx } from '@/lib/db';
 import { can } from '@/lib/rbac';
+import { fyLabel } from '@/lib/dates';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,17 @@ export const GET = handler(async (req: Request) => {
                  OR c.code ILIKE $${vals.length})`);
   }
 
+  /* "In use" counts obligations for the selected financial year only, once
+     one is chosen — otherwise a compliance running since before this FY
+     shows every FY's instances added together, which reads as "the full
+     history" rather than "how many times this applies this year". */
+  let fyPlaceholder = '';
+  const fyParam = p.get('fy') ? parseInt(p.get('fy')!, 10) : null;
+  if (fyParam != null && !Number.isNaN(fyParam)) {
+    vals.push(fyParam);
+    fyPlaceholder = `AND o.fy_start_year = $${vals.length}`;
+  }
+
   const rows = await q(`
     SELECT c.id, c.code, c.country_code, co.name AS country_name,
            c.jurisdiction_id, j.name AS jurisdiction_name, j.level AS jurisdiction_level,
@@ -36,7 +48,8 @@ export const GET = handler(async (req: Request) => {
            c.due_day, c.due_month, c.evidence_required, c.penalty, c.risk_level,
            c.applies_if_listed, c.applies_if_factory, c.applies_if_importer,
            c.verified, c.verified_by, c.verified_on, c.is_archived, c.updated_at,
-           (SELECT count(*) FROM obligations o WHERE o.compliance_id = c.id AND o.deleted_at IS NULL) AS instances
+           (SELECT count(*) FROM obligations o
+              WHERE o.compliance_id = c.id AND o.deleted_at IS NULL ${fyPlaceholder}) AS instances
       FROM compliances c
       JOIN countries co ON co.code = c.country_code
       JOIN categories cat ON cat.id = c.category_id
@@ -44,12 +57,14 @@ export const GET = handler(async (req: Request) => {
      WHERE ${where.join(' AND ')}
      ORDER BY co.name, j.level NULLS FIRST, cat.name, c.title`, vals);
 
-  const [countries, categories, jurisdictions] = await Promise.all([
+  const [countries, categories, jurisdictions, fyRows] = await Promise.all([
     q(`SELECT code, name FROM countries ORDER BY name`),
     q(`SELECT id, name FROM categories ORDER BY sort_order`),
     q(`SELECT id, country_code, name, level, code FROM jurisdictions WHERE is_active ORDER BY country_code, level, name`),
+    q<{ fy_start_year: number }>(`SELECT DISTINCT fy_start_year FROM obligations WHERE deleted_at IS NULL ORDER BY fy_start_year DESC`),
   ]);
-  return ok({ compliances: rows, countries, categories, jurisdictions });
+  const availableFys = fyRows.map(r => ({ startYear: r.fy_start_year, label: fyLabel(r.fy_start_year) }));
+  return ok({ compliances: rows, countries, categories, jurisdictions, availableFys });
 });
 
 type Payload = {

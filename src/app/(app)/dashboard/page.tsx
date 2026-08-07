@@ -45,6 +45,8 @@ type Payload = {
   scopeLabel: string;
   futureByCountry: Record<string, number>;
   futureOverall: number;
+  availableFys: { startYear: number; label: string }[];
+  selectedFy: number | null;
   syncedAt: string;
 };
 
@@ -63,7 +65,7 @@ const ACTION_TONE: Record<string, string> = {
   approve: 'ok', reject: 'bad', query: 'warn', escalate: 'bad', submit: '', resubmit: '',
 };
 
-/* The 4 category views the CFO actually cares about, mapped to the category
+/* Every category in the library gets its own tab, mapped to the category
    names produced by db/library.ts (CATEGORIES) and returned by /api/dashboard. */
 const CAT_TABS = [
   { id: 'overall', label: 'Overall', matchName: null, icon: 'globe' },
@@ -71,6 +73,14 @@ const CAT_TABS = [
   { id: 'vat_gst', label: 'GST', matchName: 'VAT / GST', icon: 'sheet' },
   { id: 'corporate_law', label: 'Companies Act', matchName: 'Corporate Law', icon: 'building' },
   { id: 'labour_law', label: 'Labour Laws', matchName: 'Labour Law', icon: 'users' },
+  { id: 'securities_sebi', label: 'Securities / SEBI', matchName: 'Securities / SEBI', icon: 'shield' },
+  { id: 'foreign_exchange', label: 'Foreign Exchange', matchName: 'Foreign Exchange', icon: 'swap' },
+  { id: 'customs_trade', label: 'Customs & Trade', matchName: 'Customs & Trade', icon: 'send' },
+  { id: 'environmental_ehs', label: 'Environmental', matchName: 'Environmental (EHS)', icon: 'book' },
+  { id: 'industry_regulation', label: 'Industry Regulation', matchName: 'Industry Regulation', icon: 'gear' },
+  { id: 'transfer_pricing', label: 'Transfer Pricing', matchName: 'Transfer Pricing', icon: 'dash' },
+  { id: 'data_privacy', label: 'Data Privacy & Cyber', matchName: 'Data Privacy & Cyber', icon: 'eye' },
+  { id: 'competition_law', label: 'Competition Law', matchName: 'Competition Law', icon: 'review' },
 ] as const;
 
 /* The % glyph inherits the monospace tabular-nums number font from its
@@ -94,6 +104,7 @@ export default function Dashboard() {
   const [countryFilter, setCountryFilter] = useState('');
   const [catTab, setCatTab] = useState<string>('overall');
   const [upcomingWindow, setUpcomingWindow] = useState<'day' | '15d' | 'month'>('month');
+  const [fyFilter, setFyFilter] = useState<number | ''>('');
 
   const [syncing, setSyncing] = useState(false);
 
@@ -102,9 +113,10 @@ export default function Dashboard() {
     async function load(showSpinnerOnFail: boolean) {
       setSyncing(true);
       try {
+        const qs = fyFilter !== '' ? `?fy=${fyFilter}` : '';
         const [me, dash] = await Promise.all([
           fetch('/api/auth/me').then(r => r.json()),
-          fetch('/api/dashboard').then(async r => {
+          fetch(`/api/dashboard${qs}`).then(async r => {
             const j = await r.json();
             if (!r.ok) throw new Error(j.error ?? 'Unable to load the dashboard.');
             return j;
@@ -114,6 +126,13 @@ export default function Dashboard() {
         setUser(me.user);
         setD(dash);
         setErr(null);
+        /* First load with no FY chosen yet — default to the most recent
+           financial year rather than showing every FY ever generated
+           combined, which inflates "Applicable obligations" well past what
+           a single year's filing calendar actually looks like. */
+        if (fyFilter === '' && dash.availableFys?.length) {
+          setFyFilter(dash.availableFys[0].startYear);
+        }
       } catch (e) {
         if (live && showSpinnerOnFail) setErr(e instanceof Error ? e.message : 'Unable to load the dashboard.');
         /* a background refresh failing silently is better than yanking the
@@ -127,7 +146,7 @@ export default function Dashboard() {
        without anyone needing to reload the page. */
     const t = setInterval(() => load(false), 60_000);
     return () => { live = false; clearInterval(t); };
-  }, []);
+  }, [fyFilter]);
 
   const isCfo = user?.role === 'CFO';
 
@@ -182,6 +201,10 @@ export default function Dashboard() {
               <Ic n="swap" s={12} c={syncing ? 'var(--navy-600)' : 'var(--ink-4)'} />
               {' '}Auto-sync · updated {new Date(d.syncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
+            <select value={fyFilter} onChange={e => setFyFilter(e.target.value ? Number(e.target.value) : '')} aria-label="Filter by financial year">
+              <option value="">All years</option>
+              {d.availableFys.map(f => <option key={f.startYear} value={f.startYear}>{f.label}</option>)}
+            </select>
             <select value={countryFilter} onChange={e => setCountryFilter(e.target.value)} aria-label="Filter by country">
               <option value="">All countries</option>
               {d.byCountry.map(c => <option key={c.countryCode} value={c.countryCode}>{c.countryName}</option>)}
@@ -331,6 +354,7 @@ export default function Dashboard() {
               rows={upcomingShown as (Upcoming & Record<string, unknown>)[]}
               rowKey={r => r.id}
               pageSize={12}
+              onRow={r => { window.location.href = `/register?obligation=${r.id}`; }}
               empty="Nothing falls due in this window."
               cols={[
                 { key: 'due_date', label: 'Due', sort: true, cls: 'nowrap',
@@ -349,6 +373,13 @@ export default function Dashboard() {
                   render: r => (<><div className="t1">{r.title}</div>
                     <div className="t2">{r.entity} · {r.period_label}{r.form_reference ? ` · ${r.form_reference}` : ''}</div></>) },
                 { key: 'status', label: 'Status', sort: true, render: r => <StatusPill s={r.status} /> },
+                { key: 'actions', label: '', cls: 'nowrap no-print',
+                  render: r => (
+                    <Link href={`/register?obligation=${r.id}`} className="btn btn-p btn-xs"
+                          onClick={e => e.stopPropagation()}>
+                      <Ic n="upload" s={12} /> File
+                    </Link>
+                  ) },
               ]}
             />
           </div>

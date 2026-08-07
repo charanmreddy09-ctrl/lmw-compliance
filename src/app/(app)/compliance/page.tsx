@@ -28,6 +28,7 @@ type Ref = {
   countries: { code: string; name: string }[];
   categories: { id: string; name: string }[];
   jurisdictions: { id: string; country_code: string; name: string; level: string; code: string }[];
+  availableFys: { startYear: number; label: string }[];
 };
 
 const FREQS = ['Monthly', 'Quarterly', 'Half-yearly', 'Annual', 'Event Based', 'Continuous', 'Periodic'];
@@ -45,7 +46,7 @@ export default function Library() {
   const toast = useToast();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [rows, setRows] = useState<Comp[]>([]);
-  const [ref, setRef] = useState<Ref>({ countries: [], categories: [], jurisdictions: [] });
+  const [ref, setRef] = useState<Ref>({ countries: [], categories: [], jurisdictions: [], availableFys: [] });
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending[]>([]);
@@ -107,6 +108,7 @@ export default function Library() {
 
   const [country, setCountry] = useState('');
   const [juris, setJuris] = useState('');
+  const [fy, setFy] = useState('');
   const [cat, setCat] = useState('');
   const [freq, setFreq] = useState('');
   const [verified, setVerified] = useState('');
@@ -123,6 +125,7 @@ export default function Library() {
       const p = new URLSearchParams();
       if (country) p.set('country', country);
       if (juris) p.set('jurisdiction', juris);
+      if (fy) p.set('fy', fy);
       if (cat) p.set('category', cat);
       if (freq) p.set('frequency', freq);
       if (verified) p.set('verified', verified);
@@ -132,12 +135,16 @@ export default function Library() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? 'Unable to load the compliance library.');
       setRows(d.compliances);
-      setRef({ countries: d.countries, categories: d.categories, jurisdictions: d.jurisdictions });
+      setRef({ countries: d.countries, categories: d.categories, jurisdictions: d.jurisdictions, availableFys: d.availableFys });
       setErr(null);
+      /* First load — default to the most recent FY rather than every FY's
+         instances summed together, which is what made "In use" look like a
+         raw compliance count instead of one year's filing calendar. */
+      if (!fy && d.availableFys?.length) setFy(String(d.availableFys[0].startYear));
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Unable to load the compliance library.');
     } finally { setLoading(false); }
-  }, [country, juris, cat, freq, verified, archived, q]);
+  }, [country, juris, fy, cat, freq, verified, archived, q]);
 
   useEffect(() => {
     const t = setTimeout(load, q ? 260 : 0);   // debounce only the free-text search
@@ -345,6 +352,10 @@ export default function Library() {
           {jurisForCountry.map(j => (
             <option key={j.id} value={j.id}>{j.name}{j.level !== 'federal' ? ` (${j.level})` : ''}</option>
           ))}
+        </select>
+        <select value={fy} onChange={e => setFy(e.target.value)} aria-label="Filter by financial year">
+          <option value="">All years</option>
+          {ref.availableFys.map(f => <option key={f.startYear} value={f.startYear}>{f.label}</option>)}
         </select>
         <select value={cat} onChange={e => setCat(e.target.value)}>
           <option value="">All categories</option>

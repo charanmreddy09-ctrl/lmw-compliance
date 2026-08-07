@@ -426,14 +426,14 @@ async function main() {
 
           const delay = filed ? Math.max(0, Math.round((filed.getTime() - due.getTime()) / 86400000)) : 0;
           const res = await client.query<{ id: string }>(
-            `INSERT INTO obligations (reference, compliance_id, entity_id, period_label,
+            `INSERT INTO obligations (reference, compliance_id, entity_id, period_label, fy_start_year,
                 due_date, original_due_date, filed_date, status, workflow_stage,
                 assigned_to, reviewer_id, delay_days, penalty_exposure)
-             VALUES ($1,$2,$3,$4,$5,$5,$6,$7,$8,$9,$10,$11,$12)
+             VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13)
              ON CONFLICT (compliance_id, entity_id, period_label) DO UPDATE
-               SET due_date = EXCLUDED.due_date
+               SET due_date = EXCLUDED.due_date, fy_start_year = EXCLUDED.fy_start_year
              RETURNING id`,
-            [reference, compIds.get(item.code), e.id, label,
+            [reference, compIds.get(item.code), e.id, label, fyStart,
              due.toISOString().slice(0, 10),
              filed ? filed.toISOString().slice(0, 10) : null,
              status, stage, preparerFor(e.id), reviewerFor(item.category), delay,

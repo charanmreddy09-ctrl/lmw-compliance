@@ -58,6 +58,17 @@ export function nudgeWeekend(d: Date): Date {
   return out;
 }
 
+/** "FY 2026-27" for startYear 2026 — the one place this label is built, so
+    the compliance library, register, dashboard and reports all agree. */
+export function fyLabel(startYear: number): string {
+  return `FY ${startYear}-${String(startYear + 1).slice(-2)}`;
+}
+
+/** The FY (Apr-Mar) a given date falls into, as its starting calendar year. */
+export function fyStartYearOf(d: Date): number {
+  return d.getUTCMonth() >= 3 ? d.getUTCFullYear() : d.getUTCFullYear() - 1;
+}
+
 export const FREQ_MONTHS: Record<string, number> = {
   Monthly: 1, Quarterly: 3, 'Half-yearly': 6, Annual: 12,
   Periodic: 12, 'Event Based': 12, Continuous: 1,
