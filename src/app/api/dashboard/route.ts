@@ -2,7 +2,7 @@
 import { handler, ok, auth, entityFilter } from '@/lib/api';
 import { q } from '@/lib/db';
 import { overallScore, entityScores, countryBreakdown, countryScores, categoryScores, monthlyTrend } from '@/lib/score';
-import { fyLabel } from '@/lib/dates';
+import { fyLabel, fyStartYearOf, today } from '@/lib/dates';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,24 +22,23 @@ export const GET = handler(async (req: Request) => {
   const scope = entityFilter(u);
   const ids = scope ?? undefined;
 
-  const fyParam = new URL(req.url).searchParams.get('fy');
-  const fy = fyParam ? parseInt(fyParam, 10) : null;
+  /* The dashboard always reflects the current financial year — no year
+     picker, no "all years" option. Comparing years belongs in Reports,
+     where mixing years would silently inflate "Applicable obligations"
+     past what a single year's filing calendar actually looks like. */
+  const fy = fyStartYearOf(today());
   const { sql: scopeSql, vals: scopeVals } = buildScope(scope, fy);
 
   /* The country scores are needed twice: on their own, and as the basis of
      the country league table. Started once and shared, so the weighted
      aggregate over every obligation in scope runs a single time — while
      still resolving alongside everything else rather than ahead of it. */
-  const countryScoresOnce = countryScores(ids, fy ?? undefined);
+  const countryScoresOnce = countryScores(ids, fy);
 
-  const [overall, byEntity, byCountry, byCountryScore, byCategoryScore, fyRows, trend] = await Promise.all([
-    overallScore(ids, fy ?? undefined), entityScores(ids, fy ?? undefined),
-    countryScoresOnce.then(s => countryBreakdown(ids, fy ?? undefined, s)),
-    countryScoresOnce, categoryScores(ids, fy ?? undefined),
-    q<{ fy_start_year: number }>(`
-      SELECT DISTINCT o.fy_start_year FROM obligations o
-       WHERE o.deleted_at IS NULL ${scope ? 'AND o.entity_id = ANY($1)' : ''}
-       ORDER BY o.fy_start_year DESC`, scope ? [scope] : []),
+  const [overall, byEntity, byCountry, byCountryScore, byCategoryScore, trend] = await Promise.all([
+    overallScore(ids, fy), entityScores(ids, fy),
+    countryScoresOnce.then(s => countryBreakdown(ids, fy, s)),
+    countryScoresOnce, categoryScores(ids, fy),
     /* The trend is one sparkline on a page carrying the group's whole
        compliance position. It is the only block here that is illustrative
        rather than operational, so it is not allowed to take the dashboard
@@ -47,7 +46,6 @@ export const GET = handler(async (req: Request) => {
        front of the board is not. */
     monthlyTrend(ids, 6).catch(() => [] as Awaited<ReturnType<typeof monthlyTrend>>),
   ]);
-  const availableFys = fyRows.map(r => ({ startYear: r.fy_start_year, label: fyLabel(r.fy_start_year) }));
 
   /* Obligations not yet due — excluded from the score (a period that hasn't
      come up yet can't be filed), but worth surfacing as an FYI line so the
@@ -123,14 +121,16 @@ export const GET = handler(async (req: Request) => {
       LEFT JOIN users u ON u.id = o.assigned_to
      WHERE o.deleted_at IS NULL AND o.status NOT IN ('Approved','Not Applicable')
        AND o.due_date BETWEEN CURRENT_DATE - INTERVAL '45 days' AND CURRENT_DATE + INTERVAL '30 days'
-       ${scope ? 'AND o.entity_id = ANY($1)' : ''}
-     ORDER BY o.due_date LIMIT 200`, scope ? [scope] : []);
+       AND o.fy_start_year = $1
+       ${scope ? 'AND o.entity_id = ANY($2)' : ''}
+     ORDER BY o.due_date LIMIT 200`, scope ? [fy, scope] : [fy]);
 
   /* Deliberately NOT gated by due_date <= CURRENT_DATE, unlike the score
      aggregates above — a preparer who files ahead of the due date has still
      done real work that a reviewer needs to see, so it must count as
      "awaiting reviewer" even though it is excluded from the score itself
-     (which only ever reflects obligations that have actually come due). */
+     (which only ever reflects obligations that have actually come due).
+     Still scoped to the current FY, same as everything else on this page. */
   const pendingReviewRows = await q<{ country_code: string; n: string }>(`
     SELECT e.country_code, count(*) AS n
       FROM obligations o
@@ -246,7 +246,7 @@ export const GET = handler(async (req: Request) => {
 
   return ok({
     overall, byEntity, byCountry, byCountryScore, byCategoryScore, entities, byDivision, byCategory, heat, trend,
-    upcoming, activity, dueChanges, futureByCountry, futureOverall, availableFys, selectedFy: fy,
+    upcoming, activity, dueChanges, futureByCountry, futureOverall, selectedFy: fy, fyLabel: fyLabel(fy),
     pendingReview, pendingReviewByCountry, brief,
     scopeLabel: scope ? `${entities.length} assigned entit${entities.length === 1 ? 'y' : 'ies'}` : 'All entities',
     syncedAt: new Date().toISOString(),

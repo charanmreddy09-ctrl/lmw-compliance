@@ -57,8 +57,8 @@ type Payload = {
   scopeLabel: string;
   futureByCountry: Record<string, number>;
   futureOverall: number;
-  availableFys: { startYear: number; label: string }[];
-  selectedFy: number | null;
+  selectedFy: number;
+  fyLabel: string;
   syncedAt: string;
 };
 
@@ -122,19 +122,20 @@ export default function Dashboard() {
   const [countryFilter, setCountryFilter] = useState('');
   const [catTab, setCatTab] = useState<string>('overall');
   const [upcomingWindow, setUpcomingWindow] = useState<'yesterday' | 'today' | 'tomorrow' | '15d' | 'month'>('month');
-  const [fyFilter, setFyFilter] = useState<number | ''>('');
 
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     let live = true;
+    /* The dashboard always shows the current financial year — the server
+       enforces this regardless of any query string, so there is nothing to
+       pick or default here. Comparing years belongs in Reports. */
     async function load(showSpinnerOnFail: boolean) {
       setSyncing(true);
       try {
-        const qs = fyFilter !== '' ? `?fy=${fyFilter}` : '';
         const [me, dash] = await Promise.all([
           fetch('/api/auth/me').then(r => r.json()),
-          fetch(`/api/dashboard${qs}`).then(async r => {
+          fetch('/api/dashboard').then(async r => {
             const j = await r.json();
             if (!r.ok) throw new Error(j.error ?? 'Unable to load the dashboard.');
             return j;
@@ -142,23 +143,6 @@ export default function Dashboard() {
         ]);
         if (!live) return;
         setUser(me.user);
-
-        /* First load with no FY chosen yet - default to the most recent
-           financial year rather than showing every FY ever generated
-           combined, which inflates "Applicable obligations" well past what a
-           single year's filing calendar actually looks like.
-
-           This response is for every FY at once, so it is deliberately NOT
-           rendered. Choosing the FY re-runs this effect and the second
-           response is the one shown. Previously both were rendered, which is
-           why the dashboard appeared with one set of numbers and silently
-           replaced them a few seconds later - the first screen was real, it
-           was just answering a different question. */
-        if (fyFilter === '' && dash.availableFys?.length) {
-          setFyFilter(dash.availableFys[0].startYear);
-          return;
-        }
-
         setD(dash);
         setErr(null);
       } catch (e) {
@@ -174,7 +158,7 @@ export default function Dashboard() {
        without anyone needing to reload the page. */
     const t = setInterval(() => load(false), 60_000);
     return () => { live = false; clearInterval(t); };
-  }, [fyFilter]);
+  }, []);
 
   const isCfo = user?.role === 'CFO';
 
@@ -202,6 +186,11 @@ export default function Dashboard() {
     overdue: acc.overdue + Number(h.overdue),
   }), { total: 0, approved: 0, overdue: 0 });
   const catPct = catTotals.total ? Math.round((catTotals.approved / catTotals.total) * 1000) / 10 : 0;
+  /* Everything applicable that is neither approved nor overdue — still with
+     the preparer, in review, or queried. Filling the composition ring's
+     third segment with this keeps the ring's total honest without a fourth
+     colour to explain. */
+  const catInProgress = Math.max(0, catTotals.total - catTotals.approved - catTotals.overdue);
 
   /* Yesterday, today and tomorrow mean exactly that one day. The 15 and 30
      day windows keep their existing behaviour of also carrying anything
@@ -391,7 +380,7 @@ export default function Dashboard() {
             <Gauge value={o.score} />
             <Delta value={trendDelta} />
             <div className="tiny dim center">
-              {d.availableFys.find(f => f.startYear === fyFilter)?.label ?? 'All years'}
+              {d.fyLabel}
               {' · '}
               {countryFilter ? d.byCountry.find(c => c.countryCode === countryFilter)?.countryName : 'All countries'}
             </div>
@@ -440,37 +429,6 @@ export default function Dashboard() {
             </>
           )}
         </div>
-
-        <div className="card qa">
-          <div className="card-h"><h3>Quick actions</h3></div>
-          <div className="card-b">
-            <Link href="/calendar" className="btn btn-s">
-              <Ic n="cal" s={13} /> Compliance calendar
-            </Link>
-            <Link href={overdueHref} className="btn btn-s">
-              <Ic n="alert" s={13} /> Overdue report
-            </Link>
-            {canReport && (
-              <>
-                <button className="btn btn-s"
-                        onClick={() => downloadFile('/api/reports/executive?format=xlsx', 'Executive summary.xlsx', toast)}>
-                  <Ic n="sheet" s={13} /> Executive summary (Excel)
-                </button>
-                <Link href="/reports?r=executive&print=1" className="btn btn-s">
-                  <Ic n="doc" s={13} /> Executive summary (PDF)
-                </Link>
-              </>
-            )}
-            <Link href="/entities" className="btn btn-s">
-              <Ic n="building" s={13} /> Entity performance
-            </Link>
-            {canReview && (
-              <Link href="/reviews" className="btn btn-s">
-                <Ic n="review" s={13} /> Review queue
-              </Link>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* ------------------------------------------------------------ headline */}
@@ -487,9 +445,9 @@ export default function Dashboard() {
               <Ic n="swap" s={12} c={syncing ? 'var(--navy-600)' : 'var(--ink-4)'} />
               {' '}Auto-sync · updated {new Date(d.syncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
-            <select value={fyFilter} onChange={e => setFyFilter(e.target.value ? Number(e.target.value) : '')} aria-label="Filter by financial year">
-              {d.availableFys.map(f => <option key={f.startYear} value={f.startYear}>{f.label}</option>)}
-            </select>
+            <span className="pill p-info nd" title="The dashboard always reflects the current financial year">
+              {d.fyLabel}
+            </span>
             <select value={countryFilter} onChange={e => setCountryFilter(e.target.value)} aria-label="Filter by country">
               <option value="">All countries</option>
               {d.byCountry.map(c => <option key={c.countryCode} value={c.countryCode}>{c.countryName}</option>)}
@@ -577,9 +535,53 @@ export default function Dashboard() {
             <div><span className="k">Overdue and unfiled</span>
               <span className="v num" style={{ color: catTotals.overdue ? 'var(--bad-600)' : undefined }}>{catTotals.overdue}</span></div>
           </div>
-          <div className="grow" />
-          {catTotals.total === 0 && (
-            <div className="small muted">No applicable obligations in this category for the current filter.</div>
+          {catTotals.total > 0 ? (
+            <div className="row g16" style={{ alignItems: 'center' }}>
+              {(() => {
+                const r = 40, C = 2 * Math.PI * r;
+                const segs = [
+                  { n: catTotals.approved, color: 'var(--ok-600)' },
+                  { n: catInProgress, color: 'var(--navy-600)' },
+                  { n: catTotals.overdue, color: 'var(--bad-600)' },
+                ];
+                let acc = 0;
+                return (
+                  <svg width={104} height={104} viewBox="0 0 104 104" style={{ flexShrink: 0 }}>
+                    <circle cx={52} cy={52} r={r} fill="none" stroke="var(--line-2)" strokeWidth={12} />
+                    {segs.filter(s => s.n > 0).map((s, i) => {
+                      const frac = s.n / catTotals.total;
+                      const dash = `${frac * C} ${C - frac * C}`;
+                      const offset = -acc * C;
+                      acc += frac;
+                      return (
+                        <circle key={i} cx={52} cy={52} r={r} fill="none" stroke={s.color} strokeWidth={12}
+                                strokeDasharray={dash} strokeDashoffset={offset}
+                                transform="rotate(-90 52 52)" strokeLinecap="butt" />
+                      );
+                    })}
+                  </svg>
+                );
+              })()}
+              <div className="stack" style={{ width: 170, flexShrink: 0 }}>
+                <div className="row g8" style={{ alignItems: 'center' }}>
+                  <span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--ok-600)', flexShrink: 0 }} />
+                  <span className="tiny muted grow">Approved</span>
+                  <span className="tiny num strong">{catTotals.approved}</span>
+                </div>
+                <div className="row g8" style={{ alignItems: 'center' }}>
+                  <span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--navy-600)', flexShrink: 0 }} />
+                  <span className="tiny muted grow">In progress</span>
+                  <span className="tiny num strong">{catInProgress}</span>
+                </div>
+                <div className="row g8" style={{ alignItems: 'center' }}>
+                  <span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--bad-600)', flexShrink: 0 }} />
+                  <span className="tiny muted grow">Overdue</span>
+                  <span className="tiny num strong">{catTotals.overdue}</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="grow small muted">No applicable obligations in this category for the current filter.</div>
           )}
         </div>
       </div>

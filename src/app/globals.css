@@ -636,15 +636,12 @@ input[type="file"] { padding: 6px; }
 }
 .foot a { color: var(--ink-3); }
 
-/* Executive row: health score, the four figures that decide what happens
-   next, and the shortcuts people actually use. Three bands that collapse in
-   order — the score keeps its column longest, quick actions drop first. */
-.hero-row { display: grid; grid-template-columns: minmax(260px, 1fr) 2.5fr minmax(190px, .85fr); gap: var(--s4); align-items: start; }
+/* Executive row: health score, and the four figures that decide what
+   happens next. Two bands that collapse in order — the score keeps its
+   column longest. */
+.hero-row { display: grid; grid-template-columns: minmax(260px, 1fr) 2.5fr; gap: var(--s4); align-items: start; }
 .hero-row > * { min-width: 0; }
-@media (max-width: 1500px) { .hero-row { grid-template-columns: minmax(260px, 1fr) 2.2fr; } .hero-row > .qa { grid-column: 1 / -1; } }
 @media (max-width: 1080px) { .hero-row { grid-template-columns: 1fr; } }
-.qa .card-b { display: grid; gap: var(--s2); }
-.qa .btn { justify-content: flex-start; }
 
 /* Immediate attention — the count sits next to its label, not pushed to the
    far edge of the card, and the whole row is the control. */
