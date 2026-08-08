@@ -51,6 +51,12 @@ function RegisterInner() {
   /* Deep-linked from the dashboard's Immediate attention panel, so a count
      there goes straight to the obligations behind it. */
   const [risk, setRisk] = useState(search.get('risk') ?? '');
+  /* The panel's count is not "every obligation at this risk level" — it's
+     specifically open exposure: due and not yet approved. Carrying that
+     same condition here keeps the number the CFO clicked and the list they
+     land on in agreement instead of the drill-through silently widening
+     into the full register. */
+  const attentionOnly = search.get('attention') === '1';
   const [q, setQ] = useState('');
 
   const [openId, setOpenId] = useState<string | null>(search.get('obligation'));
@@ -94,9 +100,10 @@ function RegisterInner() {
     (!status || r.status === status) &&
     (!cat || r.category === cat) &&
     (!risk || r.risk_level === risk) &&
+    (!attentionOnly || (r.status !== 'Approved' && r.status !== 'Not Applicable' && (daysFromToday(r.due_date) ?? 1) <= 0)) &&
     (!q || `${r.title} ${r.code} ${r.reference} ${r.form_reference ?? ''} ${r.period_label}`
       .toLowerCase().includes(q.toLowerCase()))
-  ), [rows, entity, status, cat, risk, q]);
+  ), [rows, entity, status, cat, risk, attentionOnly, q]);
 
   const counts = useMemo(() => ({
     actionable: shown.filter(r => ['Not Started', 'Evidence Pending', 'Overdue', 'Query Raised', 'Rejected'].includes(r.status)).length,

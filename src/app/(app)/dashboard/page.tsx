@@ -310,7 +310,7 @@ export default function Dashboard() {
                 {(['Critical', 'High', 'Medium', 'Low'] as const)
                   .filter(k => b.severity[k] > 0)
                   .map(k => (
-                    <Link key={k} href={`/register?risk=${k}`} className="sev-row">
+                    <Link key={k} href={`/register?risk=${k}&attention=1`} className="sev-row">
                       <span className="num sev-n">{b.severity[k]}</span>
                       <span className={`pill ${SEV_TONE[k]} nd tiny`}>{k}</span>
                       {b.severityOverdue[k] > 0 && (

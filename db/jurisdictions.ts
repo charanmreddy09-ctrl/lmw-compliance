@@ -52,7 +52,7 @@ export const JURISDICTIONS: JurisdictionSeed[] = [
   { id: 'IN-TN',  country: 'IN', parent: 'IN-FED', level: 'state', code: 'TN', name: 'Tamil Nadu' },
   { id: 'AE-FED', country: 'AE', level: 'federal', code: 'FED', name: 'United Arab Emirates — Federal' },
   { id: 'AE-FZ',  country: 'AE', parent: 'AE-FED', level: 'state', code: 'FZ',
-    name: 'Free zone establishment (Dubai) — confirm the specific free zone authority (e.g. JAFZA/DAFZA/RAKEZ)' },
+    name: 'Free zone establishment (Dubai)' },
 ];
 
 /* ------------------------------------------- sub-national compliance items
