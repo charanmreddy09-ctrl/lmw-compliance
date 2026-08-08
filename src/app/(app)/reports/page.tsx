@@ -14,7 +14,27 @@ type Report = {
   generatedAt: string; generatedBy: string;
   availableFys: { startYear: number; label: string }[];
   categories: { id: string; name: string }[];
+  notStarted?: boolean;
+  periodLabel?: string | null;
 };
+
+const QUARTERS = [
+  { id: 'Q1', label: 'Q1 (Apr–Jun)', months: [4, 5, 6] },
+  { id: 'Q2', label: 'Q2 (Jul–Sep)', months: [7, 8, 9] },
+  { id: 'Q3', label: 'Q3 (Oct–Dec)', months: [10, 11, 12] },
+  { id: 'Q4', label: 'Q4 (Jan–Mar)', months: [1, 2, 3] },
+] as const;
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+/** Calendar year a given FY month falls in, given the FY's start year
+    (e.g. FY2026-27 -> Jan-Mar 2027, Apr-Dec 2026). */
+function calYearForMonth(fyStartYear: number, month1to12: number): number {
+  return month1to12 >= 4 ? fyStartYear : fyStartYear + 1;
+}
 
 const REPORTS = [
   { id: 'executive', name: 'Executive summary', icon: 'report',
@@ -59,6 +79,8 @@ function ReportsInner() {
   const [err, setErr] = useState<string | null>(null);
   const [fy, setFy] = useState<number | ''>('');
   const [category, setCategory] = useState('');
+  const [misQuarter, setMisQuarter] = useState('');
+  const [misMonth, setMisMonth] = useState('');
 
   const misItem = active === 'mis' && misSub ? MIS_ITEMS.find(m => m.id === misSub) : null;
   /* The MIS index (active === 'mis', nothing picked yet) fetches nothing of
@@ -66,6 +88,22 @@ function ReportsInner() {
      picked, everything downstream (fetch, FY/law filters, export) targets
      that report's real underlying type. */
   const fetchType = misItem ? misItem.reportType : active;
+  const showQuarterPicker = misSub === 'audit_committee' || misSub === 'board' || misSub === 'monthly';
+  const showMonthPicker = misSub === 'monthly';
+
+  /* Month options for the Monthly Management Report - narrowed to the
+     selected quarter's 3 months once one is picked, per the client's ask,
+     otherwise the full FY. */
+  const monthOptions = (() => {
+    if (fy === '') return [];
+    const months = misQuarter
+      ? (QUARTERS.find(q => q.id === misQuarter)?.months ?? [])
+      : [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+    return months.map(m => {
+      const calYear = calYearForMonth(fy, m);
+      return { value: `${calYear}-${String(m).padStart(2, '0')}`, label: `${MONTH_NAMES[m - 1]} ${calYear}` };
+    });
+  })();
 
   const load = useCallback(async (type: string, fyVal: number | '') => {
     if (type === 'methodology' || (type === 'mis' && !misItem)) { setLoading(false); setData(null); setErr(null); return; }
@@ -77,6 +115,8 @@ function ReportsInner() {
          one would just leave a single row — every other report can be
          narrowed to a single law. */
       if (fetchType !== 'category' && category) p.set('category', category);
+      if (showMonthPicker && misMonth) p.set('month', misMonth);
+      if (showQuarterPicker && (misSub === 'audit_committee' || misSub === 'board') && misQuarter) p.set('quarter', misQuarter);
       const res = await fetch(`/api/reports/${fetchType}?${p}`);
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? 'Unable to generate the report.');
@@ -89,9 +129,30 @@ function ReportsInner() {
       setErr(e instanceof Error ? e.message : 'Unable to generate the report.');
       setData(null);
     } finally { setLoading(false); }
-  }, [category, fetchType, misItem]);
+  }, [category, fetchType, misItem, misMonth, misQuarter, misSub, showMonthPicker, showQuarterPicker]);
 
-  useEffect(() => { load(active, fy); }, [active, misSub, fy, load]);
+  useEffect(() => { load(active, fy); }, [active, misSub, fy, misQuarter, misMonth, load]);
+
+  /* Switching MIS reports (or the FY) clears any month/quarter already picked
+     for a different item - a quarter chosen while looking at the Board report
+     should not silently carry over to a different FY's Audit Committee report. */
+  useEffect(() => { setMisQuarter(''); setMisMonth(''); }, [misSub, fy]);
+
+  /* Once a quarter is available, default (or re-snap) the Monthly report's
+     month to the current calendar month if it falls inside the selected
+     FY/quarter, otherwise to that quarter/FY's first month. Runs whenever the
+     quarter changes too, so a month picked under one quarter doesn't survive
+     - stale and no longer even listed - once a different quarter narrows the
+     options, which would otherwise keep querying the old, now-invisible month. */
+  useEffect(() => {
+    if (!showMonthPicker || fy === '') return;
+    const opts = monthOptions;
+    if (!opts.length) return;
+    if (misMonth && opts.some(o => o.value === misMonth)) return;
+    const todayYm = new Date().toISOString().slice(0, 7);
+    setMisMonth(opts.some(o => o.value === todayYm) ? todayYm : opts[0].value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showMonthPicker, fy, misQuarter]);
 
   const meta = misItem ?? REPORTS.find(r => r.id === active);
   /* The generic data-table view only applies to a real report — not the MIS
@@ -191,6 +252,19 @@ function ReportsInner() {
                       {data.categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   )}
+                  {showQuarterPicker && fy !== '' && (
+                    <select value={misQuarter} onChange={e => setMisQuarter(e.target.value)}
+                            aria-label="Filter by quarter">
+                      <option value="">{showMonthPicker ? 'All quarters' : 'Select quarter…'}</option>
+                      {QUARTERS.map(q => <option key={q.id} value={q.id}>{q.label}</option>)}
+                    </select>
+                  )}
+                  {showMonthPicker && fy !== '' && (
+                    <select value={misMonth} onChange={e => setMisMonth(e.target.value)}
+                            aria-label="Filter by month">
+                      {monthOptions.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                    </select>
+                  )}
                   <button className="btn btn-s" onClick={() => window.print()}>
                     <Ic n="doc" s={13} /> Print / PDF
                   </button>
@@ -199,6 +273,8 @@ function ReportsInner() {
                             const p = new URLSearchParams({ format: 'xlsx' });
                             if (fy !== '') p.set('fy', String(fy));
                             if (fetchType !== 'category' && category) p.set('category', category);
+                            if (showMonthPicker && misMonth) p.set('month', misMonth);
+                            if ((misSub === 'audit_committee' || misSub === 'board') && misQuarter) p.set('quarter', misQuarter);
                             downloadFile(`/api/reports/${fetchType}?${p}`, `SGCMP_${misItem ? misSub : active}.xlsx`, toast);
                           }}>
                     <Ic n="download" s={13} /> Excel
@@ -387,7 +463,12 @@ function ReportsInner() {
 
           {showGenericTable && !loading && data && (
             <>
-              {data.rows.length === 0 ? (
+              {data.notStarted ? (
+                <div className="card"><div className="empty">
+                  <strong>{data.periodLabel ?? 'This period'} has not yet started.</strong><br />
+                  There is nothing to report yet for a future period - check back once it is under way.
+                </div></div>
+              ) : data.rows.length === 0 ? (
                 <div className="card"><div className="empty">
                   Nothing to report - there are no records matching this report in your scope.
                   For the overdue and delay reports that is good news.

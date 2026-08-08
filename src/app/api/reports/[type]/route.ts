@@ -38,6 +38,64 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
   const fyParam = p.get('fy') ? parseInt(p.get('fy')!, 10) : null;
   const fy = fyParam != null && !Number.isNaN(fyParam) ? fyParam : null;
   const category = p.get('category') || null;
+  const monthParam = p.get('month');     // 'YYYY-MM', Monthly Management Report
+  const quarterParam = p.get('quarter'); // 'Q1'..'Q4', quarterly MIS reports
+
+  /* MIS periodic reports ("as at" a specific month/quarter) reuse the same
+     underlying report types, so the period is resolved once here rather than
+     duplicated inside each report block. A period whose start date is still
+     in the future has generated no data to report on at all - that gets a
+     professionally-worded "not yet started" response instead of a
+     misleading empty/zero report. Otherwise every aggregate below is capped
+     at the end of the selected period (or today, if the period is still
+     under way) so "applicable" reflects what was actually due by then, not
+     the whole financial year blended together. */
+  const today = new Date().toISOString().slice(0, 10);
+  function monthRange(ym: string): { start: string; end: string } {
+    const [y, m] = ym.split('-').map(Number);
+    return {
+      start: new Date(Date.UTC(y, m - 1, 1)).toISOString().slice(0, 10),
+      end: new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10),
+    };
+  }
+  function quarterRange(fyStartYear: number, qtr: string): { start: string; end: string } | null {
+    const starts: Record<string, [number, number]> = { Q1: [0, 3], Q2: [0, 6], Q3: [0, 9], Q4: [1, 0] };
+    const m = starts[qtr];
+    if (!m) return null;
+    const [yOffset, startMonth] = m;
+    const y = fyStartYear + yOffset;
+    return {
+      start: new Date(Date.UTC(y, startMonth, 1)).toISOString().slice(0, 10),
+      end: new Date(Date.UTC(y, startMonth + 3, 0)).toISOString().slice(0, 10),
+    };
+  }
+  let periodRange: { start: string; end: string } | null = null;
+  let periodLabel: string | null = null;
+  if (type === 'division' && monthParam) {
+    periodRange = monthRange(monthParam);
+    periodLabel = new Date(monthParam + '-01').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  } else if ((type === 'overdue' || type === 'executive') && quarterParam && fy != null) {
+    periodRange = quarterRange(fy, quarterParam);
+    periodLabel = `${quarterParam} ${fyLabel(fy)}`;
+  }
+  const notStarted = !!periodRange && periodRange.start > today;
+  const asOf = periodRange && !notStarted ? (periodRange.end < today ? periodRange.end : today) : null;
+
+  if (notStarted) {
+    const [availableFysEarly, categoriesEarly] = await Promise.all([
+      q<{ fy_start_year: number }>(
+        `SELECT DISTINCT o.fy_start_year FROM obligations o
+          WHERE o.deleted_at IS NULL ${sc} ORDER BY o.fy_start_year DESC`, args),
+      q<{ id: string; name: string }>(`SELECT id, name FROM categories ORDER BY sort_order`),
+    ]);
+    return ok({
+      type, title: TITLES[type], rows: [], extraSheets: [], notStarted: true,
+      periodLabel,
+      generatedAt: new Date().toISOString(), generatedBy: u.name,
+      availableFys: availableFysEarly.map(r => ({ startYear: r.fy_start_year, label: fyLabel(r.fy_start_year) })),
+      categories: categoriesEarly, selectedFy: fy, selectedCategory: category,
+    });
+  }
 
   /* Every raw-SQL report below joins `obligations o`, so a single fy clause
      (appended after whatever entity-scope placeholder is already in play)
@@ -111,7 +169,15 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
        to one category would just leave a single row — the filter only makes
        sense for the division report here. */
     const divCatSql = isDiv ? catSql : '';
-    const divArgs = isDiv ? argsFyCat : argsFy;
+    let divArgs = isDiv ? argsFyCat : argsFy;
+    /* Applicability is capped at the reference date (the selected MIS month's
+       end, or today by default) rather than left uncapped across the whole
+       FY — otherwise a report run in April already counts obligations due
+       next February against the percentage, which understates compliance for
+       no real reason. */
+    const cutoff = asOf ?? today;
+    divArgs = [...divArgs, cutoff];
+    const cutoffSql = `AND o.due_date <= $${divArgs.length}`;
     rows = (await q(`
       SELECT ${isDiv ? `COALESCE(d.name,'Unassigned')` : 'cat.name'} AS grp,
              count(*) AS total,
@@ -125,7 +191,7 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
         JOIN compliances c ON c.id = o.compliance_id
         JOIN categories cat ON cat.id = c.category_id
         LEFT JOIN divisions d ON d.id = e.division_id
-       WHERE o.deleted_at IS NULL AND o.status <> 'Not Applicable' ${sc} ${fySql} ${divCatSql}
+       WHERE o.deleted_at IS NULL AND o.status <> 'Not Applicable' ${sc} ${fySql} ${divCatSql} ${cutoffSql}
        GROUP BY grp ORDER BY grp`, divArgs)).map(r => ({
       [isDiv ? 'Division' : 'Law']: r.grp,
       Applicable: Number(r.total), Approved: Number(r.approved),
@@ -136,10 +202,16 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
   }
 
   if (type === 'overdue') {
+    /* The Audit Committee MIS report reads this "as of" the end of a selected
+       past quarter rather than today, so the reference point for "overdue"
+       and its day-count both need to move together. */
+    const overdueRef = asOf ?? today;
+    const overdueArgs = [...argsFyCat, overdueRef];
+    const refIdx = overdueArgs.length;
     rows = (await q(`
       SELECT e.short_name AS entity, co.name AS country, c.title,
              cat.name AS category, c.risk_level,
-             o.due_date, (CURRENT_DATE - o.due_date) AS days_overdue,
+             o.due_date, ($${refIdx}::date - o.due_date) AS days_overdue,
              o.status, c.penalty, us.full_name AS owner
         FROM obligations o
         JOIN compliances c ON c.id = o.compliance_id
@@ -148,8 +220,8 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
         JOIN countries co ON co.code = e.country_code
         LEFT JOIN users us ON us.id = o.assigned_to
        WHERE o.deleted_at IS NULL AND o.status <> 'Approved'
-         AND o.filed_date IS NULL AND o.due_date < CURRENT_DATE ${sc} ${fySql} ${catSql}
-       ORDER BY (CURRENT_DATE - o.due_date) DESC`, argsFyCat)).map(r => ({
+         AND o.filed_date IS NULL AND o.due_date < $${refIdx}::date ${sc} ${fySql} ${catSql}
+       ORDER BY ($${refIdx}::date - o.due_date) DESC`, overdueArgs)).map(r => ({
       Entity: r.entity, Country: r.country, Compliance: r.title,
       Law: r.category, Risk: r.risk_level,
       'Due date': r.due_date, 'Days overdue': Number(r.days_overdue),
@@ -200,10 +272,11 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
   }
 
   if (type === 'executive') {
+    const asOfArg = asOf ?? undefined;
     const [overall, cb, scores, ents] = await Promise.all([
-      overallScore(ids, fy ?? undefined, category ?? undefined),
-      countryBreakdown(ids, fy ?? undefined, category ?? undefined),
-      entityScores(ids, fy ?? undefined, category ?? undefined),
+      overallScore(ids, fy ?? undefined, category ?? undefined, asOfArg),
+      countryBreakdown(ids, fy ?? undefined, category ?? undefined, asOfArg),
+      entityScores(ids, fy ?? undefined, category ?? undefined, asOfArg),
       q<{ id: string; name: string; country_name: string }>(
         `SELECT e.id, e.name, c.name AS country_name FROM entities e
            JOIN countries c ON c.code = e.country_code
@@ -358,7 +431,7 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
   }
 
   return ok({
-    type, title: TITLES[type], rows, extraSheets,
+    type, title: TITLES[type], rows, extraSheets, notStarted: false, periodLabel,
     generatedAt: new Date().toISOString(), generatedBy: u.name,
     availableFys: availableFys.map(r => ({ startYear: r.fy_start_year, label: fyLabel(r.fy_start_year) })),
     categories, selectedFy: fy, selectedCategory: category,

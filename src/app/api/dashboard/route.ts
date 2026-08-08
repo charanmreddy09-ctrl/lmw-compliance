@@ -38,7 +38,7 @@ export const GET = handler(async (req: Request) => {
 
   const [overall, byEntity, byCountry, byCountryScore, byCategoryScore, fyRows, trend] = await Promise.all([
     overallScore(ids, fy), entityScores(ids, fy),
-    countryScoresOnce.then(s => countryBreakdown(ids, fy, undefined, s)),
+    countryScoresOnce.then(s => countryBreakdown(ids, fy, undefined, undefined, s)),
     countryScoresOnce, categoryScores(ids, fy),
     q<{ fy_start_year: number }>(`
       SELECT DISTINCT o.fy_start_year FROM obligations o

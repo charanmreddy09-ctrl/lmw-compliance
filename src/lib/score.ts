@@ -135,12 +135,18 @@ const POINTS = `GREATEST(0, LEAST(100, ${BASE_POINTS} + ${ADJUSTMENTS})) * ${evi
     always match the values array — so callers never have to track $1/$2 by
     hand. `category` is a categories.id, matched against the compliances row
     every aggregate already joins as `c`. */
-function scopeFilter(entityIds?: string[], fy?: number, category?: string): { sql: string; vals: unknown[] } {
+function scopeFilter(entityIds?: string[], fy?: number, category?: string, asOf?: string): { sql: string; vals: unknown[] } {
   const vals: unknown[] = [];
   const parts: string[] = [];
   if (entityIds && entityIds.length) { vals.push(entityIds); parts.push(`AND o.entity_id = ANY($${vals.length})`); }
   if (fy != null) { vals.push(fy); parts.push(`AND o.fy_start_year = $${vals.length}`); }
   if (category) { vals.push(category); parts.push(`AND c.category_id = $${vals.length}`); }
+  /* Restricts "applicable as of today" (the unconditional due_date <= CURRENT_DATE
+     in aggSql) down to "applicable as of this earlier reference date" — used by
+     MIS reports scoped to a specific past month/quarter so the percentage
+     reflects what was due by then, not the whole FY. Never loosens the
+     CURRENT_DATE cap, only tightens it further. */
+  if (asOf) { vals.push(asOf); parts.push(`AND o.due_date <= $${vals.length}`); }
   return { sql: parts.join(' '), vals };
 }
 
@@ -258,22 +264,22 @@ const EMPTY_AGG: Agg = {
   w_points: '0', w_max: '0', avg_eq: null, critical_high: '0', critical_overdue: '0',
 };
 
-async function grouped(g: Grouping, entityIds?: string[], fy?: number, category?: string): Promise<Record<string, ScoreBreakdown>> {
-  const { sql, vals } = scopeFilter(entityIds, fy, category);
+async function grouped(g: Grouping, entityIds?: string[], fy?: number, category?: string, asOf?: string): Promise<Record<string, ScoreBreakdown>> {
+  const { sql, vals } = scopeFilter(entityIds, fy, category, asOf);
   const rows = await q<Agg>(aggSql(g, sql), vals);
   const out: Record<string, ScoreBreakdown> = {};
   rows.forEach(row => { out[row.entity_id] = build(row); });
   return out;
 }
 
-export async function entityScores(entityIds?: string[], fy?: number, category?: string): Promise<Record<string, ScoreBreakdown>> {
-  return grouped(GROUPINGS.entity, entityIds, fy, category);
+export async function entityScores(entityIds?: string[], fy?: number, category?: string, asOf?: string): Promise<Record<string, ScoreBreakdown>> {
+  return grouped(GROUPINGS.entity, entityIds, fy, category, asOf);
 }
 
 /** The same breakdown grouped by country — lets the dashboard's country
     filter re-scope the headline score exactly, with no client-side guesswork. */
-export async function countryScores(entityIds?: string[], fy?: number, category?: string): Promise<Record<string, ScoreBreakdown>> {
-  return grouped(GROUPINGS.country, entityIds, fy, category);
+export async function countryScores(entityIds?: string[], fy?: number, category?: string, asOf?: string): Promise<Record<string, ScoreBreakdown>> {
+  return grouped(GROUPINGS.country, entityIds, fy, category, asOf);
 }
 
 /** Grouped by compliance category, for the dashboard's category tabs. */
@@ -281,8 +287,8 @@ export async function categoryScores(entityIds?: string[], fy?: number): Promise
   return grouped(GROUPINGS.category, entityIds, fy);
 }
 
-export async function overallScore(entityIds?: string[], fy?: number, category?: string): Promise<ScoreBreakdown> {
-  const { sql, vals } = scopeFilter(entityIds, fy, category);
+export async function overallScore(entityIds?: string[], fy?: number, category?: string, asOf?: string): Promise<ScoreBreakdown> {
+  const { sql, vals } = scopeFilter(entityIds, fy, category, asOf);
   const rows = await q<Agg>(aggSql(GROUPINGS.none, sql), vals);
   return build(rows.length ? rows[0] : EMPTY_AGG);
 }
@@ -304,9 +310,9 @@ export type CountryRow = {
     score — country, entity and group figures must always foot to the same
     numbers when scoped the same way. */
 export async function countryBreakdown(
-  entityIds?: string[], fy?: number, category?: string, precomputed?: Record<string, ScoreBreakdown>,
+  entityIds?: string[], fy?: number, category?: string, asOf?: string, precomputed?: Record<string, ScoreBreakdown>,
 ): Promise<CountryRow[]> {
-  const { sql, vals } = scopeFilter(entityIds, fy, category);
+  const { sql, vals } = scopeFilter(entityIds, fy, category, asOf);
   const [names, scores] = await Promise.all([
     q<{ country_code: string; country_name: string; entities: string }>(
       `SELECT c.code AS country_code, c.name AS country_name,
@@ -324,7 +330,7 @@ export async function countryBreakdown(
        and this is a full weighted aggregate over every obligation in scope.
        Accepting them precomputed stops the dashboard paying for the same scan
        twice on every load. */
-    precomputed ?? countryScores(entityIds, fy, category),
+    precomputed ?? countryScores(entityIds, fy, category, asOf),
   ]);
 
   const rows = names.map(row => {
