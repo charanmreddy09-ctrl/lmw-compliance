@@ -57,6 +57,7 @@ type Payload = {
   scopeLabel: string;
   futureByCountry: Record<string, number>;
   futureOverall: number;
+  availableFys: { startYear: number; label: string }[];
   selectedFy: number;
   fyLabel: string;
   syncedAt: string;
@@ -122,20 +123,22 @@ export default function Dashboard() {
   const [countryFilter, setCountryFilter] = useState('');
   const [catTab, setCatTab] = useState<string>('overall');
   const [upcomingWindow, setUpcomingWindow] = useState<'yesterday' | 'today' | 'tomorrow' | '15d' | 'month'>('month');
+  /* Defaults to the current FY (empty string until the first response names
+     it) but a CFO can pick another year from the dropdown — comparing years
+     is a legitimate dashboard question, not Reports-only. */
+  const [fyFilter, setFyFilter] = useState<number | ''>('');
 
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     let live = true;
-    /* The dashboard always shows the current financial year — the server
-       enforces this regardless of any query string, so there is nothing to
-       pick or default here. Comparing years belongs in Reports. */
     async function load(showSpinnerOnFail: boolean) {
       setSyncing(true);
       try {
+        const qs = fyFilter !== '' ? `?fy=${fyFilter}` : '';
         const [me, dash] = await Promise.all([
           fetch('/api/auth/me').then(r => r.json()),
-          fetch('/api/dashboard').then(async r => {
+          fetch(`/api/dashboard${qs}`).then(async r => {
             const j = await r.json();
             if (!r.ok) throw new Error(j.error ?? 'Unable to load the dashboard.');
             return j;
@@ -145,6 +148,9 @@ export default function Dashboard() {
         setUser(me.user);
         setD(dash);
         setErr(null);
+        /* First load, nothing chosen yet — adopt whatever FY the server
+           defaulted to (the current one) so the dropdown reflects it. */
+        if (fyFilter === '') setFyFilter(dash.selectedFy);
       } catch (e) {
         if (live && showSpinnerOnFail) setErr(e instanceof Error ? e.message : 'Unable to load the dashboard.');
         /* a background refresh failing silently is better than yanking the
@@ -158,7 +164,7 @@ export default function Dashboard() {
        without anyone needing to reload the page. */
     const t = setInterval(() => load(false), 60_000);
     return () => { live = false; clearInterval(t); };
-  }, []);
+  }, [fyFilter]);
 
   const isCfo = user?.role === 'CFO';
 
@@ -445,9 +451,9 @@ export default function Dashboard() {
               <Ic n="swap" s={12} c={syncing ? 'var(--navy-600)' : 'var(--ink-4)'} />
               {' '}Auto-sync · updated {new Date(d.syncedAt).toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })} IST
             </span>
-            <span className="pill p-info nd" title="The dashboard always reflects the current financial year">
-              {d.fyLabel}
-            </span>
+            <select value={fyFilter} onChange={e => setFyFilter(e.target.value ? Number(e.target.value) : '')} aria-label="Filter by financial year">
+              {d.availableFys.map(f => <option key={f.startYear} value={f.startYear}>{f.label}</option>)}
+            </select>
             <select value={countryFilter} onChange={e => setCountryFilter(e.target.value)} aria-label="Filter by country">
               <option value="">All countries</option>
               {d.byCountry.map(c => <option key={c.countryCode} value={c.countryCode}>{c.countryName}</option>)}

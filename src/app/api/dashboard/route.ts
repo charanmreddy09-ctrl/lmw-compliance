@@ -22,11 +22,12 @@ export const GET = handler(async (req: Request) => {
   const scope = entityFilter(u);
   const ids = scope ?? undefined;
 
-  /* The dashboard always reflects the current financial year — no year
-     picker, no "all years" option. Comparing years belongs in Reports,
-     where mixing years would silently inflate "Applicable obligations"
-     past what a single year's filing calendar actually looks like. */
-  const fy = fyStartYearOf(today());
+  /* Defaults to the current financial year, but a CFO can pick another one
+     from the dropdown — comparing years is a legitimate dashboard question,
+     not something that belongs only in Reports. */
+  const fyParam = new URL(req.url).searchParams.get('fy');
+  const fyRequested = fyParam ? parseInt(fyParam, 10) : null;
+  const fy = fyRequested != null && !Number.isNaN(fyRequested) ? fyRequested : fyStartYearOf(today());
   const { sql: scopeSql, vals: scopeVals } = buildScope(scope, fy);
 
   /* The country scores are needed twice: on their own, and as the basis of
@@ -35,10 +36,14 @@ export const GET = handler(async (req: Request) => {
      still resolving alongside everything else rather than ahead of it. */
   const countryScoresOnce = countryScores(ids, fy);
 
-  const [overall, byEntity, byCountry, byCountryScore, byCategoryScore, trend] = await Promise.all([
+  const [overall, byEntity, byCountry, byCountryScore, byCategoryScore, fyRows, trend] = await Promise.all([
     overallScore(ids, fy), entityScores(ids, fy),
     countryScoresOnce.then(s => countryBreakdown(ids, fy, undefined, s)),
     countryScoresOnce, categoryScores(ids, fy),
+    q<{ fy_start_year: number }>(`
+      SELECT DISTINCT o.fy_start_year FROM obligations o
+       WHERE o.deleted_at IS NULL ${scope ? 'AND o.entity_id = ANY($1)' : ''}
+       ORDER BY o.fy_start_year DESC`, scope ? [scope] : []),
     /* The trend is one sparkline on a page carrying the group's whole
        compliance position. It is the only block here that is illustrative
        rather than operational, so it is not allowed to take the dashboard
@@ -46,6 +51,7 @@ export const GET = handler(async (req: Request) => {
        front of the board is not. */
     monthlyTrend(ids, 6).catch(() => [] as Awaited<ReturnType<typeof monthlyTrend>>),
   ]);
+  const availableFys = fyRows.map(r => ({ startYear: r.fy_start_year, label: fyLabel(r.fy_start_year) }));
 
   /* Obligations not yet due — excluded from the score (a period that hasn't
      come up yet can't be filed), but worth surfacing as an FYI line so the
@@ -246,7 +252,8 @@ export const GET = handler(async (req: Request) => {
 
   return ok({
     overall, byEntity, byCountry, byCountryScore, byCategoryScore, entities, byDivision, byCategory, heat, trend,
-    upcoming, activity, dueChanges, futureByCountry, futureOverall, selectedFy: fy, fyLabel: fyLabel(fy),
+    upcoming, activity, dueChanges, futureByCountry, futureOverall,
+    availableFys, selectedFy: fy, fyLabel: fyLabel(fy),
     pendingReview, pendingReviewByCountry, brief,
     scopeLabel: scope ? `${entities.length} assigned entit${entities.length === 1 ? 'y' : 'ies'}` : 'All entities',
     syncedAt: new Date().toISOString(),
