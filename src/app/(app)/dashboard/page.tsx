@@ -272,7 +272,7 @@ export default function Dashboard() {
           <div>
             <h3>Executive brief</h3>
             <span className="tiny muted">
-              {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+              {new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
               {' · '}{d.scopeLabel}
             </span>
           </div>
@@ -441,9 +441,9 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="row g12 no-print">
-            <span className="tiny muted" title={new Date(d.syncedAt).toLocaleString()}>
+            <span className="tiny muted" title={new Date(d.syncedAt).toLocaleString('en-GB', { timeZone: 'Asia/Kolkata' }) + ' IST'}>
               <Ic n="swap" s={12} c={syncing ? 'var(--navy-600)' : 'var(--ink-4)'} />
-              {' '}Auto-sync · updated {new Date(d.syncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {' '}Auto-sync · updated {new Date(d.syncedAt).toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })} IST
             </span>
             <span className="pill p-info nd" title="The dashboard always reflects the current financial year">
               {d.fyLabel}

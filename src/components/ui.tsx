@@ -97,13 +97,20 @@ export function fmtDate(v?: string | null): string {
   const day = String(d.getUTCDate()).padStart(2, '0');
   return `${day}-${UI_MON_SHORT[d.getUTCMonth()]}-${d.getUTCFullYear()}`;
 }
+/** Always rendered in IST regardless of the viewer's own timezone — this is
+    an India-based platform and a "filed at 6:05 PM" the preparer typed
+    should never read back as a different hour to a reviewer viewing from
+    abroad. */
 export function fmtDateTime(v?: string | null): string {
   if (!v) return '-';
   const d = new Date(v);
   if (isNaN(d.getTime())) return '-';
-  const day = String(d.getDate()).padStart(2, '0');
-  const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  return `${day}-${UI_MON_SHORT[d.getMonth()]}-${d.getFullYear()}, ${time}`;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d);
+  const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
+  return `${get('day')}-${get('month')}-${get('year')}, ${get('hour')}:${get('minute')} IST`;
 }
 export function daysFromToday(v?: string | null): number | null {
   if (!v) return null;

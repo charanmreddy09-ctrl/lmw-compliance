@@ -338,10 +338,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
 
             {clock && (
-              <div className="tiny muted num no-print" style={{ whiteSpace: 'nowrap' }}>
-                {clock.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+              <div className="tiny muted num no-print" style={{ whiteSpace: 'nowrap' }}
+                   title="Indian Standard Time, regardless of where you're signed in from">
+                {clock.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })}
                 {' · '}
-                {clock.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                {clock.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                {' IST'}
               </div>
             )}
 

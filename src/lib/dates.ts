@@ -108,11 +108,18 @@ export function fmtDate(v: string | Date | null | undefined): string {
   return `${day}-${MON_SHORT[d.getUTCMonth()]}-${d.getUTCFullYear()}`;
 }
 
+/** Always rendered in IST regardless of the viewer's own timezone — see the
+    identical rule on fmtDateTime in components/ui.tsx, which is what most of
+    the app actually imports; kept in sync here for anything that reaches
+    for this module directly instead. */
 export function fmtDateTime(v: string | Date | null | undefined): string {
   if (!v) return '—';
   const d = typeof v === 'string' ? new Date(v) : v;
   if (isNaN(d.getTime())) return '—';
-  const day = String(d.getDate()).padStart(2, '0');
-  const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  return `${day}-${MON_SHORT[d.getMonth()]}-${d.getFullYear()}, ${time}`;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d);
+  const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
+  return `${get('day')}-${get('month')}-${get('year')}, ${get('hour')}:${get('minute')} IST`;
 }
