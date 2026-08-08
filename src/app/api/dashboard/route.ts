@@ -26,14 +26,26 @@ export const GET = handler(async (req: Request) => {
   const fy = fyParam ? parseInt(fyParam, 10) : null;
   const { sql: scopeSql, vals: scopeVals } = buildScope(scope, fy);
 
+  /* The country scores are needed twice: on their own, and as the basis of
+     the country league table. Started once and shared, so the weighted
+     aggregate over every obligation in scope runs a single time — while
+     still resolving alongside everything else rather than ahead of it. */
+  const countryScoresOnce = countryScores(ids, fy ?? undefined);
+
   const [overall, byEntity, byCountry, byCountryScore, byCategoryScore, fyRows, trend] = await Promise.all([
     overallScore(ids, fy ?? undefined), entityScores(ids, fy ?? undefined),
-    countryBreakdown(ids, fy ?? undefined), countryScores(ids, fy ?? undefined), categoryScores(ids, fy ?? undefined),
+    countryScoresOnce.then(s => countryBreakdown(ids, fy ?? undefined, s)),
+    countryScoresOnce, categoryScores(ids, fy ?? undefined),
     q<{ fy_start_year: number }>(`
       SELECT DISTINCT o.fy_start_year FROM obligations o
        WHERE o.deleted_at IS NULL ${scope ? 'AND o.entity_id = ANY($1)' : ''}
        ORDER BY o.fy_start_year DESC`, scope ? [scope] : []),
-    monthlyTrend(ids, 6),
+    /* The trend is one sparkline on a page carrying the group's whole
+       compliance position. It is the only block here that is illustrative
+       rather than operational, so it is not allowed to take the dashboard
+       down with it — a missing chart is recoverable, a dead dashboard in
+       front of the board is not. */
+    monthlyTrend(ids, 6).catch(() => [] as Awaited<ReturnType<typeof monthlyTrend>>),
   ]);
   const availableFys = fyRows.map(r => ({ startYear: r.fy_start_year, label: fyLabel(r.fy_start_year) }));
 

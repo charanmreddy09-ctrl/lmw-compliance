@@ -300,7 +300,9 @@ export type CountryRow = {
     countryScores(), which runs the same build() as every entity and overall
     score — country, entity and group figures must always foot to the same
     numbers when scoped the same way. */
-export async function countryBreakdown(entityIds?: string[], fy?: number): Promise<CountryRow[]> {
+export async function countryBreakdown(
+  entityIds?: string[], fy?: number, precomputed?: Record<string, ScoreBreakdown>,
+): Promise<CountryRow[]> {
   const { sql, vals } = scopeFilter(entityIds, fy);
   const [names, scores] = await Promise.all([
     q<{ country_code: string; country_name: string; entities: string }>(
@@ -314,7 +316,11 @@ export async function countryBreakdown(entityIds?: string[], fy?: number): Promi
         GROUP BY c.code, c.name
         ORDER BY c.name`,
       vals),
-    countryScores(entityIds, fy),
+    /* The caller usually needs the country scores in their own right as well,
+       and this is a full weighted aggregate over every obligation in scope.
+       Accepting them precomputed stops the dashboard paying for the same scan
+       twice on every load. */
+    precomputed ?? countryScores(entityIds, fy),
   ]);
 
   const rows = names.map(row => {
@@ -348,64 +354,80 @@ export type TrendPoint = { label: string; monthEnd: string; score: number; total
     points at an arbitrary past date would need the evidence rows as they
     stood that day, which is not recoverable. The trend therefore shows the
     shape of movement, and the headline score shows today's weighted position. */
-async function scoreAsOf(asOf: string, entityIds?: string[]): Promise<ScoreBreakdown> {
-  const vals: unknown[] = [asOf];
-  let scopeSql = '';
-  if (entityIds && entityIds.length) { vals.push(entityIds); scopeSql = `AND o.entity_id = ANY($${vals.length})`; }
-
-  const rows = await q<{ total: string; approved: string; overdue: string; filed_late: string;
-    avg_delay: string | null; with_evidence: string; filed_total: string; filed_ontime: string }>(`
-    SELECT count(*) AS total,
-           count(*) FILTER (WHERE EXISTS (
-              SELECT 1 FROM evidence e WHERE e.obligation_id = o.id AND e.deleted_at IS NULL
-                AND e.status = 'Approved' AND e.reviewed_at <= $1::date)) AS approved,
-           count(*) FILTER (WHERE o.due_date < $1::date
-                              AND (o.filed_date IS NULL OR o.filed_date > $1::date)
-                              AND NOT EXISTS (
-                                SELECT 1 FROM evidence e2 WHERE e2.obligation_id = o.id AND e2.deleted_at IS NULL
-                                  AND e2.status = 'Approved' AND e2.reviewed_at <= $1::date)) AS overdue,
-           count(*) FILTER (WHERE o.filed_date IS NOT NULL AND o.filed_date <= $1::date
-                              AND o.filed_date > o.due_date) AS filed_late,
-           avg(NULLIF(o.delay_days, 0)) FILTER (WHERE o.delay_days > 0
-                              AND o.filed_date IS NOT NULL AND o.filed_date <= $1::date) AS avg_delay,
-           count(*) FILTER (WHERE EXISTS (
-              SELECT 1 FROM evidence e3 WHERE e3.obligation_id = o.id AND e3.deleted_at IS NULL
-                AND e3.uploaded_at <= $1::date)) AS with_evidence,
-           count(*) FILTER (WHERE o.filed_date IS NOT NULL AND o.filed_date <= $1::date) AS filed_total,
-           count(*) FILTER (WHERE o.filed_date IS NOT NULL AND o.filed_date <= $1::date
-                              AND o.filed_date <= o.due_date) AS filed_ontime
-      FROM obligations o
-     WHERE o.deleted_at IS NULL AND o.status <> 'Not Applicable' AND o.due_date <= $1::date
-       ${scopeSql}`, vals);
-
-  const row = rows[0];
-  if (!row) return build(EMPTY_AGG);
-
-  /* Historic points use the ratio directly: everything approved as at that
-     date scored, everything else did not. */
-  const total = Number(row.total ?? 0);
-  const approved = Number(row.approved ?? 0);
-  return build({
-    ...EMPTY_AGG,
-    total: row.total, approved: row.approved, overdue: row.overdue,
-    filed_late: row.filed_late, avg_delay: row.avg_delay,
-    with_evidence: row.with_evidence, filed_total: row.filed_total, filed_ontime: row.filed_ontime,
-    w_points: String(approved * 100), w_max: String(total * 100),
-  });
-}
-
 export async function monthlyTrend(entityIds?: string[], months = 6): Promise<TrendPoint[]> {
   const now = new Date();
   const monthEnds: Date[] = [];
   for (let i = months - 1; i >= 0; i--) {
     monthEnds.push(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i + 1, 0)));
   }
-  const scores = await Promise.all(monthEnds.map(d => scoreAsOf(d.toISOString().slice(0, 10), entityIds)));
-  return monthEnds.map((d, i) => ({
-    label: d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }),
-    monthEnd: d.toISOString().slice(0, 10),
-    score: scores[i].score, total: scores[i].total, approved: scores[i].approved, overdue: scores[i].overdue,
-  }));
+  const isoEnds = monthEnds.map(d => d.toISOString().slice(0, 10));
+
+  /* Every month in one pass. This ran a separate full aggregate per month —
+     six scans of the register, plus their round trips, on every dashboard
+     load — when the only thing that differed between them was the date being
+     compared against. Unnesting the month ends and grouping by them gives the
+     planner one scan to work with instead. */
+  const vals: unknown[] = [isoEnds];
+  let scopeSql = '';
+  if (entityIds && entityIds.length) { vals.push(entityIds); scopeSql = `AND o.entity_id = ANY($${vals.length})`; }
+
+  const rows = await q<{
+    as_of: string; total: string; approved: string; overdue: string; filed_late: string;
+    avg_delay: string | null; with_evidence: string; filed_total: string; filed_ontime: string;
+  }>(`
+    WITH month_ends AS (SELECT unnest($1::date[]) AS as_of)
+    SELECT m.as_of::text AS as_of,
+           count(*) AS total,
+           count(*) FILTER (WHERE EXISTS (
+              SELECT 1 FROM evidence e WHERE e.obligation_id = o.id AND e.deleted_at IS NULL
+                AND e.status = 'Approved' AND e.reviewed_at <= m.as_of)) AS approved,
+           count(*) FILTER (WHERE o.due_date < m.as_of
+                              AND (o.filed_date IS NULL OR o.filed_date > m.as_of)
+                              AND NOT EXISTS (
+                                SELECT 1 FROM evidence e2 WHERE e2.obligation_id = o.id AND e2.deleted_at IS NULL
+                                  AND e2.status = 'Approved' AND e2.reviewed_at <= m.as_of)) AS overdue,
+           count(*) FILTER (WHERE o.filed_date IS NOT NULL AND o.filed_date <= m.as_of
+                              AND o.filed_date > o.due_date) AS filed_late,
+           avg(NULLIF(o.delay_days, 0)) FILTER (WHERE o.delay_days > 0
+                              AND o.filed_date IS NOT NULL AND o.filed_date <= m.as_of) AS avg_delay,
+           count(*) FILTER (WHERE EXISTS (
+              SELECT 1 FROM evidence e3 WHERE e3.obligation_id = o.id AND e3.deleted_at IS NULL
+                AND e3.uploaded_at <= m.as_of)) AS with_evidence,
+           count(*) FILTER (WHERE o.filed_date IS NOT NULL AND o.filed_date <= m.as_of) AS filed_total,
+           count(*) FILTER (WHERE o.filed_date IS NOT NULL AND o.filed_date <= m.as_of
+                              AND o.filed_date <= o.due_date) AS filed_ontime
+      FROM month_ends m
+      JOIN obligations o
+        ON o.deleted_at IS NULL AND o.status <> 'Not Applicable' AND o.due_date <= m.as_of
+     WHERE TRUE ${scopeSql}
+     GROUP BY m.as_of`, vals);
+
+  const byDate = new Map(rows.map(r => [r.as_of.slice(0, 10), r]));
+
+  return monthEnds.map((d, i) => {
+    const iso = isoEnds[i];
+    const row = byDate.get(iso);
+    /* A month before the register begins has no rows at all — the inner join
+       drops it, so it scores zero rather than disappearing from the series. */
+    const s = row
+      ? build({
+          ...EMPTY_AGG,
+          total: row.total, approved: row.approved, overdue: row.overdue,
+          filed_late: row.filed_late, avg_delay: row.avg_delay,
+          with_evidence: row.with_evidence, filed_total: row.filed_total,
+          filed_ontime: row.filed_ontime,
+          /* Historic points use the ratio directly: everything approved as at
+             that date scored, everything else did not. */
+          w_points: String(Number(row.approved ?? 0) * 100),
+          w_max: String(Number(row.total ?? 0) * 100),
+        })
+      : build(EMPTY_AGG);
+    return {
+      label: d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }),
+      monthEnd: iso,
+      score: s.score, total: s.total, approved: s.approved, overdue: s.overdue,
+    };
+  });
 }
 
 export function scoreBand(score: number): { label: string; tone: 'good' | 'warn' | 'bad' } {
