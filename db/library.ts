@@ -145,6 +145,14 @@ export const FEDERAL_LIBRARY: LibraryItem[] = [
     evidence: ['Signed MR-3'], penalty: 'Penalty under Sec 204(4) on company, officer and practising company secretary', risk: 'High', listed: true,
   },
   {
+    code: 'IN-FED-093', country: 'IN', jurisdiction: 'IN-FED', category: 'corporate_law',
+    title: 'Cost auditor appointment intimation — Form CRA-2', law: 'Companies Act, 2013, Section 148 read with the Companies (Cost Records and Audit) Rules, 2014 (confirm LMW falls within the specified manufacturing classes)',
+    form: 'CRA-2', authority: 'Ministry of Corporate Affairs (MCA)',
+    frequency: 'Annual', dueRule: 'Within 180 days of the commencement of the financial year — by 27/28 September',
+    dueMonth: 9, dueDay: 27,
+    evidence: ['Filed CRA-2 with SRN', 'Cost auditor consent letter'], penalty: 'Additional fee per day of delay under Sec 403', risk: 'Low', factory: true,
+  },
+  {
     code: 'IN-FED-013', country: 'IN', jurisdiction: 'IN-FED', category: 'corporate_law',
     title: 'Cost audit report filing — Form CRA-4', law: 'Companies Act, 2013, Section 148 (confirm LMW falls within the specified manufacturing classes)',
     form: 'CRA-4', authority: 'Ministry of Corporate Affairs (MCA)',
