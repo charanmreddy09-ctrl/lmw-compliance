@@ -975,3 +975,85 @@ input[type="file"] { padding: 6px; }
   .auth2 { min-height: 0; }
   .auth2-side, .auth2-panel { overflow-y: auto; }
 }
+
+/* =========================================================================
+   Sign-in: dark panel with the lit horizon
+   -------------------------------------------------------------------------
+   The panel inverts. Previous revisions kept it light and the blue never
+   carried; the approved reference is near-black with a glowing arc across the
+   top, so the copy sits in white over it rather than navy over pale blue.
+
+   The arc and its particle field are drawn, not photographed: two radial
+   gradients for the glow and a repeating dot pattern that fades out below the
+   horizon. The building photograph stays underneath at low opacity, which is
+   what keeps it from looking like a flat gradient.
+   ========================================================================= */
+.auth2 { background: #070C18; }
+.auth2-side { background: #070C18; }
+
+.auth2-side-bg {
+  background-image:
+    /* particle field, densest along the arc */
+    radial-gradient(1.4px 1.4px at 18% 16%, rgba(190,220,255,.85), transparent 60%),
+    radial-gradient(1.2px 1.2px at 62% 9%,  rgba(190,220,255,.7),  transparent 60%),
+    radial-gradient(1.6px 1.6px at 82% 22%, rgba(190,220,255,.75), transparent 60%),
+    radial-gradient(1.2px 1.2px at 38% 27%, rgba(160,200,255,.55), transparent 60%),
+    /* the lit horizon: a tight bright rim over a broad halo */
+    radial-gradient(120% 42% at 50% -14%, rgba(125,190,255,.95) 0%, rgba(56,132,232,.55) 26%, rgba(20,58,130,.28) 48%, transparent 72%),
+    radial-gradient(150% 70% at 50% -30%, rgba(40,110,220,.42) 0%, transparent 66%),
+    /* body of the panel */
+    linear-gradient(180deg, rgba(7,12,24,.55) 0%, rgba(7,12,24,.86) 42%, rgba(5,9,20,.97) 100%),
+    url('/auth-background.jpg');
+  background-size: 320px 320px, 260px 260px, 380px 380px, 300px 300px, cover, cover, cover, cover;
+  background-position: 0 0, 0 0, 0 0, 0 0, center, center, center, center;
+  background-repeat: repeat, repeat, repeat, repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+}
+
+/* The mark is navy artwork, so it needs its own light chip to read on this. */
+.auth2-brand img { background: #fff; border-radius: 6px; padding: 5px 8px; }
+.auth2-brand .bar { background: rgba(255,255,255,.28); }
+.auth2-brand .tag { color: rgba(255,255,255,.82); }
+
+.auth2-eyebrow { color: #7FB4F5; }
+.auth2-h1 { color: #fff; }
+.auth2-sub { color: rgba(255,255,255,.72); }
+
+/* Cards become glass over the dark rather than frosted over the light. */
+.auth2-feature {
+  background: rgba(255,255,255,.055);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 8px 24px rgba(0,0,0,.28);
+}
+.auth2-feature .fi { background: rgba(125,180,245,.16); color: #9CC6F8; }
+.auth2-feature .ft { color: #fff; }
+.auth2-feature .fd { color: rgba(255,255,255,.66); }
+.auth2-feature::after { background: #7FB4F5; }
+
+/* The statistics bar was navy on pale blue; on near-black it needs an edge
+   rather than a fill to stay distinct from the panel behind it. */
+.auth2-stats {
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 8px 24px rgba(0,0,0,.3);
+}
+.auth2-stat { border-right-color: rgba(255,255,255,.1); }
+.auth2-stat .si { color: #7FB4F5; }
+.auth2-stat .sl { color: rgba(255,255,255,.6); }
+
+.auth2-footnote { color: rgba(255,255,255,.6); }
+.auth2-footnote svg { color: #7FB4F5; }
+
+/* No dead strip under the fold: the grid is exactly the viewport, the two
+   columns fill their row, and the footer takes only its own height. */
+.auth2 { min-height: 100vh; height: 100vh; grid-template-rows: minmax(0, 1fr) auto; }
+.auth2-side, .auth2-panel { min-height: 0; }
+.auth2-foot { background: #050A14; border-top: 1px solid rgba(255,255,255,.08); }
+
+@media (max-width: 768px) {
+  /* Stacked, the panel is no longer a full column, so it must not claim the
+     whole viewport and leave the form below the fold. */
+  .auth2 { height: auto; min-height: 100vh; }
+  .auth2-side-bg { display: block; }
+  .auth2-eyebrow, .auth2-h1, .auth2-sub { color: #fff; }
+  .auth2-sub { color: rgba(255,255,255,.72); }
+}
