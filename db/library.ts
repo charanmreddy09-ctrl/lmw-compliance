@@ -299,7 +299,7 @@ export const FEDERAL_LIBRARY: LibraryItem[] = [
     title: 'TDS return — salaries', law: 'Income-tax Act, 1961, Rule 31A (Form 24Q; renumbered Form 138 under the Income-tax Act, 2025 from Tax Year 2026-27)',
     form: 'Form 24Q / Form 138', authority: 'Income Tax Department (TRACES)',
     frequency: 'Quarterly', dueRule: '31 July / 31 October / 31 January / 31 May',
-    dueOffsetMonths: 1, dueDay: 31,
+    dueOffsetMonths: 1, dueOffsetMonthsQ4: 2, dueDay: 31,
     evidence: ['Filed TDS return acknowledgement', 'Challan details'], penalty: 'Late filing fee ₹200/day under Sec 234E; interest under Sec 201', risk: 'High',
   },
   {
@@ -307,7 +307,7 @@ export const FEDERAL_LIBRARY: LibraryItem[] = [
     title: 'TDS return — other than salaries', law: 'Income-tax Act, 1961, Rule 31A (Form 26Q; renumbered Form 140 under the Income-tax Act, 2025 from Tax Year 2026-27)',
     form: 'Form 26Q / Form 140', authority: 'Income Tax Department (TRACES)',
     frequency: 'Quarterly', dueRule: '31 July / 31 October / 31 January / 31 May',
-    dueOffsetMonths: 1, dueDay: 31,
+    dueOffsetMonths: 1, dueOffsetMonthsQ4: 2, dueDay: 31,
     evidence: ['Filed TDS return acknowledgement', 'Challan details'], penalty: 'Late filing fee ₹200/day under Sec 234E; interest under Sec 201', risk: 'High',
   },
   {
@@ -315,15 +315,15 @@ export const FEDERAL_LIBRARY: LibraryItem[] = [
     title: 'TDS return — payments to non-residents', law: 'Income-tax Act, 1961, Rule 31A (Form 27Q; renumbered Form 144 under the Income-tax Act, 2025 from Tax Year 2026-27)',
     form: 'Form 27Q / Form 144', authority: 'Income Tax Department (TRACES)',
     frequency: 'Quarterly', dueRule: '31 July / 31 October / 31 January / 31 May',
-    dueOffsetMonths: 1, dueDay: 31,
+    dueOffsetMonths: 1, dueOffsetMonthsQ4: 2, dueDay: 31,
     evidence: ['Filed TDS return acknowledgement', 'Challan details'], penalty: 'Late filing fee ₹200/day under Sec 234E; interest under Sec 201', risk: 'High',
   },
   {
     code: 'IN-FED-035', country: 'IN', jurisdiction: 'IN-FED', category: 'direct_tax',
     title: 'TCS return', law: 'Income-tax Act, 1961, Section 206C',
     form: 'Form 27EQ', authority: 'Income Tax Department (TRACES)',
-    frequency: 'Quarterly', dueRule: '15th of the month following the quarter end',
-    dueOffsetMonths: 1, dueDay: 15,
+    frequency: 'Quarterly', dueRule: '15 July / 15 October / 15 January / 15 May',
+    dueOffsetMonths: 1, dueOffsetMonthsQ4: 2, dueDay: 15,
     evidence: ['Filed TCS return acknowledgement'], penalty: 'Late filing fee ₹200/day under Sec 234E', risk: 'Medium',
   },
   {

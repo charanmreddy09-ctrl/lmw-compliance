@@ -159,7 +159,8 @@ function hash(s: string): number {
 function computeDueDate(item: LibraryItem, period: Period, fyStart: number): Date {
   const day = item.dueDay ?? 15;
   if (item.frequency === 'Monthly' || item.frequency === 'Quarterly' || item.frequency === 'Half-yearly') {
-    const offset = item.dueOffsetMonths ?? 1;
+    const isQ4 = item.frequency === 'Quarterly' && period.label.startsWith('Q4');
+    const offset = (isQ4 ? item.dueOffsetMonthsQ4 : undefined) ?? item.dueOffsetMonths ?? 1;
     let m = period.anchorM + offset, y = period.anchorY;
     if (m > 11) { m -= 12; y += 1; }
     return new Date(Date.UTC(y, m, day));

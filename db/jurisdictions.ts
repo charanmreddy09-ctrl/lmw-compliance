@@ -37,6 +37,12 @@ export type LibraryItem = {
   dueMonth?: number;
   dueDay?: number;
   dueOffsetMonths?: number;
+  /** Overrides dueOffsetMonths for the FY's Q4 (Jan-Mar) period only. Some
+      quarterly filings genuinely get a longer window after the year-end
+      quarter than after Q1-Q3 — e.g. TDS/TCS returns (Rule 31A/31AA) are due
+      one month after Q1-Q3 but two months after Q4 (31 May, not 30 April).
+      Left unset, Q4 uses the same dueOffsetMonths as every other quarter. */
+  dueOffsetMonthsQ4?: number;
   evidence: string[];
   penalty: string;
   risk: 'Critical' | 'High' | 'Medium' | 'Low';
