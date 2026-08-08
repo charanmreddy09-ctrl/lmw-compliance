@@ -40,7 +40,12 @@ export const GET = handler(async (req: Request) => {
       SELECT DISTINCT o.fy_start_year FROM obligations o
        WHERE o.deleted_at IS NULL ${scope ? 'AND o.entity_id = ANY($1)' : ''}
        ORDER BY o.fy_start_year DESC`, scope ? [scope] : []),
-    monthlyTrend(ids, 6),
+    /* The trend is one sparkline on a page carrying the group's whole
+       compliance position. It is the only block here that is illustrative
+       rather than operational, so it is not allowed to take the dashboard
+       down with it — a missing chart is recoverable, a dead dashboard in
+       front of the board is not. */
+    monthlyTrend(ids, 6).catch(() => [] as Awaited<ReturnType<typeof monthlyTrend>>),
   ]);
   const availableFys = fyRows.map(r => ({ startYear: r.fy_start_year, label: fyLabel(r.fy_start_year) }));
 
