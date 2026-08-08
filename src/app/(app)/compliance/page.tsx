@@ -20,6 +20,12 @@ type Comp = {
   form_reference: string | null; authority: string | null; government_site: string | null;
   frequency: string; due_rule: string | null; due_day: number | null; due_month: number | null;
   evidence_required: string[]; penalty: string | null; risk_level: string;
+  /* Computable penalty rule. Absent until the migration adding these columns
+     has run, so every one is optional. */
+  penalty_currency?: string | null; penalty_per_day?: string | null;
+  penalty_per_day_cap?: string | null; penalty_flat?: string | null;
+  penalty_rate_pct?: string | null; penalty_interest_pct?: string | null;
+  penalty_minimum?: string | null; penalty_base_label?: string | null;
   applies_if_listed: boolean; applies_if_factory: boolean; applies_if_importer: boolean;
   verified: boolean; verified_by: string | null; verified_on: string | null;
   is_archived: boolean; updated_at: string; instances: string;
@@ -40,6 +46,12 @@ const emptyForm = {
   frequency: 'Annual', due_rule: '', due_day: '', due_month: '',
   evidence_required: '', penalty: '', risk_level: 'Medium',
   applies_if_listed: false, applies_if_factory: false, applies_if_importer: false, verified: false,
+  /* Computable penalty rule, entered from the authority's published schedule.
+     Held as strings because these are form inputs; blank means "not stated",
+     which is different from zero and is preserved as null. */
+  penalty_currency: '', penalty_per_day: '', penalty_per_day_cap: '',
+  penalty_flat: '', penalty_rate_pct: '', penalty_interest_pct: '',
+  penalty_minimum: '', penalty_base_label: '',
 };
 
 export default function Library() {
@@ -174,6 +186,18 @@ export default function Library() {
       due_month: edit.due_month ? parseInt(edit.due_month, 10) : null,
       evidence_required: edit.evidence_required.split('|').map(s => s.trim()).filter(Boolean),
       id: edit.id || undefined,
+      /* Blank stays null rather than becoming 0 - "the authority does not
+         charge this" and "we have not recorded what they charge" must not
+         collapse into the same stored value. */
+      ...Object.fromEntries((
+        ['penalty_per_day', 'penalty_per_day_cap', 'penalty_flat',
+         'penalty_rate_pct', 'penalty_interest_pct', 'penalty_minimum'] as const
+      ).map(k => {
+        const raw = String((edit as Record<string, unknown>)[k] ?? '').replace(/[,\s]/g, '');
+        return [k, raw === '' ? null : Number(raw)];
+      })),
+      penalty_currency: edit.penalty_currency.trim().toUpperCase() || null,
+      penalty_base_label: edit.penalty_base_label.trim() || null,
     };
     try {
       const res = await fetch('/api/compliances', {
@@ -284,6 +308,17 @@ export default function Library() {
                         penalty: r.penalty ?? '', risk_level: r.risk_level,
                         applies_if_listed: r.applies_if_listed, applies_if_factory: r.applies_if_factory,
                         applies_if_importer: r.applies_if_importer, verified: r.verified,
+                        /* Null reads back as blank, so an unrecorded rate stays
+                           unrecorded rather than being saved as 0 on the next
+                           edit of an unrelated field. */
+                        penalty_currency: r.penalty_currency ?? '',
+                        penalty_per_day: r.penalty_per_day ?? '',
+                        penalty_per_day_cap: r.penalty_per_day_cap ?? '',
+                        penalty_flat: r.penalty_flat ?? '',
+                        penalty_rate_pct: r.penalty_rate_pct ?? '',
+                        penalty_interest_pct: r.penalty_interest_pct ?? '',
+                        penalty_minimum: r.penalty_minimum ?? '',
+                        penalty_base_label: r.penalty_base_label ?? '',
                       });
                     }}><Ic n="edit" s={12} /></button>
           )}
@@ -562,6 +597,77 @@ export default function Library() {
           <div className="f">
             <label>Statutory penalty for delay</label>
             <textarea value={edit.penalty} onChange={e => setEdit({ ...edit, penalty: e.target.value })} />
+            <div className="h">
+              The authority&apos;s own wording. Enter the computable figures below so the platform can
+              work out an exposure rather than only quoting the provision.
+            </div>
+          </div>
+
+          {/* The same provision in a form that can be computed. Left blank the
+              platform reports "no rule recorded" rather than a zero exposure -
+              so a compliance nobody has costed is visibly uncosted instead of
+              looking compliant and free. */}
+          <div className="f">
+            <label>How the penalty is computed</label>
+            <div className="h mb8">
+              Fill only what the provision actually says. A compliance may carry both a daily fee and
+              interest on an amount - both will be applied. Take every figure from the authority&apos;s
+              published schedule, not from memory.
+            </div>
+
+            <div className="f3">
+              <div className="f">
+                <label htmlFor="pcur">Currency</label>
+                <input id="pcur" value={edit.penalty_currency} maxLength={3} placeholder="INR"
+                       onChange={e => setEdit({ ...edit, penalty_currency: e.target.value })} />
+              </div>
+              <div className="f">
+                <label htmlFor="ppd">Per day of delay</label>
+                <input id="ppd" inputMode="decimal" value={edit.penalty_per_day} placeholder="e.g. 50"
+                       onChange={e => setEdit({ ...edit, penalty_per_day: e.target.value })} />
+              </div>
+              <div className="f">
+                <label htmlFor="ppdc">Cap on the daily fee</label>
+                <input id="ppdc" inputMode="decimal" value={edit.penalty_per_day_cap} placeholder="e.g. 5000"
+                       onChange={e => setEdit({ ...edit, penalty_per_day_cap: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="f3">
+              <div className="f">
+                <label htmlFor="pflat">Fixed penalty</label>
+                <input id="pflat" inputMode="decimal" value={edit.penalty_flat} placeholder="charged once"
+                       onChange={e => setEdit({ ...edit, penalty_flat: e.target.value })} />
+              </div>
+              <div className="f">
+                <label htmlFor="prate">% of the base amount</label>
+                <input id="prate" inputMode="decimal" value={edit.penalty_rate_pct} placeholder="e.g. 2"
+                       onChange={e => setEdit({ ...edit, penalty_rate_pct: e.target.value })} />
+              </div>
+              <div className="f">
+                <label htmlFor="pint">Interest, % a year</label>
+                <input id="pint" inputMode="decimal" value={edit.penalty_interest_pct} placeholder="e.g. 18"
+                       onChange={e => setEdit({ ...edit, penalty_interest_pct: e.target.value })} />
+                <div className="h">Enter a monthly rate as its annual equivalent - 1% a month is 12.</div>
+              </div>
+            </div>
+
+            <div className="f2">
+              <div className="f">
+                <label htmlFor="pmin">Statutory minimum</label>
+                <input id="pmin" inputMode="decimal" value={edit.penalty_minimum} placeholder="floor on the total"
+                       onChange={e => setEdit({ ...edit, penalty_minimum: e.target.value })} />
+              </div>
+              <div className="f">
+                <label htmlFor="pbl">What the base amount is</label>
+                <input id="pbl" value={edit.penalty_base_label} placeholder="e.g. Tax payable"
+                       onChange={e => setEdit({ ...edit, penalty_base_label: e.target.value })} />
+                <div className="h">
+                  Required if a percentage or interest is set - this is the wording the preparer is
+                  asked for when they file, so use the authority&apos;s own term.
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="f">

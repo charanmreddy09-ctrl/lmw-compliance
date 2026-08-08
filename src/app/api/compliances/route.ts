@@ -3,6 +3,7 @@ import { handler, ok, fail, auth, authWith, body, writeAudit } from '@/lib/api';
 import { q, one, tx } from '@/lib/db';
 import { can } from '@/lib/rbac';
 import { fyLabel } from '@/lib/dates';
+import { hasPenaltyEngine } from '@/lib/schema-features';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,12 +41,21 @@ export const GET = handler(async (req: Request) => {
     fyPlaceholder = `AND o.fy_start_year = $${vals.length}`;
   }
 
+  /* Named explicitly rather than with c.* so the list stays a deliberate
+     contract, which means the penalty rule has to be added here too - and only
+     once the migration creating those columns has run. */
+  const penaltyCols = (await hasPenaltyEngine())
+    ? `, c.penalty_currency, c.penalty_per_day, c.penalty_per_day_cap, c.penalty_flat,
+         c.penalty_rate_pct, c.penalty_interest_pct, c.penalty_minimum, c.penalty_base_label`
+    : '';
+
   const rows = await q(`
     SELECT c.id, c.code, c.country_code, co.name AS country_name,
            c.jurisdiction_id, j.name AS jurisdiction_name, j.level AS jurisdiction_level,
            c.category_id, cat.name AS category_name, c.title, c.applicable_law,
            c.form_reference, c.authority, c.government_site, c.frequency, c.due_rule,
            c.due_day, c.due_month, c.evidence_required, c.penalty, c.risk_level,
+           ${penaltyCols ? penaltyCols.replace(/^, /, '') + ',' : ''}
            c.applies_if_listed, c.applies_if_factory, c.applies_if_importer,
            c.verified, c.verified_by, c.verified_on, c.is_archived, c.updated_at,
            (SELECT count(*) FROM obligations o
@@ -75,6 +85,12 @@ type Payload = {
   penalty?: string; risk_level?: string;
   applies_if_listed?: boolean; applies_if_factory?: boolean; applies_if_importer?: boolean;
   verified?: boolean;
+  /* Computable penalty rule. Null clears a figure; undefined is treated the
+     same way, since a client that does not send these is not editing them. */
+  penalty_currency?: string | null; penalty_per_day?: number | null;
+  penalty_per_day_cap?: number | null; penalty_flat?: number | null;
+  penalty_rate_pct?: number | null; penalty_interest_pct?: number | null;
+  penalty_minimum?: number | null; penalty_base_label?: string | null;
 };
 
 export const POST = handler(async (req: Request) => {
@@ -173,6 +189,31 @@ export const PATCH = handler(async (req: Request) => {
      b.penalty ?? null, b.risk_level ?? null,
      b.applies_if_listed ?? null, b.applies_if_factory ?? null, b.applies_if_importer ?? null,
      b.verified ?? null]);
+
+  /* The computable penalty rule, written separately and only once the columns
+     exist. Kept out of the statement above so a deployment that has reached
+     production ahead of its migration still saves every other field instead of
+     failing the whole edit.
+
+     Assigned directly rather than through COALESCE: clearing a rate has to be
+     possible, and COALESCE would read an intentional blank as "leave it as it
+     was", making a wrong figure impossible to remove. */
+  if (await hasPenaltyEngine()) {
+    await q(`
+      UPDATE compliances SET
+        penalty_currency     = $2,
+        penalty_per_day      = $3,
+        penalty_per_day_cap  = $4,
+        penalty_flat         = $5,
+        penalty_rate_pct     = $6,
+        penalty_interest_pct = $7,
+        penalty_minimum      = $8,
+        penalty_base_label   = $9
+      WHERE id = $1`,
+      [id, b.penalty_currency ?? null, b.penalty_per_day ?? null, b.penalty_per_day_cap ?? null,
+       b.penalty_flat ?? null, b.penalty_rate_pct ?? null, b.penalty_interest_pct ?? null,
+       b.penalty_minimum ?? null, b.penalty_base_label ?? null]);
+  }
 
   await q(`INSERT INTO compliance_history (compliance_id, changed_by, change_type, before_data, after_data, note)
            VALUES ($1,$2,'update',$3::jsonb,$4::jsonb,'Edited in the application')`,
