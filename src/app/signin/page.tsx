@@ -12,6 +12,7 @@ export default function SignInPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPw, setShowPw] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,24 +42,31 @@ export default function SignInPage() {
   return (
     <div className="auth2">
       <div className="auth2-side">
-        <div className="auth2-eyebrow">LMW Limited</div>
-        <h1 className="auth2-h1">LMW Compliance<br />Management Platform</h1>
-        <p className="auth2-sub">One platform. Complete compliance visibility.</p>
+        <div className="auth2-side-bg" />
+        <div className="auth2-side-content">
+          <div className="auth2-eyebrow">Welcome to</div>
+          <h1 className="auth2-h1">Compliance<br />Management Platform</h1>
+          <p className="auth2-sub">One platform. Complete compliance visibility.</p>
 
-        <div className="auth2-features">
-          {[
-            { icon: 'doc' as const, t: 'Centralised Compliance', d: 'All obligations. All entities. One trusted record.' },
-            { icon: 'shield' as const, t: 'Verified & Reviewed', d: 'Every filing reviewed. Only approved counts.' },
-            { icon: 'globe' as const, t: 'Global. Local. Real-time.', d: 'Live compliance status across every location.' },
-          ].map(f => (
-            <div className="auth2-feature" key={f.t}>
-              <span className="fi"><Ic n={f.icon} s={16} /></span>
-              <div>
-                <div className="ft">{f.t}</div>
-                <div className="fd">{f.d}</div>
+          <div className="auth2-features">
+            {[
+              { icon: 'doc' as const, t: 'Centralised Compliance', d: 'All obligations. All entities. One trusted record.' },
+              { icon: 'shield' as const, t: 'Verified & Reviewed', d: 'Every filing reviewed. Only approved counts.' },
+              { icon: 'globe' as const, t: 'Global. Local. Real-time.', d: 'Live compliance status across every location.' },
+            ].map(f => (
+              <div className="auth2-feature" key={f.t}>
+                <span className="fi"><Ic n={f.icon} s={16} /></span>
+                <div>
+                  <div className="ft">{f.t}</div>
+                  <div className="fd">{f.d}</div>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+
+          <div className="auth2-footnote">
+            <span>🔒</span> Secure. Reliable.
+          </div>
         </div>
       </div>
 
@@ -79,7 +87,12 @@ export default function SignInPage() {
             </div>
 
             <div className="f">
-              <label htmlFor="pw">Password</label>
+              <div className="row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <label htmlFor="pw">Password</label>
+                <button type="button" className="auth2-forgot" onClick={() => setShowForgot(v => !v)}>
+                  Forgot password?
+                </button>
+              </div>
               <div className="auth2-pw">
                 <input id="pw" type={showPw ? 'text' : 'password'} autoComplete="current-password" required
                        value={password} onChange={e => setPassword(e.target.value)}
@@ -87,9 +100,15 @@ export default function SignInPage() {
                 <button type="button" className="auth2-pw-toggle"
                         onClick={() => setShowPw(v => !v)}
                         aria-label={showPw ? 'Hide password' : 'Show password'}>
-                  {showPw ? 'Hide' : 'Show'}
+                  <Ic n="eye" s={16} />
                 </button>
               </div>
+              {showForgot && (
+                <p className="tiny muted mt8 mb0">
+                  Password resets are handled by your administrator - contact your CFO's office or
+                  platform administrator to have it reset.
+                </p>
+              )}
             </div>
 
             {/* fixed slot so the form does not jump when an error appears */}
