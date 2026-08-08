@@ -121,9 +121,19 @@ function ReviewsInner() {
   }), [rows]);
 
   const active = (buckets as Record<string, QRow[]>)[tab] ?? [];
-  const shown = active.filter(r =>
-    (!entity || r.entity_id === entity) &&
-    (!q || `${r.title} ${r.code} ${r.entity} ${r.form_reference ?? ''}`.toLowerCase().includes(q.toLowerCase())));
+  /* Default order: newest submission first, so the queue isn't left in
+     whatever order the database happened to return it in. Both the
+     "Submitted" and "Due" column headers stay clickable (DataTable's own
+     sort) for a reviewer who wants oldest-first or due-date order instead. */
+  const shown = active
+    .filter(r =>
+      (!entity || r.entity_id === entity) &&
+      (!q || `${r.title} ${r.code} ${r.entity} ${r.form_reference ?? ''}`.toLowerCase().includes(q.toLowerCase())))
+    .sort((a, b) => {
+      const at = a.submitted_at ? new Date(a.submitted_at).getTime() : -Infinity;
+      const bt = b.submitted_at ? new Date(b.submitted_at).getTime() : -Infinity;
+      return bt - at;
+    });
 
   const flagged = buckets.pending.filter(r => r.validation?.outcome && r.validation.outcome !== 'clean').length;
   const late = buckets.pending.filter(r => r.delay_days > 0).length;
