@@ -398,7 +398,7 @@ function ReviewDrawer({ id, onClose, onDone }: { id: string; onClose: () => void
           {pane === 'detail' && (
             <dl className="kv mb16">
               <dt>Entity</dt><dd>{String(o.entity_name)} · {String(o.country_name)}</dd>
-              <dt>Category</dt><dd>{String(o.category)}</dd>
+              <dt>Law</dt><dd>{String(o.category)}</dd>
               <dt>Applicable law</dt><dd>{o.applicable_law ? String(o.applicable_law) : '-'}</dd>
               <dt>Form / reference</dt><dd>{o.form_reference ? String(o.form_reference) : '-'}</dd>
               <dt>Due date</dt>

@@ -360,7 +360,7 @@ export default function Library() {
           {ref.availableFys.map(f => <option key={f.startYear} value={f.startYear}>{f.label}</option>)}
         </select>
         <select value={cat} onChange={e => setCat(e.target.value)}>
-          <option value="">All categories</option>
+          <option value="">All laws</option>
           {ref.categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <select value={freq} onChange={e => setFreq(e.target.value)}>
@@ -479,7 +479,7 @@ export default function Library() {
               <div className="h">State-level records apply only to entities registered there.</div>
             </div>
             <div className="f">
-              <label>Category *</label>
+              <label>Law *</label>
               <select value={edit.category_id} onChange={e => setEdit({ ...edit, category_id: e.target.value })}>
                 <option value="">Select…</option>
                 {ref.categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}

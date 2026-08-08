@@ -84,8 +84,8 @@ export default function Exclusions() {
         <select value={entityId} onChange={e => setEntityId(e.target.value)} aria-label="Entity">
           {entities.map(e => <option key={e.id} value={e.id}>{e.short_name} ({e.country_name})</option>)}
         </select>
-        <select value={cat} onChange={e => setCat(e.target.value)} aria-label="Filter by category">
-          <option value="">All categories</option>
+        <select value={cat} onChange={e => setCat(e.target.value)} aria-label="Filter by law">
+          <option value="">All laws</option>
           {cats.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <div className="grow" />
@@ -102,7 +102,7 @@ export default function Exclusions() {
         {loading ? <div className="card-b"><Spinner label="Loading…" /></div> : (
           <div className="tw">
             <table className="dt">
-              <thead><tr><th>Compliance</th><th>Category</th><th>Status</th><th></th></tr></thead>
+              <thead><tr><th>Compliance</th><th>Law</th><th>Status</th><th></th></tr></thead>
               <tbody>
                 {shown.length === 0 && (
                   <tr><td colSpan={4}><div className="empty">No compliances match this entity and filter.</div></td></tr>

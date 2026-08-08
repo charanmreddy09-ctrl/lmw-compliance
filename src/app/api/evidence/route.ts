@@ -110,6 +110,19 @@ export const POST = handler(async (req: Request) => {
   const mime = f.type || 'application/octet-stream';
   const filedDate = await extractFiledDate(bytes, mime);
 
+  /* The filing date must come from the document, not from the clock. A blank
+     or unreadable PDF used to fall back silently to today's date, which let
+     an empty document pass as evidence of a real filing. If the document is
+     text-searchable (PDF) and no date could be read from it, refuse the
+     upload outright rather than guessing — there is nothing to "capture" from
+     a document that states no date. Other formats (image, Excel, Word, ZIP)
+     aren't text-searchable at all, so they keep defaulting to the upload
+     date, honestly disclosed via filedDate.source — that is a known format
+     limitation, not a blank-document problem. */
+  if (mime === 'application/pdf' && filedDate.source === 'defaulted') {
+    return fail(422, 'No filing date could be read from this PDF — it may be blank, scanned as an image with no selectable text, or genuinely missing a date. Upload a document that shows the filing/acknowledgement date, or use "File as Nil" if there is nothing to file for this period.');
+  }
+
   /* The document usually prints the deadline it was filed against. Read it and
      compare, so a platform due date that has drifted from what the authority
      actually published becomes visible instead of silently scoring filings
@@ -179,9 +192,10 @@ export const POST = handler(async (req: Request) => {
               filed_date = COALESCE($2::date, filed_date),
               delay_days = CASE WHEN $2::date IS NOT NULL AND $2::date > due_date
                                 THEN ($2::date - due_date) ELSE delay_days END,
-              penalty_exposure = $3
+              penalty_exposure = $3,
+              delay_reason = COALESCE($4, delay_reason)
         WHERE id = $1`,
-      [obligationId, filedDate.date, validation.penaltyExposure]);
+      [obligationId, filedDate.date, validation.penaltyExposure, lateReason]);
 
     await c.query(
       `INSERT INTO review_actions (obligation_id, evidence_id, action, actor_id, actor_role,

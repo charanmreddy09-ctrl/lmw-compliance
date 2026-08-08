@@ -787,7 +787,7 @@ export default function Dashboard() {
               <div className="card-h"><h3>By category</h3></div>
               <div className="tw">
                 <table className="dt">
-                  <thead><tr><th>Category</th><th className="right">Applicable</th>
+                  <thead><tr><th>Law</th><th className="right">Applicable</th>
                     <th className="right">Followed</th><th className="right">Overdue</th><th className="right">%</th></tr></thead>
                   <tbody>
                     {d.byCategory.map(r => {

@@ -15,7 +15,7 @@ const TITLES: Record<string, string> = {
   country: 'Country compliance summary',
   entity: 'Entity compliance scorecard',
   division: 'Division compliance summary',
-  category: 'Category compliance summary',
+  category: 'Law compliance summary',
   overdue: 'Overdue and unfiled obligations',
   delay: 'Filing delay analysis',
   evidence: 'Evidence register',
@@ -61,7 +61,7 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
   let extraSheets: { name: string; rows: Record<string, unknown>[] }[] = [];
 
   if (type === 'country') {
-    const cb = await countryBreakdown(ids, fy ?? undefined);
+    const cb = await countryBreakdown(ids, fy ?? undefined, category ?? undefined);
     rows = cb.map(c => ({
       Country: c.countryName, Code: c.countryCode, Entities: c.entities,
       'Applicable compliances': c.total, 'Followed (approved)': c.approved,
@@ -78,7 +78,7 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
            LEFT JOIN divisions d ON d.id = e.division_id
           WHERE e.deleted_at IS NULL ${scope ? 'AND e.id = ANY($1)' : ''}
           ORDER BY c.name, e.name`, args),
-      entityScores(ids, fy ?? undefined),
+      entityScores(ids, fy ?? undefined, category ?? undefined),
       /* Not-yet-due obligations, per entity — shown for disclosure only.
          They never enter the score (a period that hasn't come up yet can't
          be filed), which is exactly why "how the score is calculated" isn't
@@ -107,6 +107,11 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
 
   if (type === 'division' || type === 'category') {
     const isDiv = type === 'division';
+    /* The category report is itself grouped by category, so filtering it down
+       to one category would just leave a single row — the filter only makes
+       sense for the division report here. */
+    const divCatSql = isDiv ? catSql : '';
+    const divArgs = isDiv ? argsFyCat : argsFy;
     rows = (await q(`
       SELECT ${isDiv ? `COALESCE(d.name,'Unassigned')` : 'cat.name'} AS grp,
              count(*) AS total,
@@ -120,9 +125,9 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
         JOIN compliances c ON c.id = o.compliance_id
         JOIN categories cat ON cat.id = c.category_id
         LEFT JOIN divisions d ON d.id = e.division_id
-       WHERE o.deleted_at IS NULL AND o.status <> 'Not Applicable' ${sc} ${fySql}
-       GROUP BY grp ORDER BY grp`, argsFy)).map(r => ({
-      [isDiv ? 'Division' : 'Category']: r.grp,
+       WHERE o.deleted_at IS NULL AND o.status <> 'Not Applicable' ${sc} ${fySql} ${divCatSql}
+       GROUP BY grp ORDER BY grp`, divArgs)).map(r => ({
+      [isDiv ? 'Division' : 'Law']: r.grp,
       Applicable: Number(r.total), Approved: Number(r.approved),
       'Awaiting review': Number(r.in_review), 'Query raised': Number(r.queried),
       Overdue: Number(r.overdue),
@@ -143,10 +148,10 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
         JOIN countries co ON co.code = e.country_code
         LEFT JOIN users us ON us.id = o.assigned_to
        WHERE o.deleted_at IS NULL AND o.status <> 'Approved'
-         AND o.filed_date IS NULL AND o.due_date < CURRENT_DATE ${sc} ${fySql}
-       ORDER BY (CURRENT_DATE - o.due_date) DESC`, argsFy)).map(r => ({
+         AND o.filed_date IS NULL AND o.due_date < CURRENT_DATE ${sc} ${fySql} ${catSql}
+       ORDER BY (CURRENT_DATE - o.due_date) DESC`, argsFyCat)).map(r => ({
       Entity: r.entity, Country: r.country, Compliance: r.title,
-      Category: r.category, Risk: r.risk_level,
+      Law: r.category, Risk: r.risk_level,
       'Due date': r.due_date, 'Days overdue': Number(r.days_overdue),
       Status: r.status, 'Responsible': r.owner ?? 'Unassigned',
       'Penalty exposure': r.penalty,
@@ -157,7 +162,7 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
     rows = (await q(`
       SELECT e.short_name AS entity, co.name AS country, c.title,
              cat.name AS category, o.period_label, o.due_date, o.filed_date,
-             o.delay_days, o.penalty_exposure
+             o.delay_days, o.penalty_exposure, o.delay_reason
         FROM obligations o
         JOIN compliances c ON c.id = o.compliance_id
         JOIN categories cat ON cat.id = c.category_id
@@ -166,9 +171,10 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
        WHERE o.deleted_at IS NULL AND o.delay_days > 0 ${sc} ${fySql} ${catSql}
        ORDER BY o.delay_days DESC`, argsFyCat)).map(r => ({
       Entity: r.entity, Country: r.country, Compliance: r.title,
-      Category: r.category, Period: r.period_label,
+      Law: r.category, Period: r.period_label,
       'Due date': r.due_date, 'Filed date': r.filed_date,
-      'Delay (days)': Number(r.delay_days), 'Penalty exposure': r.penalty_exposure ?? '',
+      'Delay (days)': Number(r.delay_days), 'Reason for delay': r.delay_reason ?? '',
+      'Penalty exposure': r.penalty_exposure ?? '',
     }));
   }
 
@@ -180,10 +186,11 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
         FROM evidence ev
         JOIN obligations o ON o.id = ev.obligation_id
         JOIN compliances c ON c.id = o.compliance_id
+        JOIN categories cat ON cat.id = c.category_id
         JOIN entities e ON e.id = o.entity_id
         LEFT JOIN users up ON up.id = ev.uploaded_by
-       WHERE ev.deleted_at IS NULL AND o.deleted_at IS NULL ${sc} ${fySql}
-       ORDER BY ev.uploaded_at DESC LIMIT 5000`, argsFy)).map(r => ({
+       WHERE ev.deleted_at IS NULL AND o.deleted_at IS NULL ${sc} ${fySql} ${catSql}
+       ORDER BY ev.uploaded_at DESC LIMIT 5000`, argsFyCat)).map(r => ({
       Entity: r.entity, Compliance: r.title,
       Period: r.period_label, 'Document type': r.doc_type ?? '',
       'Evidence status': r.status, 'Filed date': r.filed_date,
@@ -194,7 +201,9 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
 
   if (type === 'executive') {
     const [overall, cb, scores, ents] = await Promise.all([
-      overallScore(ids, fy ?? undefined), countryBreakdown(ids, fy ?? undefined), entityScores(ids, fy ?? undefined),
+      overallScore(ids, fy ?? undefined, category ?? undefined),
+      countryBreakdown(ids, fy ?? undefined, category ?? undefined),
+      entityScores(ids, fy ?? undefined, category ?? undefined),
       q<{ id: string; name: string; country_name: string }>(
         `SELECT e.id, e.name, c.name AS country_name FROM entities e
            JOIN countries c ON c.code = e.country_code
@@ -233,9 +242,9 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
   if (type === 'board') {
     /* A board pack: the headline position, then the evidence behind it. */
     const [overall, cb, scores, ents, highRisk, changes, revs] = await Promise.all([
-      overallScore(ids, fy ?? undefined),
-      countryBreakdown(ids, fy ?? undefined),
-      entityScores(ids, fy ?? undefined),
+      overallScore(ids, fy ?? undefined, category ?? undefined),
+      countryBreakdown(ids, fy ?? undefined, category ?? undefined),
+      entityScores(ids, fy ?? undefined, category ?? undefined),
       q<{ id: string; name: string; country_name: string; division_name: string | null }>(
         `SELECT e.id, e.name, c.name AS country_name, d.name AS division_name
            FROM entities e

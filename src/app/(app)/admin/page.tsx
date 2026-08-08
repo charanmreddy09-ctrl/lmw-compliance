@@ -717,10 +717,10 @@ function InviteModal({ roles, entities, categories, onClose, onCreated }: {
 
       {role === 'PREPARER' && (
         <div className="f">
-          <label>Compliance categories (laws) this preparer can file</label>
+          <label>Laws this preparer can file</label>
           <label className="small row g6 mb8" style={{ cursor: 'pointer' }}>
             <input type="checkbox" checked={allCats} onChange={e => setAllCats(e.target.checked)} style={{ width: 'auto' }} />
-            All categories
+            All laws
           </label>
           {!allCats && (
             <div style={{
@@ -737,8 +737,8 @@ function InviteModal({ roles, entities, categories, onClose, onCreated }: {
             </div>
           )}
           <div className="h">
-            Restricting this leaves every other compliance category invisible to this preparer -
-            in the register and when filing. Leave "All categories" ticked for no restriction.
+            Restricting this leaves every other law invisible to this preparer -
+            in the register and when filing. Leave "All laws" ticked for no restriction.
           </div>
         </div>
       )}
@@ -847,10 +847,10 @@ function ScopeModal({ user, entities, roles, categories, onClose, onSaved }: {
 
       {role === 'PREPARER' && (
         <div className="f">
-          <label>Compliance categories (laws) this preparer can file</label>
+          <label>Laws this preparer can file</label>
           <label className="small row g6 mb8" style={{ cursor: 'pointer' }}>
             <input type="checkbox" checked={allCats} onChange={e => setAllCats(e.target.checked)} style={{ width: 'auto' }} />
-            All categories
+            All laws
           </label>
           {!allCats && (
             <div style={{ maxHeight: 190, overflowY: 'auto', border: '1px solid var(--line)', borderRadius: 'var(--r)', padding: 8 }}>

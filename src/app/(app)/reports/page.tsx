@@ -21,8 +21,8 @@ const REPORTS = [
     d: 'The headline numbers for the Board: score, coverage, timeliness and exposure, with country and entity annexures.' },
   { id: 'division', name: 'Division summary', icon: 'dash',
     d: 'Compliance position by operating division.' },
-  { id: 'category', name: 'Category summary', icon: 'book',
-    d: 'Where the group is strong and weak by type of compliance - tax, payroll, environmental and so on.' },
+  { id: 'category', name: 'Law summary', icon: 'book',
+    d: 'Where the group is strong and weak by law - tax, payroll, environmental and so on.' },
   { id: 'overdue', name: 'Overdue register', icon: 'alert',
     d: 'Every obligation past its due date with no evidence, ranked by how late it is, with penalty exposure.' },
   { id: 'delay', name: 'Delay analysis', icon: 'clock',
@@ -49,7 +49,10 @@ function ReportsInner() {
     try {
       const p = new URLSearchParams();
       if (fyVal !== '') p.set('fy', String(fyVal));
-      if (type === 'delay' && category) p.set('category', category);
+      /* The Law summary report is itself grouped by law, so filtering it to
+         one would just leave a single row — every other report can be
+         narrowed to a single law. */
+      if (type !== 'category' && category) p.set('category', category);
       const res = await fetch(`/api/reports/${type}?${p}`);
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? 'Unable to generate the report.');
@@ -142,10 +145,10 @@ function ReportsInner() {
                       {data.availableFys.map(f => <option key={f.startYear} value={f.startYear}>{f.label}</option>)}
                     </select>
                   )}
-                  {active === 'delay' && data && data.categories.length > 0 && (
+                  {active !== 'category' && data && data.categories.length > 0 && (
                     <select value={category} onChange={e => setCategory(e.target.value)}
-                            aria-label="Filter by law / category">
-                      <option value="">All laws / categories</option>
+                            aria-label="Filter by law">
+                      <option value="">All laws</option>
                       {data.categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   )}
@@ -156,7 +159,7 @@ function ReportsInner() {
                           onClick={() => {
                             const p = new URLSearchParams({ format: 'xlsx' });
                             if (fy !== '') p.set('fy', String(fy));
-                            if (active === 'delay' && category) p.set('category', category);
+                            if (active !== 'category' && category) p.set('category', category);
                             downloadFile(`/api/reports/${active}?${p}`, `SGCMP_${active}.xlsx`, toast);
                           }}>
                     <Ic n="download" s={13} /> Excel

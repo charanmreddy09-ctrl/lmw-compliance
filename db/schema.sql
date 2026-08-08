@@ -227,12 +227,17 @@ CREATE TABLE IF NOT EXISTS obligations (
   reviewer_id     UUID         REFERENCES users(id),
   delay_days      INT          NOT NULL DEFAULT 0,
   penalty_exposure TEXT,
+  /* The preparer's stated reason for filing after the due date, captured as
+     its own column (rather than left buried in the review_actions comment
+     text) so the Delay analysis report can show it as a real column. */
+  delay_reason    TEXT,
   notes           TEXT,
   deleted_at      TIMESTAMPTZ,
   created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
   UNIQUE (compliance_id, entity_id, period_label)
 );
+ALTER TABLE obligations ADD COLUMN IF NOT EXISTS delay_reason TEXT;
 CREATE INDEX IF NOT EXISTS idx_obl_entity   ON obligations(entity_id)   WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_obl_status   ON obligations(status)      WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_obl_due      ON obligations(due_date)    WHERE deleted_at IS NULL;

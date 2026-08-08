@@ -296,7 +296,7 @@ export default function Calendar() {
           <div className="tw">
             <table className="dt">
               <thead><tr>
-                <th>Due</th><th>Compliance</th><th>Entity</th><th>Category</th>
+                <th>Due</th><th>Compliance</th><th>Entity</th><th>Law</th>
                 <th>Risk</th><th>Status</th>
               </tr></thead>
               <tbody>

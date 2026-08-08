@@ -149,7 +149,7 @@ function RegisterInner() {
           {statuses.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <select value={cat} onChange={e => setCat(e.target.value)}>
-          <option value="">All categories</option>
+          <option value="">All laws</option>
           {cats.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <select value={risk} onChange={e => setRisk(e.target.value)} aria-label="Filter by risk level">
@@ -415,7 +415,7 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
             <dd className="num">{fmtDate(o.filed_date)}
               {o.delay_days > 0 && <span style={{ color: 'var(--bad-600)' }}> (+{o.delay_days} d)</span>}</dd>
             <dt>Entity</dt><dd>{o.entity_name} · {o.country_name}</dd>
-            <dt>Category</dt><dd>{o.category}</dd>
+            <dt>Law</dt><dd>{o.category}</dd>
             <dt>Applicable law</dt><dd>{o.applicable_law ?? '-'}</dd>
             <dt>Form / reference</dt><dd>{o.form_reference ?? '-'}</dd>
             <dt>Authority</dt><dd>{o.authority ?? '-'}</dd>

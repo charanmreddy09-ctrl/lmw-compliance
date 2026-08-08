@@ -37,7 +37,7 @@ export const GET = handler(async (req: Request) => {
 
   const [overall, byEntity, byCountry, byCountryScore, byCategoryScore, trend] = await Promise.all([
     overallScore(ids, fy), entityScores(ids, fy),
-    countryScoresOnce.then(s => countryBreakdown(ids, fy, s)),
+    countryScoresOnce.then(s => countryBreakdown(ids, fy, undefined, s)),
     countryScoresOnce, categoryScores(ids, fy),
     /* The trend is one sparkline on a page carrying the group's whole
        compliance position. It is the only block here that is illustrative

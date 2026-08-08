@@ -234,7 +234,7 @@ export default function EntityDetail() {
                 {statuses.map(x => <option key={x} value={x}>{x}</option>)}
               </select>
               <select value={cat} onChange={ev => setCat(ev.target.value)}>
-                <option value="">All categories</option>
+                <option value="">All laws</option>
                 {cats.map(x => <option key={x} value={x}>{x}</option>)}
               </select>
               <div className="search">
@@ -254,14 +254,14 @@ export default function EntityDetail() {
 
       {tab === 'category' && (
         <div className="card">
-          <div className="card-h"><h3>Compliance by category</h3>
+          <div className="card-h"><h3>Compliance by law</h3>
             <button className="btn btn-s no-print"
                     onClick={() => downloadFile('/api/reports/category?format=xlsx', 'category.xlsx', toast)}>
               <Ic n="download" s={13} /> Export</button>
           </div>
           <div className="tw">
             <table className="dt">
-              <thead><tr><th>Category</th><th className="right">Applicable</th><th className="right">Approved</th>
+              <thead><tr><th>Law</th><th className="right">Applicable</th><th className="right">Approved</th>
                 <th className="right">Overdue</th><th style={{ width: 180 }}>Followed</th></tr></thead>
               <tbody>
                 {d.byCategory.map(r => {
@@ -298,7 +298,7 @@ export default function EntityDetail() {
           </div>
           <div className="tw">
             <table className="dt">
-              <thead><tr><th>Compliance</th><th>Category</th><th>Status</th><th></th></tr></thead>
+              <thead><tr><th>Compliance</th><th>Law</th><th>Status</th><th></th></tr></thead>
               <tbody>
                 {d.applicability.map(a => (
                   <tr key={a.compliance_id}>
