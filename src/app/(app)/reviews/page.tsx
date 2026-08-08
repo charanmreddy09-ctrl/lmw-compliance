@@ -39,11 +39,21 @@ const ACTIONS: { id: string; label: string; cls: string; icon: string; needsComm
     hint: 'Confirms the evidence supports the filing. Only approved obligations count towards the compliance score.' },
   { id: 'query', label: 'Raise query', cls: 'btn-warn', icon: 'alert', needsComment: true,
     hint: 'Returns the item to the preparer with your question. It stays open until they resubmit.' },
-  { id: 'reject', label: 'Reject', cls: 'btn-bad', icon: 'x', needsComment: true,
+  { id: 'reject', label: 'Reject', cls: 'btn-bad', icon: 'x', needsComment: false,
     hint: 'Rejects the submission outright. The preparer must file again from the start.' },
   { id: 'escalate', label: 'Escalate', cls: '', icon: 'arrowR', needsComment: true,
     hint: 'Refers the item to the country head and the CFO’s office without closing it.' },
 ];
+
+/** A rejection always names one of these reasons — "Others" is the only one
+    that additionally requires a written remark, so a rejection can never be
+    recorded as a bare, unexplained "no". */
+const REJECT_REASONS = [
+  'Document mismatch',
+  'Date / period mismatch',
+  'Incomplete document',
+  'Others',
+] as const;
 
 function ReviewsInner() {
   const search = useSearchParams();
@@ -293,6 +303,7 @@ function ReviewDrawer({ id, onClose, onDone }: { id: string; onClose: () => void
   const [err, setErr] = useState<string | null>(null);
   const [action, setAction] = useState<string>('approve');
   const [comment, setComment] = useState('');
+  const [rejectReason, setRejectReason] = useState<string>('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -314,11 +325,28 @@ function ReviewDrawer({ id, onClose, onDone }: { id: string; onClose: () => void
       toast('This action needs a comment so the preparer knows what to do.', 'warn');
       return;
     }
+    if (action === 'reject') {
+      if (!rejectReason) {
+        toast('Choose a reason for the rejection.', 'warn');
+        return;
+      }
+      if (rejectReason === 'Others' && !comment.trim()) {
+        toast('Describe the reason so the preparer knows what to correct.', 'warn');
+        return;
+      }
+    }
+    /* The reason is the record of record for a rejection — folded into the
+       comment that review_actions stores, rather than a second field the
+       trail and the notification the preparer gets would both have to know
+       about separately. */
+    const finalComment = action === 'reject'
+      ? (comment.trim() ? `${rejectReason}: ${comment.trim()}` : rejectReason)
+      : comment;
     setBusy(true);
     try {
       const res = await fetch('/api/reviews', {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ obligationId: id, action, comment }),
+        body: JSON.stringify({ obligationId: id, action, comment: finalComment }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error);
@@ -490,20 +518,33 @@ function ReviewDrawer({ id, onClose, onDone }: { id: string; onClose: () => void
             {ACTIONS.map(a => (
               <button key={a.id}
                       className={`btn btn-s${action === a.id ? ` ${a.cls || 'btn-p'}` : ''}`}
-                      onClick={() => setAction(a.id)}>
+                      onClick={() => { setAction(a.id); if (a.id !== 'reject') setRejectReason(''); }}>
                 <Ic n={a.icon} s={12} /> {a.label}
               </button>
             ))}
           </div>
 
+          {action === 'reject' && (
+            <div className="f">
+              <label htmlFor="rr">Reason for rejection <span style={{ color: 'var(--bad-600)' }}>(required)</span></label>
+              <select id="rr" value={rejectReason} onChange={e => setRejectReason(e.target.value)}>
+                <option value="">Select…</option>
+                {REJECT_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+          )}
+
           <div className="f">
             <label htmlFor="rc">
-              Comment {chosen.needsComment ? <span style={{ color: 'var(--bad-600)' }}>(required)</span> : '(optional)'}
+              Comment {(chosen.needsComment || (action === 'reject' && rejectReason === 'Others'))
+                ? <span style={{ color: 'var(--bad-600)' }}>(required)</span> : '(optional)'}
             </label>
             <textarea id="rc" value={comment} onChange={e => setComment(e.target.value)}
                       placeholder={
                         action === 'query' ? 'What does the preparer need to correct or explain?'
-                        : action === 'reject' ? 'Why is this submission being rejected?'
+                        : action === 'reject' ? (rejectReason === 'Others'
+                            ? 'Describe the reason for rejection.'
+                            : 'Any further detail (optional).')
                         : action === 'escalate' ? 'Why does this need the country head’s attention?'
                         : 'Any note to record with the approval.'} />
           </div>
