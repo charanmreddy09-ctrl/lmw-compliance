@@ -355,8 +355,27 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
   const latest = d.files[0];
 
   return (
+    /* The upload action also lives in the footer, which stays put while the
+       body scrolls. It was only at the bottom of the filing panel, so on a
+       long obligation the preparer had to scroll past the whole record to
+       find the button that does the actual work. */
     <Modal size="xw" sub={`${o.entity} · ${o.reference}`} title={o.title} onClose={onClose}
-           footer={<button className="btn" onClick={onClose}>Close</button>}>
+           footer={
+             <>
+               {canFile && tab === 'file' && (
+                 <div className="grow tiny muted" style={{ textAlign: 'left', alignSelf: 'center' }}>
+                   {file ? `Ready to send: ${file.name}` : 'Choose a document, or file as Nil for this period.'}
+                 </div>
+               )}
+               <button className="btn" onClick={onClose} disabled={busy}>Close</button>
+               {canFile && tab === 'file' && (
+                 <button className="btn btn-p" onClick={upload}
+                         disabled={!file || busy || (filingLate && !lateReason.trim())}>
+                   <Ic n="upload" s={13} /> {busy ? `Uploading… ${pct}%` : 'Upload and send for review'}
+                 </button>
+               )}
+             </>
+           }>
 
       <div className="grid" style={{ gridTemplateColumns: '1.15fr 1fr', gap: 16 }}>
         <div>

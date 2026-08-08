@@ -182,16 +182,24 @@ export default function Calendar() {
           {entities.map(e => <option key={e.id} value={e.id}>{e.short_name} ({e.country_code})</option>)}
         </select>
 
-        <div className="row g4">
-          <select value={dayFilter} onChange={e => applyDayFilter(e.target.value as typeof dayFilter)}
-                  aria-label="Filter to a specific day">
-            <option value="all">Full month</option>
-            <option value="yesterday">Yesterday</option>
-            <option value="today">Today</option>
-            <option value="tomorrow">Tomorrow</option>
-          </select>
-          <button className={`btn btn-s${view === 'month' ? ' btn-p' : ''}`} onClick={() => setView('month')}>Month</button>
-          <button className={`btn btn-s${view === 'list' ? ' btn-p' : ''}`} onClick={() => setView('list')}>List</button>
+        {/* The three days a compliance team actually asks about are on the
+            face of the toolbar rather than inside a dropdown, with the full
+            month alongside them. */}
+        <div className="seg">
+          {([
+            ['yesterday', 'Yesterday'],
+            ['today', 'Today'],
+            ['tomorrow', 'Tomorrow'],
+            ['all', 'Full month'],
+          ] as const).map(([id, label]) => (
+            <button key={id} className={dayFilter === id ? 'on' : ''}
+                    onClick={() => applyDayFilter(id)}>{label}</button>
+          ))}
+        </div>
+
+        <div className="seg">
+          <button className={view === 'month' ? 'on' : ''} onClick={() => setView('month')}>Month</button>
+          <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}>List</button>
         </div>
 
         <h2 style={{ minWidth: 168 }}>{MONTHS[month - 1]} {year}</h2>

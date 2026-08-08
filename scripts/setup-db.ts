@@ -514,36 +514,52 @@ async function main() {
            evStatus === 'Approved' ? new Date().toISOString() : null]);
         evCount++;
 
+        /* Backdated to the day the filing actually happened, with the review
+           a day behind it.
+
+           review_actions.created_at defaults to now(), so every seeded action
+           used to carry the timestamp of the seed run. A dashboard asking
+           what moved yesterday then reported the entire history as one day's
+           work - "140 approved since yesterday" on a register nobody had
+           touched. Anchoring these to filed_date makes the activity feed, the
+           executive brief and the reviewer's turnaround figures describe a
+           filing calendar instead of an import job. */
+        const filedIso = o.filed ? new Date(o.filed).toISOString().slice(0, 10) : null;
+        const filedAt = filedIso ? `${filedIso}T10:00:00Z` : null;
+        const reviewedAt = filedIso
+          ? new Date(new Date(`${filedIso}T16:00:00Z`).getTime() + 86_400_000).toISOString()
+          : null;
+
         await client.query(
           `INSERT INTO review_actions (obligation_id, evidence_id, action, actor_id, actor_role,
-              from_status, to_status, comment)
-           VALUES ($1,$2,'submit',$3,'PREPARER','Not Started','Submitted',$4)`,
+              from_status, to_status, comment, created_at)
+           VALUES ($1,$2,'submit',$3,'PREPARER','Not Started','Submitted',$4,COALESCE($5::timestamptz, now()))`,
           [o.id, ev.rows[0].id, preparerFor(o.entityId),
-           'Compliance filed and supporting evidence uploaded.']);
+           'Compliance filed and supporting evidence uploaded.', filedAt]);
 
         if (o.status === 'Approved') {
           await client.query(
             `INSERT INTO review_actions (obligation_id, evidence_id, action, actor_id, actor_role,
-                from_status, to_status, comment)
-             VALUES ($1,$2,'approve',$3,'REVIEWER','Under Review','Approved',$4)`,
+                from_status, to_status, comment, created_at)
+             VALUES ($1,$2,'approve',$3,'REVIEWER','Under Review','Approved',$4,COALESCE($5::timestamptz, now()))`,
             [o.id, ev.rows[0].id, reviewerFor(o.category),
-             'Evidence agreed to the statutory filing. Approved.']);
+             'Evidence agreed to the statutory filing. Approved.', reviewedAt]);
         }
         if (o.status === 'Query Raised') {
           await client.query(
             `INSERT INTO review_actions (obligation_id, evidence_id, action, actor_id, actor_role,
-                from_status, to_status, comment)
-             VALUES ($1,$2,'query',$3,'REVIEWER','Under Review','Query Raised',$4)`,
+                from_status, to_status, comment, created_at)
+             VALUES ($1,$2,'query',$3,'REVIEWER','Under Review','Query Raised',$4,COALESCE($5::timestamptz, now()))`,
             [o.id, ev.rows[0].id, reviewerFor(o.category),
-             'The acknowledgement number on the document does not match the period. Please confirm and re-upload.']);
+             'The acknowledgement number on the document does not match the period. Please confirm and re-upload.', reviewedAt]);
         }
         if (o.status === 'Rejected') {
           await client.query(
             `INSERT INTO review_actions (obligation_id, action, actor_id, actor_role,
-                from_status, to_status, comment)
-             VALUES ($1,'reject',$2,'REVIEWER','Under Review','Rejected',$3)`,
+                from_status, to_status, comment, created_at)
+             VALUES ($1,'reject',$2,'REVIEWER','Under Review','Rejected',$3,COALESCE($4::timestamptz, now()))`,
             [o.id, reviewerFor(o.category),
-             'Document uploaded relates to a different period. Rejected and returned for correction.']);
+             'Document uploaded relates to a different period. Rejected and returned for correction.', reviewedAt]);
         }
       }
       log(`Attached ${evCount} evidence documents with a full review trail.`);

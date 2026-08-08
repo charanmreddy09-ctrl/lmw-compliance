@@ -35,12 +35,33 @@ export const GET = handler(async (req: Request) => {
        ${extra}
      ORDER BY o.due_date, c.title`, vals);
 
+  /* Only changes that were actually applied, one row per obligation, scoped
+     to what this user can see.
+
+     Three faults, all of which put the same revision on screen more than once
+     or put a revision there that had not happened:
+       - no status filter, so a proposal awaiting approval (the due-date sync
+         job raises these, and now so does a due date read off an uploaded
+         document) appeared as though the date had already moved;
+       - no de-duplication, so an obligation revised twice listed both, which
+         is what showed the change twice;
+       - no entity scope, unlike every other query on this screen.
+     DISTINCT ON keeps the most recent applied revision and discards the rest. */
+  const changeVals: unknown[] = [year, month];
+  let changeScope = '';
+  if (scope) { changeVals.push(scope); changeScope = ` AND o2.entity_id = ANY($${changeVals.length})`; }
+
   const changes = await q(`
-    SELECT ddc.obligation_id, ddc.old_due_date, ddc.new_due_date, ddc.reason, ddc.changed_at
+    SELECT DISTINCT ON (ddc.obligation_id)
+           ddc.obligation_id, ddc.old_due_date, ddc.new_due_date, ddc.reason, ddc.changed_at
       FROM due_date_changes ddc
-     WHERE EXTRACT(YEAR FROM ddc.new_due_date) = $1
+      JOIN obligations o2 ON o2.id = ddc.obligation_id
+     WHERE ddc.status = 'applied'
+       AND o2.deleted_at IS NULL
+       AND EXTRACT(YEAR FROM ddc.new_due_date) = $1
        AND EXTRACT(MONTH FROM ddc.new_due_date) = $2
-     ORDER BY ddc.changed_at DESC`, [year, month]);
+       ${changeScope}
+     ORDER BY ddc.obligation_id, ddc.changed_at DESC`, changeVals);
 
   const entities = await q(`
     SELECT id, short_name, country_code FROM entities
