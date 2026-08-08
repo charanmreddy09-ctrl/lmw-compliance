@@ -121,7 +121,7 @@ export default function Dashboard() {
   const [tab, setTab] = useState('overview');
   const [countryFilter, setCountryFilter] = useState('');
   const [catTab, setCatTab] = useState<string>('overall');
-  const [upcomingWindow, setUpcomingWindow] = useState<'day' | '15d' | 'month'>('month');
+  const [upcomingWindow, setUpcomingWindow] = useState<'yesterday' | 'today' | 'tomorrow' | '15d' | 'month'>('month');
   const [fyFilter, setFyFilter] = useState<number | ''>('');
 
   const [syncing, setSyncing] = useState(false);
@@ -203,10 +203,20 @@ export default function Dashboard() {
   }), { total: 0, approved: 0, overdue: 0 });
   const catPct = catTotals.total ? Math.round((catTotals.approved / catTotals.total) * 1000) / 10 : 0;
 
-  const WINDOW_DAYS: Record<typeof upcomingWindow, number> = { day: 1, '15d': 15, month: 30 };
+  /* Yesterday, today and tomorrow mean exactly that one day. The 15 and 30
+     day windows keep their existing behaviour of also carrying anything
+     already overdue, because a range view that hid a missed deadline would
+     be the more dangerous of the two readings. */
   const upcomingShown = d.upcoming.filter(u => {
     const n = daysFromToday(u.due_date);
-    return n != null && n <= WINDOW_DAYS[upcomingWindow];
+    if (n == null) return false;
+    switch (upcomingWindow) {
+      case 'yesterday': return n === -1;
+      case 'today': return n === 0;
+      case 'tomorrow': return n === 1;
+      case '15d': return n <= 15;
+      default: return n <= 30;
+    }
   });
 
   /* B1 / B2 - the brief reads from counts the API already returned; nothing
@@ -616,9 +626,15 @@ export default function Dashboard() {
                 <h3>{isCfo ? 'Compliance due' : 'Your compliance due'}</h3>
                 <span className="tiny muted">{upcomingShown.length} items</span>
               </div>
-              <div className="row g4 no-print">
-                {([['day', 'Day'], ['15d', '15 days'], ['month', 'Month']] as const).map(([id, label]) => (
-                  <button key={id} className={`btn btn-s${upcomingWindow === id ? ' btn-p' : ''}`}
+              <div className="seg no-print">
+                {([
+                  ['yesterday', 'Yesterday'],
+                  ['today', 'Today'],
+                  ['tomorrow', 'Tomorrow'],
+                  ['15d', '15 days'],
+                  ['month', '30 days'],
+                ] as const).map(([id, label]) => (
+                  <button key={id} className={upcomingWindow === id ? 'on' : ''}
                           onClick={() => setUpcomingWindow(id)}>{label}</button>
                 ))}
               </div>
