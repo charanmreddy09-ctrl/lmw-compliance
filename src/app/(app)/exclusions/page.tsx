@@ -53,7 +53,7 @@ export default function Exclusions() {
         const res = await fetch(`/api/compliance-exclusions?compliance_id=${a.compliance_id}&entity_id=${entityId}`, { method: 'DELETE' });
         const j = await res.json();
         if (!res.ok) throw new Error(j.error);
-        toast(`Marked applicable again — ${j.affected} obligation${j.affected === 1 ? '' : 's'} reopened.`, 'ok');
+        toast(`Marked applicable again - ${j.affected} obligation${j.affected === 1 ? '' : 's'} reopened.`, 'ok');
         load();
       } catch (e) { toast(e instanceof Error ? e.message : 'Could not update.', 'bad'); }
     } else {
@@ -66,7 +66,7 @@ export default function Exclusions() {
         });
         const j = await res.json();
         if (!res.ok) throw new Error(j.error);
-        toast(`Marked not applicable — ${j.affected} obligation${j.affected === 1 ? '' : 's'} excluded from the count.`, 'ok');
+        toast(`Marked not applicable - ${j.affected} obligation${j.affected === 1 ? '' : 's'} excluded from the count.`, 'ok');
         load();
       } catch (e) { toast(e instanceof Error ? e.message : 'Could not update.', 'bad'); }
     }
@@ -94,7 +94,7 @@ export default function Exclusions() {
 
       <div className="card">
         <div className="card-h">
-          <h3>Compliance applicability — {entityName}</h3>
+          <h3>Compliance applicability - {entityName}</h3>
           <span className="tiny muted">
             Mark a compliance not applicable to remove it and its obligations from this entity&apos;s counts
           </span>
@@ -114,7 +114,7 @@ export default function Exclusions() {
                     <td>
                       {a.excluded
                         ? <span className="pill p-mute" title={`${a.excluded_by ?? ''} ${a.excluded_at ? fmtDate(a.excluded_at) : ''}`}>
-                            Not applicable{a.reason ? ` — ${a.reason}` : ''}
+                            Not applicable{a.reason ? ` - ${a.reason}` : ''}
                           </span>
                         : <span className="pill p-ok nd">Applicable</span>}
                     </td>

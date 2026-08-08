@@ -658,3 +658,6 @@ input[type="file"] { padding: 6px; }
 .sev-row .sev-n { font-size: 17px; font-weight: 700; min-width: 30px; color: var(--navy-900); }
 .sev-row > svg { color: var(--ink-4); }
 .sev-row:hover > svg { color: var(--navy-700); }
+
+/* A notification row is the control, not just the word at its end. */
+.notif-row:hover { background: var(--navy-050); }

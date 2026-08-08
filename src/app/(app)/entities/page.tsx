@@ -101,7 +101,7 @@ export default function Entities() {
                   <div><span className="k">Approved with evidence</span><span className="v num">{s?.approved ?? 0}</span></div>
                   <div><span className="k">Overdue and unfiled</span>
                     <span className="v num" style={{ color: s?.overdue ? 'var(--bad-600)' : undefined }}>{s?.overdue ?? 0}</span></div>
-                  <div><span className="k">Registered jurisdiction</span><span className="v small">{e.jurisdiction_name ?? '—'}</span></div>
+                  <div><span className="k">Registered jurisdiction</span><span className="v small">{e.jurisdiction_name ?? '-'}</span></div>
                 </div>
 
                 {e.states && (

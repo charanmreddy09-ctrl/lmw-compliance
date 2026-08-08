@@ -77,7 +77,7 @@ function RegisterInner() {
   }, [load]);
 
   /* Auto-sync: a reviewer's decision on this preparer's filing shows up here
-     without a manual reload — matches the dashboard's own polling pattern. */
+     without a manual reload - matches the dashboard's own polling pattern. */
   useEffect(() => {
     const t = setInterval(() => load(true), 60_000);
     return () => clearInterval(t);
@@ -138,7 +138,7 @@ function RegisterInner() {
           {entities.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
         </select>
         <select value={status} onChange={e => setStatus(e.target.value)}>
-          <option value="">All statuses</option>
+          <option value="">All Status</option>
           {statuses.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <select value={cat} onChange={e => setCat(e.target.value)}>
@@ -194,7 +194,7 @@ function RegisterInner() {
 }
 
 /* =========================================================================
-   OBLIGATION DRAWER — file the compliance, see validation, follow the trail
+   OBLIGATION DRAWER - file the compliance, see validation, follow the trail
    ========================================================================= */
 function ObligationDrawer({ id, user, onClose, onChanged }: {
   id: string; user: SessionUser | null; onClose: () => void; onChanged: () => void;
@@ -231,7 +231,7 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
   const o = d?.obligation;
   const canFile = !!(o && user && user.permissions.includes('compliance.file') &&
     (user.canFile.includes('*') || user.canFile.includes(o.entity_id)));
-  /* Filing today, past the due date, with nothing filed yet — the reason is
+  /* Filing today, past the due date, with nothing filed yet - the reason is
      mandatory before either an upload or a nil filing can go through. */
   const filingLate = !!o && o.status !== 'Approved' && !o.filed_date && (daysFromToday(o.due_date) ?? 0) < 0;
 
@@ -272,7 +272,7 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
       if (inputRef.current) inputRef.current.value = '';
       const dateNote = j.filedDate?.source === 'extracted'
         ? ` Filing date detected from the document: ${fmtDate(j.filedDate.date)}.`
-        : j.filedDate ? ` No date found in the document — used the upload date (${fmtDate(j.filedDate.date)}).` : '';
+        : j.filedDate ? ` No date found in the document - used the upload date (${fmtDate(j.filedDate.date)}).` : '';
       toast(
         (j.validation?.outcome === 'clean'
           ? 'Uploaded and validated. Sent to the reviewer.'
@@ -390,9 +390,9 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
               {o.delay_days > 0 && <span style={{ color: 'var(--bad-600)' }}> (+{o.delay_days} d)</span>}</dd>
             <dt>Entity</dt><dd>{o.entity_name} · {o.country_name}</dd>
             <dt>Category</dt><dd>{o.category}</dd>
-            <dt>Applicable law</dt><dd>{o.applicable_law ?? '—'}</dd>
-            <dt>Form / reference</dt><dd>{o.form_reference ?? '—'}</dd>
-            <dt>Authority</dt><dd>{o.authority ?? '—'}</dd>
+            <dt>Applicable law</dt><dd>{o.applicable_law ?? '-'}</dd>
+            <dt>Form / reference</dt><dd>{o.form_reference ?? '-'}</dd>
+            <dt>Authority</dt><dd>{o.authority ?? '-'}</dd>
             <dt>Responsible</dt><dd>{o.assigned_to_name ?? <span className="dim">Unassigned</span>}</dd>
             <dt>Reviewer</dt><dd>{o.reviewer_name ?? <span className="dim">Unassigned</span>}</dd>
             {o.government_site && (
@@ -451,7 +451,7 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
                     <option value="Other supporting document">Other supporting document</option>
                   </select>
                   <div className="h">
-                    The filing date is read automatically from the uploaded document — no need to type it in.
+                    The filing date is read automatically from the uploaded document - no need to type it in.
                   </div>
                 </div>
 
@@ -460,7 +460,7 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
                     <Note kind={detectedDate.source === 'extracted' ? 'o' : 'i'}>
                       {detectedDate.source === 'extracted'
                         ? <>Filing date detected from the document: <strong>{fmtDate(detectedDate.date)}</strong>.</>
-                        : <>No date found in the document — used the upload date: <strong>{fmtDate(detectedDate.date)}</strong>.</>}
+                        : <>No date found in the document - used the upload date: <strong>{fmtDate(detectedDate.date)}</strong>.</>}
                     </Note>
                   </div>
                 )}
@@ -529,7 +529,7 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
                 </button>
                 <div className="tiny dim mt4">
                   Use this when there is genuinely nothing to file for {o.period_label} (e.g. a nil
-                  return) — no document is required, but a reviewer still has to approve it.
+                  return) - no document is required, but a reviewer still has to approve it.
                 </div>
 
                 {result && (
@@ -572,7 +572,7 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
                         <div className="row g6">
                           <Ic n={f.is_nil ? 'alert' : 'doc'} s={14} />
                           <span className="strong small" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {f.is_nil ? 'Nil filing — no document required' : f.file_name}
+                            {f.is_nil ? 'Nil filing - no document required' : f.file_name}
                           </span>
                         </div>
                         <div className="tiny muted mt4">
@@ -650,7 +650,7 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
                     : t.action === 'query' ? 'warn' : ''}`}>
                     <div className="tl-t">
                       <strong>{t.actor ?? 'System'}</strong>
-                      <span className="muted"> ({t.actor_role ?? '—'}) </span>
+                      <span className="muted"> ({t.actor_role ?? '-'}) </span>
                       {t.action}
                       {t.from_status && t.to_status && t.from_status !== t.to_status && (
                         <span className="muted"> · {t.from_status} → {t.to_status}</span>
@@ -669,7 +669,7 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
                   {d.changes.map((c, i) => (
                     <div className="small mb4" key={i}>
                       {fmtDate(c.old_due_date)} <Ic n="arrowR" s={10} /> <strong>{fmtDate(c.new_due_date)}</strong>
-                      <span className="muted"> — {c.reason ?? 'no reason recorded'} ({fmtDateTime(c.changed_at)})</span>
+                      <span className="muted"> - {c.reason ?? 'no reason recorded'} ({fmtDateTime(c.changed_at)})</span>
                     </div>
                   ))}
                 </>

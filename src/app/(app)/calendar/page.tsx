@@ -117,7 +117,7 @@ export default function Calendar() {
   const todayIso = new Date().toISOString().slice(0, 10);
 
   /* The Today/Tomorrow/Yesterday dropdown filters the List view down to one
-     specific real-world day, regardless of which month is being browsed —
+     specific real-world day, regardless of which month is being browsed -
      switching to it also navigates month/year so that day's events are
      actually loaded, then filters client-side to just that date. */
   const dayFilterIso = useMemo(() => {
@@ -246,7 +246,7 @@ export default function Calendar() {
                   <div className="cn">{c.day}</div>
                   {list.slice(0, 3).map(e => (
                     <div className={`cev ${tone(e.status, String(e.due_date).slice(0, 10))}`} key={e.id}
-                         title={`${e.title} — ${e.entity} (${e.status})`}>
+                         title={`${e.title} - ${e.entity} (${e.status})`}>
                       {changedIds.has(e.id) ? '• ' : ''}{e.entity}: {e.title}
                     </div>
                   ))}
@@ -271,7 +271,7 @@ export default function Calendar() {
         <div className="card mt16">
           <div className="card-b row g16 wrap tiny muted">
             <strong>Risk rating:</strong>
-            <span className="row g6"><span className={`pill ${RISK_TONE.Critical}`}>Critical</span> statutory/financial exposure if missed — board-level attention</span>
+            <span className="row g6"><span className={`pill ${RISK_TONE.Critical}`}>Critical</span> statutory/financial exposure if missed - board-level attention</span>
             <span className="row g6"><span className={`pill ${RISK_TONE.High}`}>High</span> material penalty or licence risk</span>
             <span className="row g6"><span className={`pill ${RISK_TONE.Medium}`}>Medium</span> a fixed penalty or administrative consequence</span>
             <span className="row g6"><span className={`pill ${RISK_TONE.Low}`}>Low</span> limited consequence, but still a legal obligation</span>
@@ -344,7 +344,7 @@ export default function Calendar() {
             <div className="mt12" key={i}>
               <Note kind="w">
                 Revised from {fmtDate(c.old_due_date)} to <strong>{fmtDate(c.new_due_date)}</strong>
-                {c.reason ? ` — ${c.reason}` : ''} ({fmtDateTime(c.changed_at)})
+                {c.reason ? ` - ${c.reason}` : ''} ({fmtDateTime(c.changed_at)})
               </Note>
             </div>
           ))}

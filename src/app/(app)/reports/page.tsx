@@ -22,7 +22,7 @@ const REPORTS = [
   { id: 'division', name: 'Division summary', icon: 'dash',
     d: 'Compliance position by operating division.' },
   { id: 'category', name: 'Category summary', icon: 'book',
-    d: 'Where the group is strong and weak by type of compliance — tax, payroll, environmental and so on.' },
+    d: 'Where the group is strong and weak by type of compliance - tax, payroll, environmental and so on.' },
   { id: 'overdue', name: 'Overdue register', icon: 'alert',
     d: 'Every obligation past its due date with no evidence, ranked by how late it is, with penalty exposure.' },
   { id: 'delay', name: 'Delay analysis', icon: 'clock',
@@ -55,7 +55,7 @@ function ReportsInner() {
       if (!res.ok) throw new Error(j.error ?? 'Unable to generate the report.');
       setData(j);
       /* Default to the most recent financial year, same rule as the
-         dashboard and the compliance library — a report should open on the
+         dashboard and the compliance library - a report should open on the
          current FY, not every FY blended together. */
       if (fyVal === '' && j.availableFys?.length) setFy(j.availableFys[0].startYear);
     } catch (e) {
@@ -68,7 +68,7 @@ function ReportsInner() {
 
   const meta = REPORTS.find(r => r.id === active);
   const cols = data?.rows.length ? Object.keys(data.rows[0]) : [];
-  /* A column is numeric if every row's value for it is a number (or blank) —
+  /* A column is numeric if every row's value for it is a number (or blank) -
      checked across all rows, not just the first, so a column doesn't end up
      with its header aligned one way and its body cells the other. Centred,
      not right-aligned, to match a scorecard's usual layout. */
@@ -76,7 +76,7 @@ function ReportsInner() {
     rows.length > 0 && rows.every(r => typeof r[key] === 'number' || r[key] == null || r[key] === '');
 
   function cell(v: unknown, key: string) {
-    if (v === null || v === undefined || v === '') return <span className="dim">—</span>;
+    if (v === null || v === undefined || v === '') return <span className="dim">-</span>;
     if (key === 'Download' && typeof v === 'string') {
       return <a className="btn btn-xs" href={v} target="_blank" rel="noopener">
         <Ic n="download" s={12} /> Download
@@ -179,8 +179,8 @@ function ReportsInner() {
             <div className="card">
               <div className="card-b">
                 <p className="small mb12">
-                  The compliance score shown across this platform — on the dashboard, in the
-                  register and in every report — is derived only from obligations that carry
+                  The compliance score shown across this platform - on the dashboard, in the
+                  register and in every report - is derived only from obligations that carry
                   reviewer-approved documentary evidence. It cannot be inflated by self-declaration,
                   and it is calculated the same way for every entity, country and the group overall.
                 </p>
@@ -246,7 +246,7 @@ function ReportsInner() {
                 <div className="cap mb8">4 · Evidence quality</div>
                 <p className="small mb8">
                   Documents are classified from their type and file name. Quality scales the points
-                  an obligation earns by a factor of {EVIDENCE_FLOOR.toFixed(2)} to 1.00 — weak
+                  an obligation earns by a factor of {EVIDENCE_FLOOR.toFixed(2)} to 1.00 - weak
                   evidence shades the score rather than erasing the filing.
                 </p>
                 <div className="tw mb16">
@@ -272,7 +272,7 @@ function ReportsInner() {
                   <dt>On-time filing rate</dt>
                   <dd>% of filed obligations filed on or before their due date.</dd>
                   <dt>Overdue and delay indicators</dt>
-                  <dd>Still reported alongside the score. They are no longer subtracted from it —
+                  <dd>Still reported alongside the score. They are no longer subtracted from it -
                     lateness is already priced into the outcome points above, and deducting it twice
                     would charge for the same failure in two places.</dd>
                 </dl>
@@ -281,7 +281,7 @@ function ReportsInner() {
                   evidence. Obligations not yet due are excluded entirely rather than counted against
                   the group. The month-on-month trend is reconstructed from historic approval dates
                   and remains a simple ratio, because the evidence as it stood on a past date is not
-                  recoverable — the trend shows the shape of movement, the headline shows today&apos;s
+                  recoverable - the trend shows the shape of movement, the headline shows today&apos;s
                   weighted position.
                 </p>
               </div>
@@ -295,7 +295,7 @@ function ReportsInner() {
             <>
               {data.rows.length === 0 ? (
                 <div className="card"><div className="empty">
-                  Nothing to report — there are no records matching this report in your scope.
+                  Nothing to report - there are no records matching this report in your scope.
                   For the overdue and delay reports that is good news.
                 </div></div>
               ) : (
