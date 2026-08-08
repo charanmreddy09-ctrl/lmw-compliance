@@ -289,10 +289,9 @@ export default function Dashboard() {
             {attention === 0 ? (
               <div className="small muted">Nothing due is currently unapproved.</div>
             ) : (
-              {/* Count sits against its label rather than pushed to the far
-                  edge, and each row opens the register filtered to that risk
-                  level — a severity figure a CFO cannot drill into is just
-                  a statistic. */}
+              /* Count sits against its label rather than pushed to the far edge,
+                 and each row opens the register filtered to that risk level — a
+                 severity figure a CFO cannot drill into is just a statistic. */
               <div className="sev-list">
                 {(['Critical', 'High', 'Medium', 'Low'] as const)
                   .filter(k => b.severity[k] > 0)
