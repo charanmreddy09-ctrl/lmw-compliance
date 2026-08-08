@@ -26,9 +26,16 @@ export const GET = handler(async (req: Request) => {
   const fy = fyParam ? parseInt(fyParam, 10) : null;
   const { sql: scopeSql, vals: scopeVals } = buildScope(scope, fy);
 
+  /* The country scores are needed twice: on their own, and as the basis of
+     the country league table. Started once and shared, so the weighted
+     aggregate over every obligation in scope runs a single time — while
+     still resolving alongside everything else rather than ahead of it. */
+  const countryScoresOnce = countryScores(ids, fy ?? undefined);
+
   const [overall, byEntity, byCountry, byCountryScore, byCategoryScore, fyRows, trend] = await Promise.all([
     overallScore(ids, fy ?? undefined), entityScores(ids, fy ?? undefined),
-    countryBreakdown(ids, fy ?? undefined), countryScores(ids, fy ?? undefined), categoryScores(ids, fy ?? undefined),
+    countryScoresOnce.then(s => countryBreakdown(ids, fy ?? undefined, s)),
+    countryScoresOnce, categoryScores(ids, fy ?? undefined),
     q<{ fy_start_year: number }>(`
       SELECT DISTINCT o.fy_start_year FROM obligations o
        WHERE o.deleted_at IS NULL ${scope ? 'AND o.entity_id = ANY($1)' : ''}
