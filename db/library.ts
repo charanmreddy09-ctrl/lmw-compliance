@@ -264,75 +264,103 @@ export const FEDERAL_LIBRARY: LibraryItem[] = [
   /* ------------------------------------------------------------- India — direct tax */
   {
     code: 'IN-FED-028', country: 'IN', jurisdiction: 'IN-FED', category: 'direct_tax',
-    title: 'Corporate income tax return — Form ITR-6', law: 'Income-tax Act, 1961, Section 139(1) (renumbered under the Income-tax Act, 2025 from Tax Year 2026-27)',
+    title: 'Corporate income tax return — Form ITR-6', law: 'Income-tax Act, 2025 (Section 139(1) of the Income-tax Act, 1961)',
     form: 'ITR-6', authority: 'Income Tax Department / CBDT',
     frequency: 'Annual', dueRule: 'General rule 31 October following the financial year; extends to 30 November where Section 92E (international/related-party transactions) applies — which it does for LMW given the transactions with LMW Global FZE reported via Form 3CEB. Cross-checked against multiple independent sources (CAclubindia, TaxGuru, BusinessToday, PKC India), which all confirm the 30 November extension applies specifically because a transfer-pricing case still requires a Section 44AB tax audit — filing Form 3CEB earlier does not itself move the ITR-6 date up.',
     dueMonth: 11, dueDay: 30,
-    evidence: ['Filed ITR-6 acknowledgement', 'Computation of income'], penalty: 'Interest under Sec 234A/B/C; late filing fee under Sec 234F', risk: 'Critical',
+    evidence: ['Filed ITR-6 acknowledgement', 'Computation of income'],
+    penalty: 'Interest and late-filing fee under the Income-tax Act, 2025 '
+      + '(Sections 234A, 234B, 234C and 234F of the Income-tax Act, 1961 — exact 2025 Act section numbers not yet confirmed against a primary source)',
+    risk: 'Critical',
   },
   {
     code: 'IN-FED-029', country: 'IN', jurisdiction: 'IN-FED', category: 'direct_tax',
-    title: 'Tax audit report — Form 3CA-3CD', law: 'Income-tax Act, 1961, Section 44AB',
+    title: 'Tax audit report — Form 3CA-3CD', law: 'Income-tax Act, 2025 (Section 44AB of the Income-tax Act, 1961)',
     form: '3CA-3CD', authority: 'Income Tax Department / statutory auditor',
     frequency: 'Annual', dueRule: '30 September following the financial year',
     dueMonth: 9, dueDay: 30,
-    evidence: ['Filed Form 3CA-3CD'], penalty: '0.5% of turnover or ₹1,50,000, whichever is lower, under Sec 271B', risk: 'High',
+    evidence: ['Filed Form 3CA-3CD'],
+    penalty: '0.5% of turnover or ₹1,50,000, whichever is lower, under the Income-tax Act, 2025 '
+      + '(Section 271B of the Income-tax Act, 1961 — exact 2025 Act section number not yet confirmed against a primary source)',
+    risk: 'High',
   },
   {
     code: 'IN-FED-030', country: 'IN', jurisdiction: 'IN-FED', category: 'direct_tax',
-    title: 'Advance tax instalments', law: 'Income-tax Act, 1961, Section 211 (renumbered under the Income-tax Act, 2025 from Tax Year 2026-27)',
+    title: 'Advance tax instalments', law: 'Income-tax Act, 2025 (Section 211 of the Income-tax Act, 1961)',
     form: 'Challan 280', authority: 'Income Tax Department',
     frequency: 'Quarterly', dueRule: '15 June (15%) · 15 September (45%) · 15 December (75%) · 15 March (100%)',
     dueOffsetMonths: 0, dueDay: 15,
-    evidence: ['Payment challans'], penalty: 'Interest under Sec 234B/234C for shortfall', risk: 'High',
+    evidence: ['Payment challans'],
+    penalty: 'Interest for shortfall under the Income-tax Act, 2025 '
+      + '(Sections 234B and 234C of the Income-tax Act, 1961 — exact 2025 Act section numbers not yet confirmed against a primary source)',
+    risk: 'High',
   },
   {
     code: 'IN-FED-031', country: 'IN', jurisdiction: 'IN-FED', category: 'direct_tax',
-    title: 'TDS deposit — monthly payment of tax deducted', law: 'Income-tax Act, 1961, Section 200 (renumbered under the Income-tax Act, 2025 from Tax Year 2026-27)',
+    title: 'TDS deposit — monthly payment of tax deducted', law: 'Income-tax Act, 2025, Section 397 (Section 200 of the Income-tax Act, 1961)',
     form: 'Challan No. ITNS 281', authority: 'Income Tax Department',
     frequency: 'Monthly', dueRule: '7th of the following month (the March deposit is extended to 30 April)',
     dueOffsetMonths: 1, dueDay: 7,
-    evidence: ['TDS payment challan (ITNS 281)'], penalty: 'Interest at 1.5% per month under Sec 201(1A); prosecution risk under Sec 276B for deducted-but-unpaid tax', risk: 'Critical',
+    evidence: ['TDS payment challan (ITNS 281)'],
+    penalty: 'Interest at 1.5% per month under the Income-tax Act, 2025, Section 398 '
+      + '(Section 201(1A) of the Income-tax Act, 1961); prosecution risk for deducted-but-unpaid tax under the Income-tax Act, 2025 '
+      + '(Section 276B of the Income-tax Act, 1961 — exact 2025 Act section number for the prosecution provision not yet confirmed against a primary source)',
+    risk: 'Critical',
   },
   {
     code: 'IN-FED-032', country: 'IN', jurisdiction: 'IN-FED', category: 'direct_tax',
-    title: 'TDS return — salaries', law: 'Income-tax Act, 1961, Rule 31A (Form 24Q; renumbered Form 138 under the Income-tax Act, 2025 from Tax Year 2026-27)',
+    title: 'TDS return — salaries', law: 'Income-tax Act, 2025 (Rule 31A of the Income-tax Act, 1961; Form 24Q renumbered Form 138)',
     form: 'Form 24Q / Form 138', authority: 'Income Tax Department (TRACES)',
     frequency: 'Quarterly', dueRule: '31 July / 31 October / 31 January / 31 May',
     dueOffsetMonths: 1, dueOffsetMonthsQ4: 2, dueDay: 31,
-    evidence: ['Filed TDS return acknowledgement', 'Challan details'], penalty: 'Late filing fee ₹200/day under Sec 234E; interest under Sec 201', risk: 'High',
+    evidence: ['Filed TDS return acknowledgement', 'Challan details'],
+    penalty: 'Late filing fee ₹200/day and interest under the Income-tax Act, 2025 '
+      + '(Sections 234E and 201 of the Income-tax Act, 1961 — exact 2025 Act section numbers not yet confirmed against a primary source)',
+    risk: 'High',
   },
   {
     code: 'IN-FED-033', country: 'IN', jurisdiction: 'IN-FED', category: 'direct_tax',
-    title: 'TDS return — other than salaries', law: 'Income-tax Act, 1961, Rule 31A (Form 26Q; renumbered Form 140 under the Income-tax Act, 2025 from Tax Year 2026-27)',
+    title: 'TDS return — other than salaries', law: 'Income-tax Act, 2025 (Rule 31A of the Income-tax Act, 1961; Form 26Q renumbered Form 140)',
     form: 'Form 26Q / Form 140', authority: 'Income Tax Department (TRACES)',
     frequency: 'Quarterly', dueRule: '31 July / 31 October / 31 January / 31 May',
     dueOffsetMonths: 1, dueOffsetMonthsQ4: 2, dueDay: 31,
-    evidence: ['Filed TDS return acknowledgement', 'Challan details'], penalty: 'Late filing fee ₹200/day under Sec 234E; interest under Sec 201', risk: 'High',
+    evidence: ['Filed TDS return acknowledgement', 'Challan details'],
+    penalty: 'Late filing fee ₹200/day and interest under the Income-tax Act, 2025 '
+      + '(Sections 234E and 201 of the Income-tax Act, 1961 — exact 2025 Act section numbers not yet confirmed against a primary source)',
+    risk: 'High',
   },
   {
     code: 'IN-FED-034', country: 'IN', jurisdiction: 'IN-FED', category: 'direct_tax',
-    title: 'TDS return — payments to non-residents', law: 'Income-tax Act, 1961, Rule 31A (Form 27Q; renumbered Form 144 under the Income-tax Act, 2025 from Tax Year 2026-27)',
+    title: 'TDS return — payments to non-residents', law: 'Income-tax Act, 2025 (Rule 31A of the Income-tax Act, 1961; Form 27Q renumbered Form 144)',
     form: 'Form 27Q / Form 144', authority: 'Income Tax Department (TRACES)',
     frequency: 'Quarterly', dueRule: '31 July / 31 October / 31 January / 31 May',
     dueOffsetMonths: 1, dueOffsetMonthsQ4: 2, dueDay: 31,
-    evidence: ['Filed TDS return acknowledgement', 'Challan details'], penalty: 'Late filing fee ₹200/day under Sec 234E; interest under Sec 201', risk: 'High',
+    evidence: ['Filed TDS return acknowledgement', 'Challan details'],
+    penalty: 'Late filing fee ₹200/day and interest under the Income-tax Act, 2025 '
+      + '(Sections 234E and 201 of the Income-tax Act, 1961 — exact 2025 Act section numbers not yet confirmed against a primary source)',
+    risk: 'High',
   },
   {
     code: 'IN-FED-035', country: 'IN', jurisdiction: 'IN-FED', category: 'direct_tax',
-    title: 'TCS return', law: 'Income-tax Act, 1961, Section 206C',
+    title: 'TCS return', law: 'Income-tax Act, 2025 (Section 206C of the Income-tax Act, 1961)',
     form: 'Form 27EQ', authority: 'Income Tax Department (TRACES)',
     frequency: 'Quarterly', dueRule: '15 July / 15 October / 15 January / 15 May',
     dueOffsetMonths: 1, dueOffsetMonthsQ4: 2, dueDay: 15,
-    evidence: ['Filed TCS return acknowledgement'], penalty: 'Late filing fee ₹200/day under Sec 234E', risk: 'Medium',
+    evidence: ['Filed TCS return acknowledgement'],
+    penalty: 'Late filing fee ₹200/day under the Income-tax Act, 2025 '
+      + '(Section 234E of the Income-tax Act, 1961 — exact 2025 Act section number not yet confirmed against a primary source)',
+    risk: 'Medium',
   },
   {
     code: 'IN-FED-036', country: 'IN', jurisdiction: 'IN-FED', category: 'direct_tax',
-    title: 'Issue of TDS certificates — Form 16 / Form 16A', law: 'Income-tax Act, 1961, Rule 31',
+    title: 'Issue of TDS certificates — Form 16 / Form 16A', law: 'Income-tax Act, 2025 (Rule 31 of the Income-tax Act, 1961)',
     form: 'Form 16 / Form 16A', authority: 'Income Tax Department',
     frequency: 'Annual', dueRule: 'Form 16 by 15 June following the financial year; Form 16A within 15 days of each quarterly TDS return',
     dueMonth: 6, dueDay: 15,
-    evidence: ['Issued Form 16 per employee', 'Issued Form 16A per deductee'], penalty: 'Penalty of ₹100/day under Sec 272A(2)(g)', risk: 'Medium',
+    evidence: ['Issued Form 16 per employee', 'Issued Form 16A per deductee'],
+    penalty: 'Penalty of ₹100/day under the Income-tax Act, 2025 '
+      + '(Section 272A(2)(g) of the Income-tax Act, 1961 — exact 2025 Act section number not yet confirmed against a primary source)',
+    risk: 'Medium',
   },
   {
     code: 'IN-FED-037', country: 'IN', jurisdiction: 'IN-FED', category: 'direct_tax',
@@ -343,11 +371,14 @@ export const FEDERAL_LIBRARY: LibraryItem[] = [
   },
   {
     code: 'IN-FED-038', country: 'IN', jurisdiction: 'IN-FED', category: 'direct_tax',
-    title: 'Statement of specified financial transactions (SFT)', law: 'Income-tax Act, 1961, Section 285BA',
+    title: 'Statement of specified financial transactions (SFT)', law: 'Income-tax Act, 2025 (Section 285BA of the Income-tax Act, 1961)',
     form: 'Form 61A', authority: 'Income Tax Department',
     frequency: 'Annual', dueRule: '31 May following the financial year',
     dueMonth: 5, dueDay: 31,
-    evidence: ['Filed Form 61A acknowledgement'], penalty: 'Penalty of ₹500/day under Sec 271FA', risk: 'Medium',
+    evidence: ['Filed Form 61A acknowledgement'],
+    penalty: 'Penalty of ₹500/day under the Income-tax Act, 2025, Section 454 '
+      + '(Section 271FA of the Income-tax Act, 1961 — 2025 Act section number sourced from a single secondary reference, not independently confirmed)',
+    risk: 'Medium',
   },
 
   /* --------------------------------------------------- India — transfer pricing */
