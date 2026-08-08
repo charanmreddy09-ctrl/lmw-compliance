@@ -48,6 +48,9 @@ function RegisterInner() {
   const [entity, setEntity] = useState(search.get('entity') ?? '');
   const [status, setStatus] = useState('');
   const [cat, setCat] = useState('');
+  /* Deep-linked from the dashboard's Immediate attention panel, so a count
+     there goes straight to the obligations behind it. */
+  const [risk, setRisk] = useState(search.get('risk') ?? '');
   const [q, setQ] = useState('');
 
   const [openId, setOpenId] = useState<string | null>(search.get('obligation'));
@@ -90,9 +93,10 @@ function RegisterInner() {
     (!entity || r.entity_id === entity) &&
     (!status || r.status === status) &&
     (!cat || r.category === cat) &&
+    (!risk || r.risk_level === risk) &&
     (!q || `${r.title} ${r.code} ${r.reference} ${r.form_reference ?? ''} ${r.period_label}`
       .toLowerCase().includes(q.toLowerCase()))
-  ), [rows, entity, status, cat, q]);
+  ), [rows, entity, status, cat, risk, q]);
 
   const counts = useMemo(() => ({
     actionable: shown.filter(r => ['Not Started', 'Evidence Pending', 'Overdue', 'Query Raised', 'Rejected'].includes(r.status)).length,
@@ -140,6 +144,10 @@ function RegisterInner() {
         <select value={cat} onChange={e => setCat(e.target.value)}>
           <option value="">All categories</option>
           {cats.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select value={risk} onChange={e => setRisk(e.target.value)} aria-label="Filter by risk level">
+          <option value="">All risk levels</option>
+          {['Critical', 'High', 'Medium', 'Low'].map(rl => <option key={rl} value={rl}>{rl} risk</option>)}
         </select>
         <div className="search">
           <Ic n="search" s={14} />
