@@ -184,6 +184,10 @@ export default function Calendar() {
           <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}>List</button>
         </div>
 
+        {/* The period being viewed sits with the controls that change it,
+            rather than after the filters that only narrow what is inside it. */}
+        <h2 style={{ minWidth: 168 }}>{MONTHS[month - 1]} {year}</h2>
+
         <select value={entity} onChange={e => setEntity(e.target.value)}>
           <option value="">Entities</option>
           {entities.map(e => <option key={e.id} value={e.id}>{e.short_name} ({e.country_code})</option>)}
@@ -203,8 +207,6 @@ export default function Calendar() {
                     onClick={() => applyDayFilter(id)}>{label}</button>
           ))}
         </div>
-
-        <h2 style={{ minWidth: 168 }}>{MONTHS[month - 1]} {year}</h2>
 
         <div className="grow" />
         {canManage && (
