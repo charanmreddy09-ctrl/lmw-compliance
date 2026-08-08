@@ -165,16 +165,23 @@ export default function Calendar() {
   return (
     <>
       <div className="toolbar no-print">
+        {/* Month stepper, then the view switch. The reset-to-current-month
+            button that used to sit between the arrows is gone: it read as a
+            second "Today" next to the day filter's own, and the day filter
+            already moves the calendar to that day's month, so nothing was
+            lost by removing it. */}
         <div className="row g4">
           <button className="btn btn-s" onClick={() => shift(-1)} aria-label="Previous month">
             <Ic n="back" s={13} />
           </button>
-          <button className="btn btn-s" onClick={() => { setDayFilter('all'); setYear(now.getUTCFullYear()); setMonth(now.getUTCMonth() + 1); }}>
-            Today
-          </button>
           <button className="btn btn-s" onClick={() => shift(1)} aria-label="Next month">
             <Ic n="chevR" s={13} />
           </button>
+        </div>
+
+        <div className="seg">
+          <button className={view === 'month' ? 'on' : ''} onClick={() => setView('month')}>Month</button>
+          <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}>List</button>
         </div>
 
         <select value={entity} onChange={e => setEntity(e.target.value)}>
@@ -195,11 +202,6 @@ export default function Calendar() {
             <button key={id} className={dayFilter === id ? 'on' : ''}
                     onClick={() => applyDayFilter(id)}>{label}</button>
           ))}
-        </div>
-
-        <div className="seg">
-          <button className={view === 'month' ? 'on' : ''} onClick={() => setView('month')}>Month</button>
-          <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}>List</button>
         </div>
 
         <h2 style={{ minWidth: 168 }}>{MONTHS[month - 1]} {year}</h2>
