@@ -10,6 +10,8 @@ import { q, one, tx } from '@/lib/db';
 import { canFileEntity, canReviewEntity, canSeeEntity } from '@/lib/rbac';
 import { validateUpload, MAX_UPLOAD_BYTES, isAllowedEvidence } from '@/lib/validate';
 import { extractFiledDate, extractDueDate } from '@/lib/extract-date';
+import { computePenalty } from '@/lib/penalty';
+import { hasPenaltyEngine } from '@/lib/schema-features';
 import { MIN_REMARK_LENGTH } from '@/lib/constants';
 import { createHash } from 'node:crypto';
 
@@ -27,6 +29,16 @@ export const POST = handler(async (req: Request) => {
   const period = form.get('period') ? String(form.get('period')) : null;
   const comment = form.get('comment') ? String(form.get('comment')) : null;
   const lateReason = form.get('lateReason') ? String(form.get('lateReason')).trim() : null;
+  /* The figure a percentage or interest penalty is reckoned on - tax payable,
+     turnover - for this filing only. Only asked for where the compliance's
+     rule actually needs it; the register drawer names the figure the authority
+     asks for rather than leaving the preparer to guess. */
+  const baseRaw = form.get('penaltyBase');
+  const penaltyBase = baseRaw != null && String(baseRaw).trim() !== ''
+    ? Number(String(baseRaw).replace(/[,\s]/g, ''))
+    : null;
+  if (penaltyBase != null && (!Number.isFinite(penaltyBase) || penaltyBase < 0))
+    return fail(400, 'The amount the penalty is computed on must be a positive number.');
 
   if (!obligationId) return fail(400, 'Obligation reference is missing.');
   if (!isNil) {
@@ -132,6 +144,7 @@ export const POST = handler(async (req: Request) => {
      actually published becomes visible instead of silently scoring filings
      against the wrong date. The reading never changes the due date — see
      below, it raises a proposal for someone to approve. */
+  const penaltyReady = await hasPenaltyEngine();
   const docDue = await extractDueDate(bytes, mime);
   const oblDue = await one<{ due_date: string; country_code: string }>(
     `SELECT o.due_date::text AS due_date, e.country_code
@@ -200,6 +213,50 @@ export const POST = handler(async (req: Request) => {
               delay_reason = COALESCE($4, delay_reason)
         WHERE id = $1`,
       [obligationId, filedDate.date, validation.penaltyExposure, lateReason]);
+
+    /* Compute the exposure now, against the filing date just recorded, and
+       store the workings alongside it. Stored rather than derived on read so a
+       report cannot later disagree with what the register showed at the time -
+       the rate on the library record may be revised when the authority
+       revises it, and a historic filing must keep the figure it was charged.
+
+       Guarded on the migration having run, and skipped entirely when the
+       compliance carries no rule: a missing rate produces no figure, never a
+       zero, because zero exposure and unknown exposure are different answers. */
+    if (penaltyReady) {
+      const pr = await c.query<{
+        penalty_currency: string | null; penalty_per_day: string | null;
+        penalty_per_day_cap: string | null; penalty_flat: string | null;
+        penalty_rate_pct: string | null; penalty_interest_pct: string | null;
+        penalty_minimum: string | null; penalty_base_label: string | null;
+      }>(`SELECT c.penalty_currency, c.penalty_per_day, c.penalty_per_day_cap, c.penalty_flat,
+                 c.penalty_rate_pct, c.penalty_interest_pct, c.penalty_minimum, c.penalty_base_label
+            FROM obligations o JOIN compliances c ON c.id = o.compliance_id
+           WHERE o.id = $1`, [obligationId]);
+      const p = pr.rows[0];
+      if (p) {
+        const num = (v: string | null) => (v == null ? null : Number(v));
+        const rule = {
+          perDay: num(p.penalty_per_day), perDayCap: num(p.penalty_per_day_cap),
+          flat: num(p.penalty_flat), ratePct: num(p.penalty_rate_pct),
+          interestPct: num(p.penalty_interest_pct), minimum: num(p.penalty_minimum),
+          baseLabel: p.penalty_base_label, currency: p.penalty_currency,
+        };
+        const result = computePenalty(rule, {
+          dueDate: String(oblDue?.due_date ?? ''),
+          filedDate: filedDate.date,
+          baseAmount: penaltyBase,
+        });
+        await c.query(
+          `UPDATE obligations
+              SET penalty_base_amount = COALESCE($2, penalty_base_amount),
+                  penalty_base_source = CASE WHEN $2 IS NULL THEN penalty_base_source ELSE 'manual' END,
+                  penalty_amount      = $3,
+                  penalty_breakdown   = $4::jsonb
+            WHERE id = $1`,
+          [obligationId, penaltyBase, result.total, JSON.stringify(result)]);
+      }
+    }
 
     await c.query(
       `INSERT INTO review_actions (obligation_id, evidence_id, action, actor_id, actor_role,

@@ -183,6 +183,30 @@ CREATE TABLE IF NOT EXISTS compliances (
 ALTER TABLE compliances ADD COLUMN IF NOT EXISTS due_source_url TEXT;
 ALTER TABLE compliances ADD COLUMN IF NOT EXISTS due_last_checked_at TIMESTAMPTZ;
 ALTER TABLE compliances ADD COLUMN IF NOT EXISTS due_last_check_note TEXT;
+
+-- ---------------------------------------------------------------- penalties
+-- How a late filing of THIS compliance is charged. The existing `penalty`
+-- column stays as the authority's wording; these carry the same thing in a
+-- form that can be computed.
+--
+-- Two shapes, and a compliance may use both (a daily fee AND interest on the
+-- tax due): a per-day charge, fully computable from due date to filing date;
+-- and a charge reckoned on a figure only the individual filing knows - tax
+-- payable, turnover - which has to be captured per obligation.
+--
+-- Left null on purpose. Nothing seeds a rate: these are entered from each
+-- authority's own published schedule, the same way due dates are, so the
+-- platform never shows a CFO an exposure figure it invented.
+ALTER TABLE compliances ADD COLUMN IF NOT EXISTS penalty_currency   CHAR(3);
+ALTER TABLE compliances ADD COLUMN IF NOT EXISTS penalty_per_day    NUMERIC(14,2);
+ALTER TABLE compliances ADD COLUMN IF NOT EXISTS penalty_per_day_cap NUMERIC(14,2);
+ALTER TABLE compliances ADD COLUMN IF NOT EXISTS penalty_flat       NUMERIC(14,2);
+ALTER TABLE compliances ADD COLUMN IF NOT EXISTS penalty_rate_pct   NUMERIC(7,4);
+ALTER TABLE compliances ADD COLUMN IF NOT EXISTS penalty_interest_pct NUMERIC(7,4);
+ALTER TABLE compliances ADD COLUMN IF NOT EXISTS penalty_minimum    NUMERIC(14,2);
+-- What the base figure is, in the authority's words, so the preparer is asked
+-- for the right number rather than guessing which one is wanted.
+ALTER TABLE compliances ADD COLUMN IF NOT EXISTS penalty_base_label TEXT;
 CREATE INDEX IF NOT EXISTS idx_comp_country  ON compliances(country_code) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_comp_juris    ON compliances(jurisdiction_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_comp_category ON compliances(category_id) WHERE deleted_at IS NULL;
@@ -244,6 +268,18 @@ CREATE INDEX IF NOT EXISTS idx_obl_due      ON obligations(due_date)    WHERE de
 CREATE INDEX IF NOT EXISTS idx_obl_reviewer ON obligations(reviewer_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_obl_assigned ON obligations(assigned_to) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_obl_fy       ON obligations(fy_start_year) WHERE deleted_at IS NULL;
+
+-- The figure a percentage or interest charge is reckoned on, for this filing
+-- only: tax payable, turnover, value of supply. Captured when the evidence is
+-- uploaded - read off the document where it can be, typed by the preparer
+-- where it cannot - and never guessed, which is what `source` records.
+ALTER TABLE obligations ADD COLUMN IF NOT EXISTS penalty_base_amount NUMERIC(16,2);
+ALTER TABLE obligations ADD COLUMN IF NOT EXISTS penalty_base_source TEXT
+  CHECK (penalty_base_source IS NULL OR penalty_base_source IN ('document','manual'));
+-- The computed exposure and its workings, stored so a report does not have to
+-- recompute (and possibly disagree with) what the register showed at the time.
+ALTER TABLE obligations ADD COLUMN IF NOT EXISTS penalty_amount NUMERIC(16,2);
+ALTER TABLE obligations ADD COLUMN IF NOT EXISTS penalty_breakdown JSONB;
 
 -- Due-date change log. Drives the country-specific popup notification.
 CREATE TABLE IF NOT EXISTS due_date_changes (

@@ -38,6 +38,16 @@ type EvFile = {
   is_nil: boolean; uploaded_at: string; reviewed_at: string | null;
   uploaded_by_name: string | null; reviewed_by_name: string | null;
 };
+/** Computed penalty exposure as /api/obligations/[id] returns it. */
+type PenaltyView = {
+  total: number | null;
+  currency: string | null;
+  delayDays: number;
+  components: { key: string; label: string; amount: number; detail: string }[];
+  needsBase: boolean;
+  baseLabel: string | null;
+  note: string;
+};
 type Trail = {
   id: number; action: string; comment: string | null; from_status: string | null;
   to_status: string | null; created_at: string; actor: string | null; actor_role: string | null;
@@ -244,7 +254,11 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
 }) {
   const toast = useToast();
   const [d, setD] = useState<{ obligation: Obl; files: EvFile[]; trail: Trail[];
-    changes: { old_due_date: string; new_due_date: string; reason: string | null; changed_at: string }[] } | null>(null);
+    changes: { old_due_date: string; new_due_date: string; reason: string | null; changed_at: string }[];
+    penalty: PenaltyView | null } | null>(null);
+  /* The figure a percentage or interest penalty is reckoned on. Asked for only
+     where the compliance's own rule needs one - see penalty.needsBase. */
+  const [penaltyBase, setPenaltyBase] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [tab, setTab] = useState('file');
 
@@ -298,6 +312,7 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
       if (docType) fd.append('docType', docType);
       if (comment) fd.append('comment', comment);
       if (filingLate) fd.append('lateReason', lateReason);
+      if (penaltyBase.trim()) fd.append('penaltyBase', penaltyBase.trim());
       fd.append('period', o.period_label);
 
       /* XHR rather than fetch so the progress bar is real, not simulated */
@@ -359,6 +374,7 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
       fd.append('nil', '1');
       if (comment) fd.append('comment', comment);
       if (filingLate) fd.append('lateReason', lateReason);
+      if (penaltyBase.trim()) fd.append('penaltyBase', penaltyBase.trim());
       fd.append('period', o.period_label);
       const res = await fetch('/api/evidence', { method: 'POST', body: fd });
       const j = await res.json();
@@ -449,6 +465,44 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
               Past due by <strong>{-(overdueDays as number)} days</strong> with no evidence uploaded.
               {o.penalty ? <> Penalty exposure: {o.penalty}</> : null}
             </Note></div>
+          )}
+
+          {/* Computed exposure, with its workings. Every component is shown
+              because a penalty figure a CFO cannot decompose is a figure they
+              will not repeat to a board. An absent rule says so rather than
+              showing zero - unknown exposure and no exposure are different
+              answers, and only one of them is safe to act on. */}
+          {d.penalty && d.penalty.delayDays > 0 && (
+            <div className="mb12" style={{
+              border: '1px solid var(--line-2)', borderRadius: 'var(--r)', padding: '10px 12px',
+            }}>
+              <div className="row between g8 wrap">
+                <span className="cap">Penalty exposure</span>
+                <span className="num strong" style={{
+                  fontSize: 17,
+                  color: d.penalty.total == null ? 'var(--ink-4)'
+                    : d.penalty.total > 0 ? 'var(--bad-600)' : 'var(--ok-700)',
+                }}>
+                  {d.penalty.total == null
+                    ? 'Not computable yet'
+                    : `${d.penalty.currency ?? ''} ${d.penalty.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`.trim()}
+                </span>
+              </div>
+              {d.penalty.components.length > 0 && (
+                <div className="mt8">
+                  {d.penalty.components.filter(c => c.amount !== 0).map(c => (
+                    <div key={c.key} className="row between g8 small" style={{ padding: '3px 0' }}>
+                      <span className="muted">{c.label} <span className="dim tiny">{c.detail}</span></span>
+                      <span className="num">{c.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="tiny muted mt4">{d.penalty.note}</div>
+              {o.penalty && (
+                <div className="tiny dim mt4">As published by the authority: {o.penalty}</div>
+              )}
+            </div>
           )}
           {o.original_due_date && o.original_due_date.slice(0, 10) !== o.due_date.slice(0, 10) && (
             <div className="mb12"><Note kind="w">
@@ -581,6 +635,25 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
                             onChange={e => setComment(e.target.value)}
                             placeholder="Acknowledgement number, portal reference, or anything the reviewer should know." />
                 </div>
+
+                {/* Asked for only where this compliance's own penalty rule is
+                    reckoned on a figure, and named in the authority's words so
+                    the preparer is not left guessing which number is wanted. */}
+                {d.penalty?.needsBase && (
+                  <div className="f mt8">
+                    <label htmlFor="pb">
+                      {d.penalty.baseLabel ?? 'Amount the penalty is computed on'}
+                      <span style={{ color: 'var(--bad-600)' }}> (required to compute the penalty)</span>
+                    </label>
+                    <input id="pb" inputMode="decimal" value={penaltyBase} disabled={busy}
+                           onChange={e => setPenaltyBase(e.target.value)}
+                           placeholder="e.g. 1250000" />
+                    <div className="h">
+                      This filing is {d.penalty.delayDays} day{d.penalty.delayDays === 1 ? '' : 's'} late and the
+                      penalty is a percentage or interest charge, so it cannot be worked out from the dates alone.
+                    </div>
+                  </div>
+                )}
 
                 {filingLate && (
                   <div className="f mt8">
