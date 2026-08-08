@@ -9,6 +9,7 @@ import {
 } from '@/components/ui';
 import type { SessionUser } from '@/lib/rbac';
 import { fyStartYearOf, fyLabel, today } from '@/lib/dates';
+import { MIN_REMARK_LENGTH } from '@/lib/constants';
 
 /** Parses a DATE-only or full-timestamp string the same safe way as
     daysFromToday — a bare "2026-08-10" is midnight UTC, not local midnight. */
@@ -279,9 +280,15 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
 
   async function upload() {
     if (!file || !o || busy) return;
-    if (filingLate && !lateReason.trim()) {
-      toast('A reason for the late filing is required before this can be submitted.', 'warn');
-      return;
+    if (filingLate) {
+      if (!lateReason.trim()) {
+        toast('A reason for the late filing is required before this can be submitted.', 'warn');
+        return;
+      }
+      if (lateReason.trim().length < MIN_REMARK_LENGTH) {
+        toast(`The reason for late filing needs at least ${MIN_REMARK_LENGTH} characters.`, 'warn');
+        return;
+      }
     }
     setBusy(true); setPct(8); setResult(null);
     try {
@@ -334,9 +341,15 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
 
   async function nilFile() {
     if (!o || busy) return;
-    if (filingLate && !lateReason.trim()) {
-      toast('A reason for the late filing is required before this can be submitted.', 'warn');
-      return;
+    if (filingLate) {
+      if (!lateReason.trim()) {
+        toast('A reason for the late filing is required before this can be submitted.', 'warn');
+        return;
+      }
+      if (lateReason.trim().length < MIN_REMARK_LENGTH) {
+        toast(`The reason for late filing needs at least ${MIN_REMARK_LENGTH} characters.`, 'warn');
+        return;
+      }
     }
     if (!confirm(`File "${o.title}" (${o.period_label}) as Nil / Not Applicable? This is sent to the reviewer for approval, same as a normal filing.`)) return;
     setBusy(true);
@@ -412,7 +425,7 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
                <button className="btn" onClick={onClose} disabled={busy}>Close</button>
                {canFile && tab === 'file' && (
                  <button className="btn btn-p" onClick={upload}
-                         disabled={!file || busy || (filingLate && !lateReason.trim())}>
+                         disabled={!file || busy || (filingLate && lateReason.trim().length < MIN_REMARK_LENGTH)}>
                    <Ic n="upload" s={13} /> {busy ? `Uploading… ${pct}%` : 'Upload and send for review'}
                  </button>
                )}
@@ -577,15 +590,20 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
                     <textarea id="lr" value={lateReason} disabled={busy}
                               onChange={e => setLateReason(e.target.value)}
                               placeholder="Why is this being filed after the due date?" />
+                    <div className="tiny dim mt4">
+                      {lateReason.trim().length < MIN_REMARK_LENGTH
+                        ? `At least ${MIN_REMARK_LENGTH - lateReason.trim().length} more character${MIN_REMARK_LENGTH - lateReason.trim().length === 1 ? '' : 's'} needed.`
+                        : 'Looks good.'}
+                    </div>
                   </div>
                 )}
 
                 <button className="btn btn-p btn-block" onClick={upload}
-                        disabled={!file || busy || (filingLate && !lateReason.trim())}>
+                        disabled={!file || busy || (filingLate && lateReason.trim().length < MIN_REMARK_LENGTH)}>
                   {busy ? `Uploading… ${pct}%` : 'Upload and send for review'}
                 </button>
                 <button className="btn btn-block mt8" onClick={nilFile}
-                        disabled={busy || (filingLate && !lateReason.trim())}>
+                        disabled={busy || (filingLate && lateReason.trim().length < MIN_REMARK_LENGTH)}>
                   <Ic n="alert" s={13} /> File as Nil / Not Applicable for this period
                 </button>
                 <div className="tiny dim mt4">

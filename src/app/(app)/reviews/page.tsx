@@ -7,6 +7,7 @@ import {
   fmtDate, fmtDateTime, fmtBytes, daysFromToday, RISK_TONE, useToast, downloadFile, Kpi,
   Lifecycle, scoreColor,
 } from '@/components/ui';
+import { MIN_REMARK_LENGTH } from '@/lib/constants';
 
 type QRow = {
   id: string; reference: string; period_label: string; due_date: string;
@@ -321,18 +322,30 @@ function ReviewDrawer({ id, onClose, onDone }: { id: string; onClose: () => void
 
   async function submit() {
     if (busy) return;
-    if (chosen.needsComment && !comment.trim()) {
-      toast('This action needs a comment so the preparer knows what to do.', 'warn');
-      return;
+    if (chosen.needsComment) {
+      if (!comment.trim()) {
+        toast('This action needs a comment so the preparer knows what to do.', 'warn');
+        return;
+      }
+      if (comment.trim().length < MIN_REMARK_LENGTH) {
+        toast(`The comment needs at least ${MIN_REMARK_LENGTH} characters — enough to actually explain what's needed.`, 'warn');
+        return;
+      }
     }
     if (action === 'reject') {
       if (!rejectReason) {
         toast('Choose a reason for the rejection.', 'warn');
         return;
       }
-      if (rejectReason === 'Others' && !comment.trim()) {
-        toast('Describe the reason so the preparer knows what to correct.', 'warn');
-        return;
+      if (rejectReason === 'Others') {
+        if (!comment.trim()) {
+          toast('Describe the reason so the preparer knows what to correct.', 'warn');
+          return;
+        }
+        if (comment.trim().length < MIN_REMARK_LENGTH) {
+          toast(`The remark needs at least ${MIN_REMARK_LENGTH} characters — enough to actually explain what's needed.`, 'warn');
+          return;
+        }
       }
     }
     /* The reason is the record of record for a rejection — folded into the
@@ -547,6 +560,13 @@ function ReviewDrawer({ id, onClose, onDone }: { id: string; onClose: () => void
                             : 'Any further detail (optional).')
                         : action === 'escalate' ? 'Why does this need the country head’s attention?'
                         : 'Any note to record with the approval.'} />
+            {(chosen.needsComment || (action === 'reject' && rejectReason === 'Others')) && (
+              <div className="tiny dim mt4">
+                {comment.trim().length < MIN_REMARK_LENGTH
+                  ? `At least ${MIN_REMARK_LENGTH - comment.trim().length} more character${MIN_REMARK_LENGTH - comment.trim().length === 1 ? '' : 's'} needed.`
+                  : 'Looks good.'}
+              </div>
+            )}
           </div>
 
           {/* The last few events for context while deciding. The Timeline tab

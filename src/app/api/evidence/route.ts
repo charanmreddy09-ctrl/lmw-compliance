@@ -10,6 +10,7 @@ import { q, one, tx } from '@/lib/db';
 import { canFileEntity, canReviewEntity, canSeeEntity } from '@/lib/rbac';
 import { validateUpload, MAX_UPLOAD_BYTES, isAllowedEvidence } from '@/lib/validate';
 import { extractFiledDate, extractDueDate } from '@/lib/extract-date';
+import { MIN_REMARK_LENGTH } from '@/lib/constants';
 import { createHash } from 'node:crypto';
 
 export const dynamic = 'force-dynamic';
@@ -47,8 +48,11 @@ export const POST = handler(async (req: Request) => {
   if (!canSeeEntity(u, obl.entity_id)) return fail(403, 'You are not assigned to this entity.');
   if (!canFileEntity(u, obl.entity_id))
     return fail(403, 'Your role does not permit filing for this entity.');
-  if (obl.is_late && !lateReason)
-    return fail(400, 'A reason for the late filing is required before this can be submitted.');
+  if (obl.is_late) {
+    if (!lateReason) return fail(400, 'A reason for the late filing is required before this can be submitted.');
+    if (lateReason.length < MIN_REMARK_LENGTH)
+      return fail(400, `The reason for late filing needs at least ${MIN_REMARK_LENGTH} characters.`);
+  }
 
   /* Nil / Not Applicable filing: no document, but still goes through the
      same reviewer approval queue as a real filing — it just carries a

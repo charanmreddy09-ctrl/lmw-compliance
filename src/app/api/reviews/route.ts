@@ -7,6 +7,7 @@
 import { handler, ok, fail, auth, body, writeAudit } from '@/lib/api';
 import { q, one, tx } from '@/lib/db';
 import { canFileEntity, canReviewEntity, canSeeEntity } from '@/lib/rbac';
+import { MIN_REMARK_LENGTH } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -122,6 +123,15 @@ export const POST = handler(async (req: Request) => {
     return fail(400, b.action === 'query'
       ? 'Describe the query so the preparer knows what to correct.'
       : 'A comment is required for this action.');
+  /* Query and escalate are always free text, so a remark that's required at
+     all must actually explain something, not just clear a non-empty check.
+     Reject is deliberately exempt here: it's a fixed reason picked from a
+     dropdown (see REJECT_REASONS) rather than a remark, and several of those
+     reasons are themselves under 25 characters — only the optional "Others"
+     follow-up remark needs the length check, which the client already
+     enforces before it ever reaches this comment string. */
+  if (['query', 'escalate'].includes(b.action) && b.comment && b.comment.trim().length < MIN_REMARK_LENGTH)
+    return fail(400, `The comment needs at least ${MIN_REMARK_LENGTH} characters.`);
 
   const obl = await one<{ entity_id: string; status: string; assigned_to: string | null;
     title: string; country_code: string; period_label: string }>(
