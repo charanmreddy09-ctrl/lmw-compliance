@@ -2,6 +2,8 @@ import { handler, ok, fail, auth, body, writeAudit } from '@/lib/api';
 import { q, one } from '@/lib/db';
 import { canSeeEntity, canSeeCategory } from '@/lib/rbac';
 import { userCanReviewEntity, userCanFileEntity } from '@/lib/auth';
+import { computePenalty, type PenaltyResult, type PenaltyRule } from '@/lib/penalty';
+import { hasPenaltyEngine } from '@/lib/schema-features';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,7 +49,41 @@ export const GET = handler(async (_req: Request, ctx: { params: { id: string } }
          FROM due_date_changes WHERE obligation_id = $1 ORDER BY changed_at DESC`, [ctx.params.id]),
   ]);
 
-  return ok({ obligation: row, files, trail, changes });
+  /* Computed penalty exposure. Guarded: the columns arrive with a migration
+     that may not have run yet, so this reports "no rule recorded" rather than
+     failing the whole drawer. */
+  let penalty: PenaltyResult | null = null;
+  let penaltyRule: PenaltyRule | null = null;
+  if (await hasPenaltyEngine()) {
+    const p = await one<{
+      penalty_currency: string | null; penalty_per_day: string | null;
+      penalty_per_day_cap: string | null; penalty_flat: string | null;
+      penalty_rate_pct: string | null; penalty_interest_pct: string | null;
+      penalty_minimum: string | null; penalty_base_label: string | null;
+      penalty_base_amount: string | null;
+    }>(`
+      SELECT c.penalty_currency, c.penalty_per_day, c.penalty_per_day_cap, c.penalty_flat,
+             c.penalty_rate_pct, c.penalty_interest_pct, c.penalty_minimum, c.penalty_base_label,
+             o.penalty_base_amount
+        FROM obligations o JOIN compliances c ON c.id = o.compliance_id
+       WHERE o.id = $1`, [ctx.params.id]);
+    if (p) {
+      const num = (v: string | null) => (v == null ? null : Number(v));
+      penaltyRule = {
+        perDay: num(p.penalty_per_day), perDayCap: num(p.penalty_per_day_cap),
+        flat: num(p.penalty_flat), ratePct: num(p.penalty_rate_pct),
+        interestPct: num(p.penalty_interest_pct), minimum: num(p.penalty_minimum),
+        baseLabel: p.penalty_base_label, currency: p.penalty_currency,
+      };
+      penalty = computePenalty(penaltyRule, {
+        dueDate: String(row.due_date),
+        filedDate: row.filed_date ? String(row.filed_date) : null,
+        baseAmount: num(p.penalty_base_amount),
+      });
+    }
+  }
+
+  return ok({ obligation: row, files, trail, changes, penalty, penaltyRule });
 });
 
 /* Assign or reassign the preparer / reviewer, or edit notes. */
