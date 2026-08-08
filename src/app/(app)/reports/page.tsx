@@ -31,20 +31,44 @@ const REPORTS = [
     d: 'Full document inventory: what was uploaded, by whom, when, its version and validation outcome.' },
   { id: 'methodology', name: 'Score methodology', icon: 'info',
     d: 'How the compliance score shown across this platform is actually calculated.' },
+  { id: 'mis', name: 'MIS', icon: 'sheet',
+    d: 'The standing pack of periodic reports — management, audit committee, board and the annual certificate.' },
 ];
+
+/** Each MIS item is a themed lens onto a report the platform already
+    generates — reusing that data rather than standing up a second copy of
+    the same numbers under a different name. */
+const MIS_ITEMS = [
+  { id: 'monthly', freq: 'Monthly', name: 'Management Report', reportType: 'division',
+    d: 'Compliance position by operating division, for management review.' },
+  { id: 'audit_committee', freq: 'Quarterly', name: 'Audit Committee Report', reportType: 'overdue',
+    d: 'Overdue and unfiled obligations — the exposure an audit committee reviews.' },
+  { id: 'board', freq: 'Quarterly', name: 'Board Compliance Report', reportType: 'executive',
+    d: 'The headline numbers for the Board: score, coverage, timeliness and exposure.' },
+  { id: 'certificate', freq: 'Annual', name: 'Compliance Certificate', reportType: 'executive',
+    d: 'A signed-style statement of the Group’s compliance position for the year.' },
+] as const;
 
 function ReportsInner() {
   const search = useSearchParams();
   const toast = useToast();
   const [active, setActive] = useState(search.get('r') ?? 'executive');
+  const [misSub, setMisSub] = useState<string | null>(null);
   const [data, setData] = useState<Report | null>(null);
   const [loading, setLoading] = useState(active !== 'methodology');
   const [err, setErr] = useState<string | null>(null);
   const [fy, setFy] = useState<number | ''>('');
   const [category, setCategory] = useState('');
 
+  const misItem = active === 'mis' && misSub ? MIS_ITEMS.find(m => m.id === misSub) : null;
+  /* The MIS index (active === 'mis', nothing picked yet) fetches nothing of
+     its own — it's a menu onto reports that already exist. Once an item is
+     picked, everything downstream (fetch, FY/law filters, export) targets
+     that report's real underlying type. */
+  const fetchType = misItem ? misItem.reportType : active;
+
   const load = useCallback(async (type: string, fyVal: number | '') => {
-    if (type === 'methodology') { setLoading(false); setData(null); setErr(null); return; }
+    if (type === 'methodology' || (type === 'mis' && !misItem)) { setLoading(false); setData(null); setErr(null); return; }
     setLoading(true); setErr(null);
     try {
       const p = new URLSearchParams();
@@ -52,8 +76,8 @@ function ReportsInner() {
       /* The Law summary report is itself grouped by law, so filtering it to
          one would just leave a single row — every other report can be
          narrowed to a single law. */
-      if (type !== 'category' && category) p.set('category', category);
-      const res = await fetch(`/api/reports/${type}?${p}`);
+      if (fetchType !== 'category' && category) p.set('category', category);
+      const res = await fetch(`/api/reports/${fetchType}?${p}`);
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? 'Unable to generate the report.');
       setData(j);
@@ -65,11 +89,16 @@ function ReportsInner() {
       setErr(e instanceof Error ? e.message : 'Unable to generate the report.');
       setData(null);
     } finally { setLoading(false); }
-  }, [category]);
+  }, [category, fetchType, misItem]);
 
-  useEffect(() => { load(active, fy); }, [active, fy, load]);
+  useEffect(() => { load(active, fy); }, [active, misSub, fy, load]);
 
-  const meta = REPORTS.find(r => r.id === active);
+  const meta = misItem ?? REPORTS.find(r => r.id === active);
+  /* The generic data-table view only applies to a real report — not the MIS
+     index list, and not the Certificate, which gets its own presentation
+     rather than reading as a raw table. */
+  const showGenericTable = active !== 'methodology'
+    && (active !== 'mis' || (!!misItem && misItem.id !== 'certificate'));
   const cols = data?.rows.length ? Object.keys(data.rows[0]) : [];
   /* A column is numeric if every row's value for it is a number (or blank) -
      checked across all rows, not just the first, so a column doesn't end up
@@ -106,7 +135,7 @@ function ReportsInner() {
           <div className="card-h"><h3>Reports</h3></div>
           <div style={{ padding: '5px 0' }}>
             {REPORTS.map(r => (
-              <button key={r.id} onClick={() => setActive(r.id)}
+              <button key={r.id} onClick={() => { setActive(r.id); setMisSub(null); }}
                       style={{
                         display: 'flex', alignItems: 'flex-start', gap: 9, width: '100%',
                         padding: '8px 13px', border: 'none', background: active === r.id ? 'var(--navy-050)' : 'none',
@@ -134,10 +163,20 @@ function ReportsInner() {
           <div className="card mb16">
             <div className="card-h">
               <div>
-                <h3>{meta?.name ?? 'Report'}</h3>
+                {active === 'mis' && misItem && (
+                  <button className="btn btn-xs no-print mb8" onClick={() => setMisSub(null)}>
+                    <Ic n="back" s={11} /> All MIS reports
+                  </button>
+                )}
+                <h3>
+                  {active === 'mis' && misItem && (
+                    <span className="pill p-mute nd tiny" style={{ marginRight: 8 }}>{misItem.freq}</span>
+                  )}
+                  {meta?.name ?? 'Report'}
+                </h3>
                 <div className="tiny muted mt4">{meta?.d}</div>
               </div>
-              {active !== 'methodology' && (
+              {active !== 'methodology' && (active !== 'mis' || misItem) && (
                 <div className="row g6 no-print">
                   {data && data.availableFys.length > 0 && (
                     <select value={fy} onChange={e => setFy(e.target.value ? Number(e.target.value) : '')}
@@ -145,7 +184,7 @@ function ReportsInner() {
                       {data.availableFys.map(f => <option key={f.startYear} value={f.startYear}>{f.label}</option>)}
                     </select>
                   )}
-                  {active !== 'category' && data && data.categories.length > 0 && (
+                  {fetchType !== 'category' && data && data.categories.length > 0 && (
                     <select value={category} onChange={e => setCategory(e.target.value)}
                             aria-label="Filter by law">
                       <option value="">All laws</option>
@@ -159,15 +198,15 @@ function ReportsInner() {
                           onClick={() => {
                             const p = new URLSearchParams({ format: 'xlsx' });
                             if (fy !== '') p.set('fy', String(fy));
-                            if (active !== 'category' && category) p.set('category', category);
-                            downloadFile(`/api/reports/${active}?${p}`, `SGCMP_${active}.xlsx`, toast);
+                            if (fetchType !== 'category' && category) p.set('category', category);
+                            downloadFile(`/api/reports/${fetchType}?${p}`, `SGCMP_${misItem ? misSub : active}.xlsx`, toast);
                           }}>
                     <Ic n="download" s={13} /> Excel
                   </button>
                 </div>
               )}
             </div>
-            {data && active !== 'methodology' && (
+            {data && active !== 'methodology' && (active !== 'mis' || misItem) && (
               <div className="card-f row between wrap g8">
                 <span className="tiny muted">
                   Generated {fmtDateTime(data.generatedAt)} by {data.generatedBy} ·
@@ -177,6 +216,58 @@ function ReportsInner() {
               </div>
             )}
           </div>
+
+          {active === 'mis' && !misItem && (
+            <div className="card">
+              <div style={{ padding: '5px 0' }}>
+                {MIS_ITEMS.map(m => (
+                  <button key={m.id} onClick={() => setMisSub(m.id)}
+                          className="row g16"
+                          style={{
+                            width: '100%', padding: '14px 16px', border: 'none',
+                            borderBottom: '1px solid var(--line-2)', background: 'none',
+                            cursor: 'pointer', textAlign: 'left',
+                          }}>
+                    <span className={`pill ${m.freq === 'Monthly' ? 'p-warn' : m.freq === 'Annual' ? 'p-ok' : 'p-info'} nd`}
+                          style={{ minWidth: 76, textAlign: 'center' }}>
+                      {m.freq}
+                    </span>
+                    <div>
+                      <div className="small strong">{m.name}</div>
+                      <div className="tiny muted mt4">{m.d}</div>
+                    </div>
+                    <span className="grow" />
+                    <Ic n="chevR" s={14} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {active === 'mis' && misItem?.id === 'certificate' && data && !loading && (
+            <div className="card">
+              <div className="card-b" style={{ padding: 32, textAlign: 'center' }}>
+                <div className="cap mb16" style={{ letterSpacing: '.12em' }}>Compliance Certificate</div>
+                <p className="small" style={{ maxWidth: 560, margin: '0 auto 20px' }}>
+                  This is to certify that, for the financial year in scope, the Group's compliance
+                  position — derived solely from obligations carrying reviewer-approved documentary
+                  evidence — stood as set out below. No representation letters were relied upon in
+                  arriving at this position.
+                </p>
+                <div className="row g24 wrap" style={{ justifyContent: 'center' }}>
+                  {data.rows.map((r, i) => (
+                    <div key={i}>
+                      <div className="tiny dim">{String(r.Metric)}</div>
+                      <div className="num strong" style={{ fontSize: 20 }}>{String(r.Value)}</div>
+                    </div>
+                  ))}
+                </div>
+                <p className="tiny dim mt16">
+                  Generated {fmtDateTime(data.generatedAt)} by {data.generatedBy} · Global Compliance Management Platform
+                </p>
+              </div>
+            </div>
+          )}
 
           {active === 'methodology' && (
             <div className="card">
@@ -291,10 +382,10 @@ function ReportsInner() {
             </div>
           )}
 
-          {active !== 'methodology' && err && <Note kind="b">{err}</Note>}
-          {active !== 'methodology' && loading && <Spinner label="Generating the report…" />}
+          {showGenericTable && err && <Note kind="b">{err}</Note>}
+          {showGenericTable && loading && <Spinner label="Generating the report…" />}
 
-          {active !== 'methodology' && !loading && data && (
+          {showGenericTable && !loading && data && (
             <>
               {data.rows.length === 0 ? (
                 <div className="card"><div className="empty">
