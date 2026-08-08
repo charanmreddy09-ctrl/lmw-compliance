@@ -8,6 +8,13 @@ import {
   fmtDate, fmtDateTime, fmtBytes, daysFromToday, RISK_TONE, useToast, downloadFile,
 } from '@/components/ui';
 import type { SessionUser } from '@/lib/rbac';
+import { fyStartYearOf, fyLabel, today } from '@/lib/dates';
+
+/** Parses a DATE-only or full-timestamp string the same safe way as
+    daysFromToday — a bare "2026-08-10" is midnight UTC, not local midnight. */
+function parseDateSafe(v: string): Date {
+  return new Date(v.length === 10 ? v + 'T00:00:00Z' : v);
+}
 
 type Obl = {
   id: string; reference: string; period_label: string; due_date: string;
@@ -58,6 +65,11 @@ function RegisterInner() {
      into the full register. */
   const attentionOnly = search.get('attention') === '1';
   const [q, setQ] = useState('');
+  /* The register opens on the current month, not the whole year's filing
+     calendar dumped in one list — "Full year" is a deliberate switch, not
+     the default, with the financial year defaulting to the current one. */
+  const [viewScope, setViewScope] = useState<'month' | 'year'>('month');
+  const [fy, setFy] = useState<number>(fyStartYearOf(today()));
 
   const [openId, setOpenId] = useState<string | null>(search.get('obligation'));
 
@@ -94,16 +106,30 @@ function RegisterInner() {
       .sort((a, b) => a[1].localeCompare(b[1])), [rows]);
   const cats = useMemo(() => [...new Set(rows.map(r => r.category))].sort(), [rows]);
   const statuses = useMemo(() => [...new Set(rows.map(r => r.status))].sort(), [rows]);
+  const availableFys = useMemo(
+    () => [...new Set(rows.map(r => fyStartYearOf(parseDateSafe(r.due_date))))].sort((a, b) => b - a),
+    [rows]);
 
-  const shown = useMemo(() => rows.filter(r =>
-    (!entity || r.entity_id === entity) &&
-    (!status || r.status === status) &&
-    (!cat || r.category === cat) &&
-    (!risk || r.risk_level === risk) &&
-    (!attentionOnly || (r.status !== 'Approved' && r.status !== 'Not Applicable' && (daysFromToday(r.due_date) ?? 1) <= 0)) &&
-    (!q || `${r.title} ${r.code} ${r.reference} ${r.form_reference ?? ''} ${r.period_label}`
-      .toLowerCase().includes(q.toLowerCase()))
-  ), [rows, entity, status, cat, risk, attentionOnly, q]);
+  const now = today();
+  const curMonth = now.getUTCMonth(), curYear = now.getUTCFullYear();
+
+  const shown = useMemo(() => rows.filter(r => {
+    const due = parseDateSafe(r.due_date);
+    /* A deep link from the dashboard's Immediate attention panel already
+       names an exact, small set of obligations — the month/year scope
+       would otherwise hide whichever of them don't fall due this month. */
+    const inScope = attentionOnly ? true : viewScope === 'month'
+      ? due.getUTCFullYear() === curYear && due.getUTCMonth() === curMonth
+      : fyStartYearOf(due) === fy;
+    return inScope &&
+      (!entity || r.entity_id === entity) &&
+      (!status || r.status === status) &&
+      (!cat || r.category === cat) &&
+      (!risk || r.risk_level === risk) &&
+      (!attentionOnly || (r.status !== 'Approved' && r.status !== 'Not Applicable' && (daysFromToday(r.due_date) ?? 1) <= 0)) &&
+      (!q || `${r.title} ${r.code} ${r.reference} ${r.form_reference ?? ''} ${r.period_label}`
+        .toLowerCase().includes(q.toLowerCase()));
+  }), [rows, viewScope, fy, curMonth, curYear, entity, status, cat, risk, attentionOnly, q]);
 
   const counts = useMemo(() => ({
     actionable: shown.filter(r => ['Not Started', 'Evidence Pending', 'Overdue', 'Query Raised', 'Rejected'].includes(r.status)).length,
@@ -140,6 +166,15 @@ function RegisterInner() {
   return (
     <>
       <div className="toolbar no-print">
+        <div className="seg">
+          <button className={viewScope === 'month' ? 'on' : ''} onClick={() => setViewScope('month')}>This month</button>
+          <button className={viewScope === 'year' ? 'on' : ''} onClick={() => setViewScope('year')}>Full year</button>
+        </div>
+        {viewScope === 'year' && (
+          <select value={fy} onChange={e => setFy(Number(e.target.value))} aria-label="Filter by financial year">
+            {(availableFys.length ? availableFys : [fy]).map(f => <option key={f} value={f}>{fyLabel(f)}</option>)}
+          </select>
+        )}
         <select value={entity} onChange={e => setEntity(e.target.value)}>
           <option value="">All entities</option>
           {entities.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
