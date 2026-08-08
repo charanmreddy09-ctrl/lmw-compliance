@@ -1,6 +1,6 @@
 'use client';
 /* ===========================================================================
-   Shared UI primitives. Deliberately small and explicit — no component library,
+   Shared UI primitives. Deliberately small and explicit - no component library,
    so the interface has one consistent visual voice.
    =========================================================================== */
 import React, { useEffect, useMemo, useState, useCallback, createContext, useContext } from 'react';
@@ -89,18 +89,18 @@ export function scoreColor(v: number): string {
 
 const UI_MON_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-/** DD-MMM-YYYY, e.g. 04-Aug-2026 — the house date format for this deployment. */
+/** DD-MMM-YYYY, e.g. 04-Aug-2026 - the house date format for this deployment. */
 export function fmtDate(v?: string | null): string {
-  if (!v) return '—';
+  if (!v) return '-';
   const d = new Date(v.length === 10 ? v + 'T00:00:00Z' : v);
-  if (isNaN(d.getTime())) return '—';
+  if (isNaN(d.getTime())) return '-';
   const day = String(d.getUTCDate()).padStart(2, '0');
   return `${day}-${UI_MON_SHORT[d.getUTCMonth()]}-${d.getUTCFullYear()}`;
 }
 export function fmtDateTime(v?: string | null): string {
-  if (!v) return '—';
+  if (!v) return '-';
   const d = new Date(v);
-  if (isNaN(d.getTime())) return '—';
+  if (isNaN(d.getTime())) return '-';
   const day = String(d.getDate()).padStart(2, '0');
   const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   return `${day}-${UI_MON_SHORT[d.getMonth()]}-${d.getFullYear()}, ${time}`;
@@ -238,7 +238,7 @@ export function DataTable<T extends Record<string, unknown>>({
                   onClick={onRow ? () => onRow(r) : undefined}>
                 {cols.map(c => (
                   <td key={c.key} className={c.cls}>
-                    {c.render ? c.render(r) : String(r[c.key] ?? '—')}
+                    {c.render ? c.render(r) : String(r[c.key] ?? '-')}
                   </td>
                 ))}
               </tr>
@@ -348,7 +348,7 @@ export function Kpi({ label, value, sub, bar, barColor }: {
 /* ---------------------------------------------------------- executive tiles
    The four figures a CFO reads first. Each one is a link: a number on this
    dashboard is never a dead end, it always opens the register or report that
-   explains it. Tone drives only the icon chip — the figure itself stays in
+   explains it. Tone drives only the icon chip - the figure itself stays in
    ink so a wall of tiles doesn't turn into a wall of colour. */
 export type Tone = 'bad' | 'warn' | 'info' | 'ok' | 'neutral';
 
@@ -382,7 +382,7 @@ export function Stat({ label, value, unit, sub, icon, tone = 'neutral', href, ct
   return <Link href={href} className="card card-link">{body}</Link>;
 }
 
-/** Month-on-month movement. Direction, not just sign — "+2.3 vs last month". */
+/** Month-on-month movement. Direction, not just sign - "+2.3 vs last month". */
 export function Delta({ value, suffix = 'vs last month' }: { value: number; suffix?: string }) {
   const dir = value > 0.05 ? 'up' : value < -0.05 ? 'down' : 'flat';
   const icon = dir === 'up' ? 'up' : dir === 'down' ? 'down' : 'flat';
@@ -415,7 +415,7 @@ export function Priority({ count, title, sub, icon, tone, href }: {
   );
 }
 
-/** Labelled horizontal bar — country and division comparisons. */
+/** Labelled horizontal bar - country and division comparisons. */
 export function HBar({ label, value, sub }: { label: string; value: number; sub?: string }) {
   return (
     <div className="hbar" title={sub}>
@@ -439,7 +439,7 @@ export function Note({ kind = 'i', children }: { kind?: 'i' | 'w' | 'b' | 'o'; c
 /* --------------------------------------------------------------- lifecycle
    B11. The audit answer to "what happened to this filing, in what order, and
    who did it". Rendered from review_actions, which already records every
-   transition with actor, timestamp, from/to status and comment — so this is
+   transition with actor, timestamp, from/to status and comment - so this is
    a view of the audit trail, not a second telling of it that could disagree. */
 export type TrailEntry = {
   id: number;

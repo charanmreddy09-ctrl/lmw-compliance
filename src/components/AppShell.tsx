@@ -67,7 +67,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [clock, setClock] = useState<Date | null>(null);
 
-  /* sidebar collapse — remembered per browser, so it survives navigation */
+  /* sidebar collapse - remembered per browser, so it survives navigation */
   useEffect(() => {
     setCollapsed(localStorage.getItem('sgcmp_sidebar_collapsed') === '1');
   }, []);
@@ -105,7 +105,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== 'Escape' || atHome) return;
-      /* A modal owns Escape while it is open — closing the dialog must not
+      /* A modal owns Escape while it is open - closing the dialog must not
          also navigate the page out from under it. */
       if (document.querySelector('.mask')) return;
       const el = document.activeElement as HTMLElement | null;
@@ -133,7 +133,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         if (!live) return;
         if (!data.user) {
           /* The cookie can be a validly-signed JWT for a user that no longer
-             exists (deleted, or the database was reseeded) — middleware only
+             exists (deleted, or the database was reseeded) - middleware only
              checks the signature, so it still treats the request as signed
              in and would bounce /signin straight back here, looping forever.
              Clearing the cookie server-side before leaving breaks that loop. */
@@ -192,6 +192,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     setUnread(u => Math.max(0, u - ids.length));
     setNotifs(ns => ns.map(n => ids.includes(n.id) ? { ...n, read_at: new Date().toISOString() } : n));
     try { await fetch('/api/notifications', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ids }) }); } catch { /* ignore */ }
+  }
+
+  /** Open what a notification is about, marking it read on the way. */
+  function openNotification(n: Notif) {
+    if (!n.link) return;
+    setDrawer(false);
+    if (!n.read_at) {
+      setUnread(u => Math.max(0, u - 1));
+      setNotifs(ns => ns.map(x => x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x));
+      fetch('/api/notifications', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids: [n.id] }),
+      }).catch(() => { /* navigation matters more than the read flag */ });
+    }
+    router.push(n.link);
   }
 
   async function markAllRead() {
@@ -361,7 +376,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <Modal
           title={
             Object.keys(byCountry).length === 1
-              ? `Due date changes — ${Object.keys(byCountry)[0]}`
+              ? `Due date changes - ${Object.keys(byCountry)[0]}`
               : 'Due date and workflow changes'
           }
           sub="Requires your attention"
@@ -410,10 +425,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                }>
           {notifs.length === 0 && <div className="empty">Nothing to show yet.</div>}
           {notifs.map(n => (
-            <div key={n.id} className="row-t g8" style={{
+            /* The whole row navigates when the notification points somewhere,
+               and marks itself read on the way. Previously only a small "Open"
+               word at the end was clickable, and the notification stayed
+               unread after you had acted on it. */
+            <div key={n.id} className="row-t g8 notif-row" style={{
               padding: '9px 0', borderBottom: '1px solid var(--line-2)',
               opacity: n.read_at ? .62 : 1,
-            }}>
+              cursor: n.link ? 'pointer' : 'default',
+            }}
+              role={n.link ? 'link' : undefined}
+              tabIndex={n.link ? 0 : undefined}
+              onClick={() => { if (n.link) openNotification(n); }}
+              onKeyDown={e => { if (n.link && e.key === 'Enter') openNotification(n); }}>
               <span style={{
                 marginTop: 3, color: n.severity === 'critical' ? 'var(--bad-600)'
                   : n.severity === 'warning' ? 'var(--warn-600)' : 'var(--navy-600)',
@@ -429,7 +453,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <div className="row between mt4">
                   <span className="tiny dim">{fmtDateTime(n.created_at)}</span>
                   {n.link && (
-                    <Link href={n.link} className="tiny strong" onClick={() => setDrawer(false)}>Open</Link>
+                    <span className="tiny strong" style={{ color: 'var(--navy-700)' }}>
+                      Open <Ic n="chevR" s={11} />
+                    </span>
                   )}
                 </div>
               </div>

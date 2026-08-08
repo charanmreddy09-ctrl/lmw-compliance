@@ -235,7 +235,7 @@ export default function Admin() {
         </div>) },
   ];
 
-  /* Things that are actually wrong, not merely outstanding — the tab badge
+  /* Things that are actually wrong, not merely outstanding - the tab badge
      counts defects and silent jobs, so a long list of pending users does not
      make the platform look broken. */
   const opsIssues = ops
@@ -310,8 +310,8 @@ export default function Admin() {
         <>
           <div className="mb16">
             <Note kind="i">
-              The CFO does not review individual filings. Review authority is delegated here — by
-              country, by entity or across the whole group — and the platform honours it immediately
+              The CFO does not review individual filings. Review authority is delegated here - by
+              country, by entity or across the whole group - and the platform honours it immediately
               without changing anyone&apos;s role. Every delegated decision stays attributed to the
               person who made it.
             </Note>
@@ -400,7 +400,7 @@ export default function Admin() {
                 </div>
                 {r.id === 'CFO' && (
                   <div className="mt12"><Note kind="i">
-                    Deliberately excludes <span className="mono">compliance.review</span> — the CFO
+                    Deliberately excludes <span className="mono">compliance.review</span> - the CFO
                     monitors and delegates rather than approving individual filings.
                   </Note></div>
                 )}
@@ -444,10 +444,10 @@ export default function Admin() {
                           </td>
                           <td className="small nowrap">
                             {j.lastRun ? (<>{fmtDateTime(j.lastRun)}
-                              <div className="t2">{j.hoursSince}h ago</div></>) : <span className="dim">—</span>}
+                              <div className="t2">{j.hoursSince}h ago</div></>) : <span className="dim">-</span>}
                           </td>
                           <td className="right num">{j.runs7d}</td>
-                          <td className="small w">{j.lastDetail ?? <span className="dim">—</span>}</td>
+                          <td className="small w">{j.lastDetail ?? <span className="dim">-</span>}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -458,7 +458,7 @@ export default function Admin() {
                     <Note kind="b">
                       <strong>A scheduled job is not running.</strong> If it has never run, the most
                       likely cause is a missing <span className="mono">CRON_SECRET</span> environment
-                      variable in Vercel — the cron request is rejected with a 401 on every attempt and
+                      variable in Vercel - the cron request is rejected with a 401 on every attempt and
                       nothing else reports it. Reminders and escalations stop while this is true.
                     </Note>
                   </div>
@@ -502,7 +502,7 @@ export default function Admin() {
                               <div className="t2">{m.why}</div>
                             </td>
                             <td className="small w mono dim">
-                              {a.sample.length ? a.sample.join(', ') : '—'}
+                              {a.sample.length ? a.sample.join(', ') : '-'}
                               {a.count > a.sample.length && a.sample.length > 0 && ` … +${a.count - a.sample.length} more`}
                             </td>
                           </tr>
@@ -553,7 +553,7 @@ export default function Admin() {
                       {a.actor_role && <div className="t2">{a.actor_role}</div>}</td>
                     <td><span className="pill p-mute nd tiny mono">{a.action}</span></td>
                     <td className="small nowrap">{a.object_type}</td>
-                    <td className="small w">{a.detail ?? '—'}</td>
+                    <td className="small w">{a.detail ?? '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -737,7 +737,7 @@ function InviteModal({ roles, entities, categories, onClose, onCreated }: {
             </div>
           )}
           <div className="h">
-            Restricting this leaves every other compliance category invisible to this preparer —
+            Restricting this leaves every other compliance category invisible to this preparer -
             in the register and when filing. Leave "All categories" ticked for no restriction.
           </div>
         </div>
@@ -749,7 +749,7 @@ function InviteModal({ roles, entities, categories, onClose, onCreated }: {
           Approve this account immediately
         </label>
         <div className="h">
-          Leave unticked to create it as pending, which is the safer default — someone then has to
+          Leave unticked to create it as pending, which is the safer default - someone then has to
           approve it before the person can sign in.
         </div>
       </div>
@@ -924,7 +924,7 @@ function DelegModal({ refs, onClose, onSaved }: {
         <select value={to} onChange={e => setTo(e.target.value)}>
           <option value="">Select a person…</option>
           {refs.candidates.map(c => (
-            <option key={c.id} value={c.id}>{c.full_name} — {c.role_name}</option>
+            <option key={c.id} value={c.id}>{c.full_name} - {c.role_name}</option>
           ))}
         </select>
         <div className="h">Only active reviewers, country heads, the CFO&apos;s office and administrators are eligible.</div>

@@ -54,7 +54,7 @@ export default function Library() {
 
   const canManageDueDates = !!user?.permissions.includes('duedate.manage');
   const canManageLibrary = !!user?.permissions.includes('compliance.library');
-  /* Signing a compliance off is the reviewer's job specifically — holding
+  /* Signing a compliance off is the reviewer's job specifically - holding
      compliance.library (Admin) does not also grant sign-off; removing an
      existing sign-off is a library-admin correction, kept separate. */
   const canSignOff = !!user?.permissions.includes('compliance.verify');
@@ -72,7 +72,7 @@ export default function Library() {
       const res = await fetch('/api/duedates/pending');
       const d = await res.json();
       if (res.ok) setPending(d.pending);
-    } catch { /* non-critical — panel just stays empty */ }
+    } catch { /* non-critical - panel just stays empty */ }
   }, [canManageDueDates]);
 
   useEffect(() => {
@@ -86,7 +86,7 @@ export default function Library() {
       const res = await fetch('/api/duedates/sync', { method: 'POST' });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error);
-      toast(`Checked ${j.checked} compliance source${j.checked === 1 ? '' : 's'} — ${j.proposed} possible change${j.proposed === 1 ? '' : 's'} found.`, 'ok');
+      toast(`Checked ${j.checked} compliance source${j.checked === 1 ? '' : 's'} - ${j.proposed} possible change${j.proposed === 1 ? '' : 's'} found.`, 'ok');
       await loadPending();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Check failed.', 'bad');
@@ -135,7 +135,7 @@ export default function Library() {
       setRows(d.compliances);
       setRef({ countries: d.countries, categories: d.categories, jurisdictions: d.jurisdictions, availableFys: d.availableFys });
       setErr(null);
-      /* First load — default to the most recent FY rather than every FY's
+      /* First load - default to the most recent FY rather than every FY's
          instances summed together, which is what made "In use" look like a
          raw compliance count instead of one year's filing calendar. */
       if (!fy && d.availableFys?.length) setFy(String(d.availableFys[0].startYear));
@@ -150,7 +150,7 @@ export default function Library() {
   }, [load, q]);
 
   /* Auto-sync: a reviewer signing off a compliance from a different session
-     shows up here without needing a manual reload — matches the dashboard's
+     shows up here without needing a manual reload - matches the dashboard's
      own polling pattern. */
   useEffect(() => {
     const t = setInterval(load, 60_000);
@@ -435,7 +435,7 @@ export default function Library() {
               empty="No compliances match the current filters." />}
         <div className="card-f row g16 wrap tiny muted">
           <strong>Risk rating:</strong>
-          <span className="row g6"><span className={`pill ${RISK_TONE.Critical}`}>Critical</span> statutory/financial exposure if missed — board-level attention</span>
+          <span className="row g6"><span className={`pill ${RISK_TONE.Critical}`}>Critical</span> statutory/financial exposure if missed - board-level attention</span>
           <span className="row g6"><span className={`pill ${RISK_TONE.High}`}>High</span> material penalty or licence risk</span>
           <span className="row g6"><span className={`pill ${RISK_TONE.Medium}`}>Medium</span> a fixed penalty or administrative consequence</span>
           <span className="row g6"><span className={`pill ${RISK_TONE.Low}`}>Low</span> limited consequence, but still a legal obligation</span>
@@ -491,7 +491,7 @@ export default function Library() {
             <div className="f">
               <label>Applicable law</label>
               <input value={edit.applicable_law} onChange={e => setEdit({ ...edit, applicable_law: e.target.value })}
-                     placeholder="Income-tax Act, 1961 — section 139(1)" />
+                     placeholder="Income-tax Act, 1961 - section 139(1)" />
             </div>
             <div className="f">
               <label>Form / reference</label>
@@ -597,19 +597,19 @@ export default function Library() {
             <span className="pill p-mute nd">{detail.frequency}</span>
             <span className={`pill ${RISK_TONE[detail.risk_level] ?? 'p-mute'}`}>{detail.risk_level}</span>
             {detail.verified
-              ? <span className="pill p-ok">Reviewed{detail.verified_by ? ` — ${detail.verified_by}` : ''}</span>
+              ? <span className="pill p-ok">Reviewed{detail.verified_by ? ` - ${detail.verified_by}` : ''}</span>
               : <span className="pill p-warn">New obligation/amendment</span>}
           </div>
           <dl className="kv">
-            <dt>Applicable law</dt><dd>{detail.applicable_law ?? '—'}</dd>
-            <dt>Form / reference</dt><dd>{detail.form_reference ?? '—'}</dd>
-            <dt>Authority</dt><dd>{detail.authority ?? '—'}</dd>
-            <dt>Due rule</dt><dd>{detail.due_rule ?? '—'}</dd>
+            <dt>Applicable law</dt><dd>{detail.applicable_law ?? '-'}</dd>
+            <dt>Form / reference</dt><dd>{detail.form_reference ?? '-'}</dd>
+            <dt>Authority</dt><dd>{detail.authority ?? '-'}</dd>
+            <dt>Due rule</dt><dd>{detail.due_rule ?? '-'}</dd>
             <dt>Government portal</dt>
             <dd>{detail.government_site
               ? <a href={detail.government_site} target="_blank" rel="noopener noreferrer">{detail.government_site}</a>
-              : '—'}</dd>
-            <dt>Statutory penalty</dt><dd>{detail.penalty ?? '—'}</dd>
+              : '-'}</dd>
+            <dt>Statutory penalty</dt><dd>{detail.penalty ?? '-'}</dd>
             <dt>Open obligations</dt><dd className="num">{detail.instances}</dd>
             <dt>Applicability</dt>
             <dd>{[

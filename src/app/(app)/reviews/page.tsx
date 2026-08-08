@@ -28,7 +28,7 @@ type Trail = {
   id: number; action: string; comment: string | null; from_status: string | null;
   to_status: string | null; created_at: string; actor: string | null; actor_role: string | null;
 };
-/** B8 — the signed-in reviewer's own record over a rolling 90 days. */
+/** B8 - the signed-in reviewer's own record over a rolling 90 days. */
 type Stats = {
   decisions: number; approved: number; queried: number; rejected: number;
   avgHours: number | null; slaRate: number | null; measured: number;
@@ -66,7 +66,7 @@ function ReviewsInner() {
       const j = await res.json();
       if (!res.ok) throw new Error(j.error);
       toast(
-        `Escalation check complete — ${j.reminders} reminder${j.reminders === 1 ? '' : 's'}, `
+        `Escalation check complete - ${j.reminders} reminder${j.reminders === 1 ? '' : 's'}, `
         + `${j.deptHead} to department head, ${j.cfo} to the CFO, ${j.auditCommittee} to the Audit Committee.`,
         'ok');
     } catch (e) {
@@ -92,7 +92,7 @@ function ReviewsInner() {
   useEffect(() => { load(); }, [load]);
 
   /* Auto-sync: a preparer's submission from a different session shows up
-     here without needing a manual reload — matches the dashboard's and the
+     here without needing a manual reload - matches the dashboard's and the
      compliance library's own polling pattern. */
   useEffect(() => {
     const t = setInterval(load, 60_000);
@@ -127,7 +127,7 @@ function ReviewsInner() {
     { key: 'entity', label: 'Entity', sort: true, cls: 'nowrap small',
       render: r => (<><div className="t1">{r.entity}</div><div className="t2">{r.country_code}</div></>) },
     { key: 'preparer', label: 'Filed by', sort: true, cls: 'small nowrap',
-      render: r => r.preparer ?? <span className="dim">—</span> },
+      render: r => r.preparer ?? <span className="dim">-</span> },
     { key: 'due_date', label: 'Due', sort: true, cls: 'nowrap num',
       render: r => (<>{fmtDate(r.due_date)}
         {r.delay_days > 0 && <div className="t2" style={{ color: 'var(--bad-600)' }}>+{r.delay_days} d late</div>}</>) },
@@ -135,7 +135,7 @@ function ReviewsInner() {
       value: r => r.validation?.outcome ?? 'none',
       render: r => {
         const o = r.validation?.outcome;
-        if (!o) return <span className="dim">—</span>;
+        if (!o) return <span className="dim">-</span>;
         return <span className={`pill ${o === 'clean' ? 'p-ok' : o === 'blocked' ? 'p-bad' : 'p-warn'}`}>{o}</span>;
       } },
     { key: 'risk_level', label: 'Risk', sort: true,
@@ -167,7 +167,7 @@ function ReviewsInner() {
           Your own record, not the queue's. The queue says what is left to do;
           this says how you have been doing it. Measured from the submission
           that put each item in front of you to the decision you took, over a
-          rolling 90 days — so a query-and-resubmit counts as two reviews
+          rolling 90 days - so a query-and-resubmit counts as two reviews
           rather than one very slow one. */}
       {stats && stats.decisions > 0 && (
         <div className="card mb16">
@@ -186,7 +186,7 @@ function ReviewsInner() {
             <div>
               <div className="tiny dim">Average turnaround</div>
               <div className="num strong" style={{ fontSize: 22, lineHeight: 1.1 }}>
-                {stats.avgHours == null ? '—' : <>{stats.avgHours}<span style={{ fontSize: 13, fontFamily: 'var(--font-sans)', marginLeft: 2 }}>h</span></>}
+                {stats.avgHours == null ? '-' : <>{stats.avgHours}<span style={{ fontSize: 13, fontFamily: 'var(--font-sans)', marginLeft: 2 }}>h</span></>}
               </div>
             </div>
             <div>
@@ -195,7 +195,7 @@ function ReviewsInner() {
                 fontSize: 22, lineHeight: 1.1,
                 color: stats.slaRate == null ? undefined : scoreColor(stats.slaRate),
               }}>
-                {stats.slaRate == null ? '—' : <>{stats.slaRate}<span style={{ fontSize: 13, fontFamily: 'var(--font-sans)' }}>%</span></>}
+                {stats.slaRate == null ? '-' : <>{stats.slaRate}<span style={{ fontSize: 13, fontFamily: 'var(--font-sans)' }}>%</span></>}
               </div>
             </div>
             <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--line-2)' }} />
@@ -381,7 +381,7 @@ function ReviewDrawer({ id, onClose, onDone }: { id: string; onClose: () => void
           {/* ----------------------------------------------------- B10 / B11
               A workspace rather than one long scroll: the record, the
               documents and the full lifecycle are separate panes, while the
-              decision controls opposite stay visible throughout — a reviewer
+              decision controls opposite stay visible throughout - a reviewer
               never has to navigate away from what they are deciding in order
               to see why. */}
           <div className="tabs no-print" style={{ marginBottom: 12 }}>
@@ -399,23 +399,23 @@ function ReviewDrawer({ id, onClose, onDone }: { id: string; onClose: () => void
             <dl className="kv mb16">
               <dt>Entity</dt><dd>{String(o.entity_name)} · {String(o.country_name)}</dd>
               <dt>Category</dt><dd>{String(o.category)}</dd>
-              <dt>Applicable law</dt><dd>{o.applicable_law ? String(o.applicable_law) : '—'}</dd>
-              <dt>Form / reference</dt><dd>{o.form_reference ? String(o.form_reference) : '—'}</dd>
+              <dt>Applicable law</dt><dd>{o.applicable_law ? String(o.applicable_law) : '-'}</dd>
+              <dt>Form / reference</dt><dd>{o.form_reference ? String(o.form_reference) : '-'}</dd>
               <dt>Due date</dt>
               <dd className="num strong">{fmtDate(String(o.due_date))}
                 {overdue != null && overdue < 0 && !o.filed_date && (
                   <span style={{ color: 'var(--bad-600)' }}> · {-overdue} d overdue</span>
                 )}</dd>
               <dt>Date of filing</dt><dd className="num">{fmtDate(o.filed_date ? String(o.filed_date) : null)}</dd>
-              <dt>Filed by</dt><dd>{o.assigned_to_name ? String(o.assigned_to_name) : '—'}</dd>
-              <dt>Assigned reviewer</dt><dd>{o.reviewer_name ? String(o.reviewer_name) : '—'}</dd>
+              <dt>Filed by</dt><dd>{o.assigned_to_name ? String(o.assigned_to_name) : '-'}</dd>
+              <dt>Assigned reviewer</dt><dd>{o.reviewer_name ? String(o.reviewer_name) : '-'}</dd>
             </dl>
           )}
 
           {pane === 'evidence' && (
             <>
               {d.files.length === 0 && (
-                <Note kind="b">No document is attached. Do not approve — raise a query asking the
+                <Note kind="b">No document is attached. Do not approve - raise a query asking the
                   preparer to upload the filed return.</Note>
               )}
               {d.files.map(f => (

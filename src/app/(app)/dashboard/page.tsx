@@ -29,7 +29,7 @@ type DueChange = {
   reason: string | null; changed_at: string; title: string | null; entity: string | null;
 };
 type TrendPoint = { label: string; monthEnd: string; score: number; total: number; approved: number; overdue: number };
-/** B1 / B2 — yesterday's movement and today's open exposure. */
+/** B1 / B2 - yesterday's movement and today's open exposure. */
 type Sev = { Critical: number; High: number; Medium: number; Low: number };
 type Brief = {
   approved: number; submitted: number; queries: number; rejected: number; escalated: number;
@@ -142,15 +142,25 @@ export default function Dashboard() {
         ]);
         if (!live) return;
         setUser(me.user);
-        setD(dash);
-        setErr(null);
-        /* First load with no FY chosen yet — default to the most recent
+
+        /* First load with no FY chosen yet - default to the most recent
            financial year rather than showing every FY ever generated
-           combined, which inflates "Applicable obligations" well past what
-           a single year's filing calendar actually looks like. */
+           combined, which inflates "Applicable obligations" well past what a
+           single year's filing calendar actually looks like.
+
+           This response is for every FY at once, so it is deliberately NOT
+           rendered. Choosing the FY re-runs this effect and the second
+           response is the one shown. Previously both were rendered, which is
+           why the dashboard appeared with one set of numbers and silently
+           replaced them a few seconds later - the first screen was real, it
+           was just answering a different question. */
         if (fyFilter === '' && dash.availableFys?.length) {
           setFyFilter(dash.availableFys[0].startYear);
+          return;
         }
+
+        setD(dash);
+        setErr(null);
       } catch (e) {
         if (live && showSpinnerOnFail) setErr(e instanceof Error ? e.message : 'Unable to load the dashboard.');
         /* a background refresh failing silently is better than yanking the
@@ -173,7 +183,7 @@ export default function Dashboard() {
 
   const o = countryFilter ? (d.byCountryScore[countryFilter] ?? d.overall) : d.overall;
   const futureCount = countryFilter ? (d.futureByCountry[countryFilter] ?? 0) : d.futureOverall;
-  /* Not gated by due date, unlike o.submitted/o.underReview — a submission
+  /* Not gated by due date, unlike o.submitted/o.underReview - a submission
      filed ahead of its due date is still real work waiting on a reviewer. */
   const awaitingReviewer = countryFilter ? (d.pendingReviewByCountry[countryFilter] ?? 0) : d.pendingReview;
   const worst = [...d.byCountry].sort((a, b) => a.score - b.score).slice(0, 3);
@@ -199,7 +209,7 @@ export default function Dashboard() {
     return n != null && n <= WINDOW_DAYS[upcomingWindow];
   });
 
-  /* B1 / B2 — the brief reads from counts the API already returned; nothing
+  /* B1 / B2 - the brief reads from counts the API already returned; nothing
      here re-derives a figure that exists server-side. */
   /* Destinations are role-aware: a preparer holds no reports.generate and a
      CFO deliberately has no review queue, so the same shortcut points each
@@ -233,7 +243,7 @@ export default function Dashboard() {
     { id: 'activity', label: 'Recent activity' },
   ];
 
-  /* Country x category grid, coloured by % followed — the same d.heat rows
+  /* Country x category grid, coloured by % followed - the same d.heat rows
      already computed for the act tabs, just pivoted for a heat map instead
      of read one category at a time. */
   const heatRows = d.heat;
@@ -251,7 +261,7 @@ export default function Dashboard() {
       {/* --------------------------------------------------------- B1 / B2
           What happened yesterday and what is exposed today, stated before
           any chart. Everything here is a link: a brief that cannot be acted
-          on from where it is read is just a newsletter. Nothing is invented —
+          on from where it is read is just a newsletter. Nothing is invented -
           each figure is a count the API already returns. */}
       <div className="card mb16">
         <div className="card-h">
@@ -290,7 +300,7 @@ export default function Dashboard() {
               <div className="small muted">Nothing due is currently unapproved.</div>
             ) : (
               /* Count sits against its label rather than pushed to the far edge,
-                 and each row opens the register filtered to that risk level — a
+                 and each row opens the register filtered to that risk level - a
                  severity figure a CFO cannot drill into is just a statistic. */
               <div className="sev-list">
                 {(['Critical', 'High', 'Medium', 'Low'] as const)
@@ -355,8 +365,8 @@ export default function Dashboard() {
 
       {/* ----------------------------------------------------- EXECUTIVE ROW
           Health score, the four figures that decide what happens next, and
-          the shortcuts people actually use. Every tile is a link — a number
-          on this dashboard is never a dead end — and every destination is
+          the shortcuts people actually use. Every tile is a link - a number
+          on this dashboard is never a dead end - and every destination is
           role-aware, so a preparer holding no reports.generate is sent to the
           register rather than a report it would be refused. */}
       <div className="hero-row mb16">
@@ -459,12 +469,12 @@ export default function Dashboard() {
               )}
             </div>
             <div className="row between g12" style={{ marginTop: 10, padding: '8px 10px', background: 'var(--surface-2)', borderRadius: 'var(--r)' }}>
-              <span className="small muted">Future obligations <span className="dim">(not yet due — excluded from the figures above)</span></span>
+              <span className="small muted">Future obligations <span className="dim">(not yet due - excluded from the figures above)</span></span>
               <span className="v num">{futureCount}</span>
             </div>
           </div>
           <div style={{ minWidth: 260 }}>
-            <div className="cap mb8">{activeCat.label} — filing quality</div>
+            <div className="cap mb8">{activeCat.label} - filing quality</div>
             <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               <Kpi label="Evidence coverage" value={<>{catScore.evidenceCoverage}<Pctu /></>}
                    sub="Obligations with a document" bar={catScore.evidenceCoverage} />
@@ -495,7 +505,7 @@ export default function Dashboard() {
       )}
 
       {/* -------------------------------------------------------- ACT TABS
-          Always visible at the top, next to the headline score — not buried
+          Always visible at the top, next to the headline score - not buried
           in a tab further down the page. */}
       <div className="card act-tabs mb16">
         <div className="act-tabs-h">
@@ -601,8 +611,16 @@ export default function Dashboard() {
                   render: r => (<><div className="t1">{r.title}</div>
                     <div className="t2">{r.entity} · {r.period_label}{r.form_reference ? ` · ${r.form_reference}` : ''}</div></>) },
                 { key: 'status', label: 'Status', sort: true, render: r => <StatusPill s={r.status} /> },
+                /* The CFO monitors and delegates; filing is not part of that
+                   role, and the register it would open is not in its
+                   navigation either. It gets a view action instead. */
                 { key: 'actions', label: '', cls: 'nowrap no-print',
-                  render: r => (
+                  render: r => isCfo ? (
+                    <Link href={`/register?obligation=${r.id}`} className="btn btn-xs"
+                          onClick={e => e.stopPropagation()} title="Open this obligation">
+                      <Ic n="eye" s={12} /> View
+                    </Link>
+                  ) : (
                     <Link href={`/register?obligation=${r.id}`} className="btn btn-p btn-xs"
                           onClick={e => e.stopPropagation()}>
                       <Ic n="upload" s={12} /> File
@@ -619,7 +637,7 @@ export default function Dashboard() {
         <>
           <Note kind="i">
             Country-specific compliances that apply to the entities in that country, and how
-            many of them are actually followed — evidenced and approved. This is the
+            many of them are actually followed - evidenced and approved. This is the
             group-level answer that used to come from a representation letter.
           </Note>
 
@@ -768,7 +786,7 @@ export default function Dashboard() {
                         onClick={() => { window.location.href = `/entities/${e.id}`; }}>
                       <td><div className="t1">{e.short_name}</div><div className="t2">{e.name}</div></td>
                       <td className="nowrap">{e.country_name}</td>
-                      <td className="small">{e.division_name ?? '—'}</td>
+                      <td className="small">{e.division_name ?? '-'}</td>
                       <td className="right num">{s.total}</td>
                       <td className="right num">{s.approved}</td>
                       <td className="right num">{s.submitted + s.underReview}</td>
@@ -798,7 +816,7 @@ export default function Dashboard() {
         <>
           <div className="card mb16">
             <div className="card-h">
-              <h3>Group compliance score — last 6 months</h3>
+              <h3>Group compliance score - last 6 months</h3>
               <span className="tiny muted">Reconstructed from approval and filing dates, not a point-in-time reading</span>
             </div>
             <div className="card-b">
@@ -832,7 +850,7 @@ export default function Dashboard() {
 
           <div className="card">
             <div className="card-h">
-              <h3>Heat map — country × category</h3>
+              <h3>Heat map - country × category</h3>
               <span className="tiny muted">% of applicable obligations followed, current FY scope</span>
             </div>
             <div className="tw">
@@ -859,7 +877,7 @@ export default function Dashboard() {
                                    }}>
                                 {cell.pct}%
                               </div>
-                            ) : <span className="dim">—</span>}
+                            ) : <span className="dim">-</span>}
                           </td>
                         );
                       })}

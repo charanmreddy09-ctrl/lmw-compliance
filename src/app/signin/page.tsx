@@ -122,7 +122,7 @@ export default function SignInPage() {
           <p className="tiny muted mb0">
             Accounts are created by the CFO’s office or a platform administrator using your
             company email address. A new account cannot sign in until it has been approved.
-            If you cannot get in, contact your administrator rather than retrying — repeated
+            If you cannot get in, contact your administrator rather than retrying - repeated
             failures are logged.
           </p>
         </div>

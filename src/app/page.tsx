@@ -14,7 +14,7 @@ const MODULES = [
   { t: 'Compliance Calendar', icon: 'cal', tint: 'warn',
     d: 'Entity-specific statutory due dates, kept current as filing deadlines are notified or revised.' },
   { t: 'Reviews', icon: 'review', tint: 'red',
-    d: 'Filed returns arrive in the reviewer’s queue. Approve, reject, raise a query, reassign or escalate — every decision recorded.' },
+    d: 'Filed returns arrive in the reviewer’s queue. Approve, reject, raise a query, reassign or escalate - every decision recorded.' },
   { t: 'Reports', icon: 'sheet', tint: 'navy',
     d: 'Country, entity, division, overdue, delay and evidence reports, exportable to Excel or PDF for the Board.' },
   { t: 'Administration', icon: 'gear', tint: 'info',
@@ -34,10 +34,10 @@ const FLOW = [
   { n: '02', t: 'Filed with evidence', d: 'The responsible officer files the return and attaches the supporting document for that specific period.' },
   { n: '03', t: 'Validated automatically', d: 'Filing period, due date, delay and required supporting documents are checked before a reviewer ever sees it.' },
   { n: '04', t: 'Reviewed', d: 'The filing moves into the reviewer’s queue. A query is returned to the preparer with the reason recorded.' },
-  { n: '05', t: 'Scored', d: 'Only approved filings, each backed by evidence, count toward the compliance score — the number cannot be self-declared.' },
+  { n: '05', t: 'Scored', d: 'Only approved filings, each backed by evidence, count toward the compliance score - the number cannot be self-declared.' },
 ];
 
-/* A restrained, brand-coloured abstract mark for the hero — a shield of
+/* A restrained, brand-coloured abstract mark for the hero - a shield of
    compliance built from the same document/checkmark motifs used through the
    product, so the landing page reads as considered rather than bare text. */
 function HeroMark() {
@@ -89,7 +89,7 @@ export default function Landing() {
           <p className="mt16" style={{ fontSize: 14.5, color: 'var(--ink-2)', lineHeight: 1.6 }}>
             The platform replaces the representation letter. Instead of asking each
             entity to confirm that it complied, it holds the filing, the evidence and
-            the reviewer’s decision — and derives a live compliance score for every
+            the reviewer’s decision - and derives a live compliance score for every
             entity from that record.
           </p>
           <div className="row g8 mt24 wrap">

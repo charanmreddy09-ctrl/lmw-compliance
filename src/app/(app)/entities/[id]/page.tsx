@@ -76,7 +76,7 @@ export default function EntityDetail() {
         const res = await fetch(`/api/compliance-exclusions?compliance_id=${a.compliance_id}&entity_id=${d.entity.id}`, { method: 'DELETE' });
         const j = await res.json();
         if (!res.ok) throw new Error(j.error);
-        toast(`Marked applicable again — ${j.affected} obligation${j.affected === 1 ? '' : 's'} reopened.`, 'ok');
+        toast(`Marked applicable again - ${j.affected} obligation${j.affected === 1 ? '' : 's'} reopened.`, 'ok');
         load();
       } catch (e) { toast(e instanceof Error ? e.message : 'Could not update.', 'bad'); }
     } else {
@@ -89,7 +89,7 @@ export default function EntityDetail() {
         });
         const j = await res.json();
         if (!res.ok) throw new Error(j.error);
-        toast(`Marked not applicable — ${j.affected} obligation${j.affected === 1 ? '' : 's'} excluded from the count.`, 'ok');
+        toast(`Marked not applicable - ${j.affected} obligation${j.affected === 1 ? '' : 's'} excluded from the count.`, 'ok');
         load();
       } catch (e) { toast(e instanceof Error ? e.message : 'Could not update.', 'bad'); }
     }
@@ -135,7 +135,7 @@ export default function EntityDetail() {
         {r.delay_days > 0 && <div className="t2" style={{ color: 'var(--bad-600)' }}>+{r.delay_days} d</div>}</>) },
     { key: 'files', label: 'Docs', sort: true, cls: 'right num',
       value: r => Number(r.files),
-      render: r => Number(r.files) ? <span className="pill p-mute nd">{r.files}</span> : <span className="dim">—</span> },
+      render: r => Number(r.files) ? <span className="pill p-mute nd">{r.files}</span> : <span className="dim">-</span> },
     { key: 'status', label: 'Status', sort: true, render: r => <StatusPill s={r.status} /> },
   ];
 
@@ -183,7 +183,7 @@ export default function EntityDetail() {
               </div>
               <div className="stack small">
                 <div><span className="k">Employees</span><span className="v num">{e.employees.toLocaleString()}</span></div>
-                <div><span className="k">Registered</span><span className="v small">{e.jurisdiction_name ?? '—'}</span></div>
+                <div><span className="k">Registered</span><span className="v small">{e.jurisdiction_name ?? '-'}</span></div>
               </div>
             </div>
           </div>
@@ -206,7 +206,7 @@ export default function EntityDetail() {
           <Note kind="i">
             <strong>State and provincial obligations apply to this entity.</strong>{' '}
             Registered in {subStates.map(x => x.name).join(', ')}. Only compliances attached to
-            those jurisdictions appear in this register — adding or removing a registration in
+            those jurisdictions appear in this register - adding or removing a registration in
             Administration changes the applicable list immediately.
           </Note>
         </div>
@@ -230,7 +230,7 @@ export default function EntityDetail() {
           <div className="card-h">
             <div className="row g8 wrap no-print">
               <select value={status} onChange={ev => setStatus(ev.target.value)}>
-                <option value="">All statuses</option>
+                <option value="">All Status</option>
                 {statuses.map(x => <option key={x} value={x}>{x}</option>)}
               </select>
               <select value={cat} onChange={ev => setCat(ev.target.value)}>
@@ -307,7 +307,7 @@ export default function EntityDetail() {
                     <td>
                       {a.excluded
                         ? <span className="pill p-mute" title={`${a.excluded_by ?? ''} ${a.excluded_at ? fmtDate(a.excluded_at) : ''}`}>
-                            Not applicable{a.reason ? ` — ${a.reason}` : ''}
+                            Not applicable{a.reason ? ` - ${a.reason}` : ''}
                           </span>
                         : <span className="pill p-ok nd">Applicable</span>}
                     </td>
@@ -330,7 +330,7 @@ export default function EntityDetail() {
           <div className="tl">
             {d.recent.map((a, i) => (
               <div className={`tl-i ${a.action === 'approve' ? 'ok' : a.action === 'reject' ? 'bad' : a.action === 'query' ? 'warn' : ''}`} key={i}>
-                <div className="tl-t"><strong>{a.actor ?? 'System'}</strong> — {a.action} — {a.title}</div>
+                <div className="tl-t"><strong>{a.actor ?? 'System'}</strong> - {a.action} - {a.title}</div>
                 {a.comment && <div className="small muted mt4">{a.comment}</div>}
                 <div className="tl-m mt4">{fmtDateTime(a.created_at)}</div>
               </div>
@@ -350,10 +350,10 @@ export default function EntityDetail() {
                 )}
                 {d.changes.map((c, i) => (
                   <tr key={i}>
-                    <td className="t1 w">{c.title ?? '—'}</td>
+                    <td className="t1 w">{c.title ?? '-'}</td>
                     <td className="num nowrap">{fmtDate(c.old_due_date)}</td>
                     <td className="num nowrap strong">{fmtDate(c.new_due_date)}</td>
-                    <td className="small w">{c.reason ?? '—'}</td>
+                    <td className="small w">{c.reason ?? '-'}</td>
                     <td className="small nowrap">{fmtDateTime(c.changed_at)}</td>
                   </tr>
                 ))}
@@ -373,15 +373,15 @@ export default function EntityDetail() {
                 <dt>Legal name</dt><dd>{e.name}</dd>
                 <dt>Type</dt><dd>{e.entity_type}</dd>
                 <dt>Country</dt><dd>{e.country_name}</dd>
-                <dt>Registered jurisdiction</dt><dd>{e.jurisdiction_name ?? '—'}</dd>
-                <dt>Division</dt><dd>{e.division_name ?? '—'}</dd>
+                <dt>Registered jurisdiction</dt><dd>{e.jurisdiction_name ?? '-'}</dd>
+                <dt>Division</dt><dd>{e.division_name ?? '-'}</dd>
                 <dt>Location</dt><dd>{e.city}</dd>
                 <dt>Reporting currency</dt><dd>{e.currency}</dd>
                 <dt>Financial year end</dt><dd>{e.fy_end}</dd>
                 <dt>Employees</dt><dd className="num">{e.employees.toLocaleString()}</dd>
-                <dt>Statutory auditor</dt><dd>{e.statutory_auditor ?? '—'}</dd>
-                <dt>Local adviser</dt><dd>{e.local_advisor ?? '—'}</dd>
-                <dt>Parent</dt><dd>{e.parent_id ?? 'None — group parent'}</dd>
+                <dt>Statutory auditor</dt><dd>{e.statutory_auditor ?? '-'}</dd>
+                <dt>Local adviser</dt><dd>{e.local_advisor ?? '-'}</dd>
+                <dt>Parent</dt><dd>{e.parent_id ?? 'None - group parent'}</dd>
               </dl>
             </div>
           </div>
