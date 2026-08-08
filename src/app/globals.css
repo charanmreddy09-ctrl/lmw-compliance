@@ -59,10 +59,17 @@
   --surface:  #FFFFFF;
   --surface-2:#F8FAFC;
 
-  /* Office / line-of-business stack — Segoe UI first on Windows, Inter next. */
-  --font-sans: "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-num:  "Segoe UI", Inter, Roboto, Arial, sans-serif;
-  --font-code: Consolas, "SF Mono", Menlo, monospace;
+  /* Inter, self-hosted via next/font (see app/layout.tsx). It leads the stack
+     rather than trailing it: this previously put "Segoe UI" first, so on
+     Windows every screen rendered in a 2006 system font while the webfont it
+     had just downloaded went unused.
+
+     Figures use the same family. Inter's tabular numerals line up column to
+     column, which is what a register of dates and amounts needs - the old
+     stack fell back to whatever the system offered and columns drifted. */
+  --font-sans: var(--font-inter), "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-num:  var(--font-inter), "Segoe UI", Roboto, Arial, sans-serif;
+  --font-code: var(--font-plex-mono), Consolas, "SF Mono", Menlo, monospace;
 
   /* 8-point spacing scale */
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px;
