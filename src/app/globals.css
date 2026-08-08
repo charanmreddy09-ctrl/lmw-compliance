@@ -74,15 +74,23 @@
   /* 8-point spacing scale */
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px;
 
-  --r:   4px;
-  --r-2: 6px;
-  --r-3: 8px;
+  /* Corner radius carries more of the "when was this built" signal than any
+     other single value. These were 4/6/8, which is the shape language of a
+     2010 line-of-business app: at that size a corner reads as a mitre rather
+     than a curve. Controls sit at 8, cards and panels at 12, dialogs at 16 -
+     soft enough to feel current, restrained enough not to read as consumer. */
+  --r:   8px;
+  --r-2: 12px;
+  --r-3: 16px;
+  --r-pill: 999px;
 
-  /* Soft, low-contrast elevation. Cards read as separated by light, not by
-     heavy outlines — one hairline plus a barely-there shadow. */
-  --shadow:   0 1px 2px rgba(20,33,56,.06), 0 1px 3px rgba(20,33,56,.04);
-  --shadow-2: 0 4px 12px rgba(20,33,56,.10), 0 1px 3px rgba(20,33,56,.06);
-  --shadow-3: 0 12px 32px rgba(20,33,56,.16), 0 2px 8px rgba(20,33,56,.08);
+  /* Elevation does the separating, so borders can stay almost invisible. The
+     previous shadows were so tight they were effectively decoration on top of
+     a hairline; these spread further and sit lower, which is what makes a
+     card read as resting on the surface rather than drawn onto it. */
+  --shadow:   0 1px 2px rgba(20,33,56,.04), 0 2px 8px rgba(20,33,56,.05);
+  --shadow-2: 0 2px 4px rgba(20,33,56,.04), 0 8px 24px rgba(20,33,56,.09);
+  --shadow-3: 0 4px 8px rgba(20,33,56,.06), 0 24px 56px rgba(20,33,56,.16);
 
   --sidebar: 244px;
   --topbar: 60px;
@@ -251,14 +259,28 @@ img { display: block; max-width: 100%; }
 .who .wr { font-size: 11px; color: var(--ink-3); }
 
 /* --------------------------------------------------------------- surfaces */
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-2); box-shadow: var(--shadow); }
+/* The border is now a faint tint rather than a grey rule: with real elevation
+   underneath, a visible outline only makes the card look drawn on. Padding is
+   up a step in both directions - the old 12/16 left headings crowded against
+   the edge, which is most of what read as cramped. */
+.card {
+  background: var(--surface); border: 1px solid var(--line-2);
+  border-radius: var(--r-2); box-shadow: var(--shadow);
+}
 .card-h {
   display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
-  padding: var(--s3) var(--s4); border-bottom: 1px solid var(--line-2); flex-wrap: wrap;
+  padding: var(--s4) var(--s5) var(--s3); flex-wrap: wrap;
 }
-.card-h h3 { font-size: 13.5px; }
-.card-b { padding: var(--s4); }
-.card-f { padding: var(--s3) var(--s4); border-top: 1px solid var(--line-2); background: var(--surface-2); border-radius: 0 0 var(--r-2) var(--r-2); }
+.card-h h3 { font-size: 14.5px; }
+.card-b { padding: var(--s3) var(--s5) var(--s5); }
+/* A card that is only a header plus a body needs the header's own bottom
+   padding, not a rule between them — the divider was doing the work that
+   space should. Kept where a card genuinely has sections. */
+.card-h + .card-b { padding-top: 0; }
+.card-f {
+  padding: var(--s3) var(--s5); border-top: 1px solid var(--line-2);
+  background: var(--surface-2); border-radius: 0 0 var(--r-2) var(--r-2);
+}
 
 /* a whole card that navigates — used by the KPI tiles */
 .card-link { display: block; color: inherit; transition: box-shadow .14s ease, border-color .14s ease, transform .14s ease; }
@@ -308,7 +330,7 @@ img { display: block; max-width: 100%; }
 .bar > i { display: block; height: 100%; border-radius: 2px; transition: width .3s ease; }
 
 /* Executive stat tile: icon chip, large figure, one line of context. */
-.stat { padding: var(--s4); display: flex; flex-direction: column; gap: var(--s2); height: 100%; }
+.stat { padding: var(--s5); display: flex; flex-direction: column; gap: var(--s2); height: 100%; }
 .stat-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s2); }
 .stat-ic {
   width: 34px; height: 34px; border-radius: var(--r-2); display: flex;
@@ -317,7 +339,7 @@ img { display: block; max-width: 100%; }
 .stat-l { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); font-weight: 700; }
 .stat-v {
   font-family: var(--font-num); font-variant-numeric: tabular-nums;
-  font-size: 32px; font-weight: 600; line-height: 1.05; letter-spacing: -0.03em; color: var(--navy-900);
+  font-size: 38px; font-weight: 650; line-height: 1.02; letter-spacing: -0.032em; color: var(--navy-900);
 }
 .stat-v > .u { font-size: 17px; font-weight: 600; margin-left: 1px; letter-spacing: 0; }
 .stat-s { font-size: 11.5px; color: var(--ink-3); }
@@ -422,7 +444,7 @@ tr:hover .rowact { color: var(--ink-3); }
    state; terminal states read as plain tinted text. */
 .pill {
   display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600;
-  padding: 3px 8px; border-radius: 3px; white-space: nowrap; border: 1px solid transparent;
+  padding: 3px 9px; border-radius: var(--r-pill); white-space: nowrap; border: 1px solid transparent;
   letter-spacing: .01em;
 }
 .pill::before { content: ""; width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
@@ -665,3 +687,47 @@ input[type="file"] { padding: 6px; }
 
 /* A notification row is the control, not just the word at its end. */
 .notif-row:hover { background: var(--navy-050); }
+
+/* ===========================================================================
+   Shape refresh (see the radius and elevation notes in :root)
+   The tokens above carry most of this, but a few controls set their own radius
+   or were tuned against the old tighter geometry.
+   =========================================================================== */
+
+/* Fully rounded secondary controls. A pill button is the clearest single
+   signal that an interface is current rather than merely tidy, and it costs
+   nothing in density at this size. */
+.btn { border-radius: var(--r-pill); padding: 7px 15px; }
+.btn-s { padding: 5px 12px; }
+.btn-xs { padding: 3.5px 10px; }
+.seg { border-radius: var(--r-pill); }
+.search { border-radius: var(--r-pill); padding: 0 14px; }
+.iconbtn { border-radius: var(--r-pill); }
+
+/* Inputs stay rectangular-with-soft-corners: a pill-shaped text field reads as
+   a search box, and most of these are not. */
+.f input, .f select, .f textarea,
+.toolbar select, .toolbar input, .page-bar select { border-radius: var(--r); }
+
+/* The legacy KPI tile is still used by Entities, Reviews and the Calendar.
+   Its figure was sized against 13px body text and now looks undersized beside
+   the newer stat tile. */
+.kpi { padding: var(--s5); }
+.kpi .kv-num { font-size: 30px; font-weight: 650; letter-spacing: -0.028em; margin-top: 8px; }
+.kpi .kl { font-size: 11px; }
+
+/* Icon chips inside stat and priority rows: squarer than the card that holds
+   them, so they read as a badge rather than a nested panel. */
+.stat-ic, .prio-ic { border-radius: 10px; }
+
+/* Tables sit inside cards whose corners are now visible, so the last row must
+   not square off the bottom of the panel. */
+.tw { border-radius: 0 0 var(--r-2) var(--r-2); }
+.dt th:first-child { border-top-left-radius: 0; }
+
+/* Dialogs pick up the largest radius, and their header/footer follow it. */
+.modal-f { border-radius: 0 0 var(--r-3) var(--r-3); }
+
+/* A slightly warmer, larger hero figure — the score is the one number on the
+   dashboard people read from across a room. */
+.hero-v { font-size: 52px; font-weight: 650; }
