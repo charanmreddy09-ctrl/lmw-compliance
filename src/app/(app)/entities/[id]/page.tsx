@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
-  Ic, Dial, Kpi, Note, Spinner, StatusPill, DataTable, type Col,
+  Ic, Dial, Kpi, Modal, Note, Spinner, StatusPill, DataTable, type Col,
   scoreColor, fmtDate, fmtDateTime, daysFromToday, RISK_TONE, useToast, downloadFile,
 } from '@/components/ui';
 import type { ScoreBreakdown } from '@/lib/score';
 import type { SessionUser } from '@/lib/rbac';
+import { NOT_APPLICABLE_REASONS } from '@/lib/constants';
 
 type Entity = {
   id: string; name: string; short_name: string; country_code: string; country_name: string;
@@ -68,6 +69,11 @@ export default function EntityDetail() {
 
   const canExclude = !!user?.permissions.includes('compliance.review');
 
+  const [excludeTarget, setExcludeTarget] = useState<Applic | null>(null);
+  const [exReason, setExReason] = useState('');
+  const [exRemark, setExRemark] = useState('');
+  const [exSaving, setExSaving] = useState(false);
+
   async function toggleExclusion(a: Applic) {
     if (!d) return;
     if (a.excluded) {
@@ -80,19 +86,28 @@ export default function EntityDetail() {
         load();
       } catch (e) { toast(e instanceof Error ? e.message : 'Could not update.', 'bad'); }
     } else {
-      const reason = prompt(`Why does "${a.title}" not apply to ${d.entity.short_name}? (shown in the audit trail)`);
-      if (reason === null) return;
-      try {
-        const res = await fetch('/api/compliance-exclusions', {
-          method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ compliance_id: a.compliance_id, entity_id: d.entity.id, reason: reason || undefined }),
-        });
-        const j = await res.json();
-        if (!res.ok) throw new Error(j.error);
-        toast(`Marked not applicable - ${j.affected} obligation${j.affected === 1 ? '' : 's'} excluded from the count.`, 'ok');
-        load();
-      } catch (e) { toast(e instanceof Error ? e.message : 'Could not update.', 'bad'); }
+      setExReason(''); setExRemark(''); setExcludeTarget(a);
     }
+  }
+
+  async function confirmExcludeEntity() {
+    if (!d || !excludeTarget || !exReason || exSaving) return;
+    if (exReason === 'Others' && !exRemark.trim()) return;
+    const finalReason = exRemark.trim() ? `${exReason}: ${exRemark.trim()}` : exReason;
+    setExSaving(true);
+    try {
+      const res = await fetch('/api/compliance-exclusions', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ compliance_id: excludeTarget.compliance_id, entity_id: d.entity.id, reason: finalReason }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error);
+      toast(`Marked not applicable - ${j.affected} obligation${j.affected === 1 ? '' : 's'} excluded from the count.`, 'ok');
+      setExcludeTarget(null);
+      load();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not update.', 'bad');
+    } finally { setExSaving(false); }
   }
 
   const cats = useMemo(() => (d ? [...new Set(d.obligations.map(o => o.category))].sort() : []), [d]);
@@ -408,6 +423,32 @@ export default function EntityDetail() {
             </div>
           </div>
         </div>
+      )}
+
+      {excludeTarget && (
+        <Modal title="Mark not applicable" sub={excludeTarget.title} onClose={() => setExcludeTarget(null)}
+               footer={<>
+                 <button className="btn" onClick={() => setExcludeTarget(null)} disabled={exSaving}>Cancel</button>
+                 <button className="btn btn-p" onClick={confirmExcludeEntity}
+                         disabled={exSaving || !exReason || (exReason === 'Others' && !exRemark.trim())}>
+                   {exSaving ? 'Saving…' : 'Mark not applicable'}
+                 </button>
+               </>}>
+          <div className="f">
+            <label htmlFor="exr2">Reason <span style={{ color: 'var(--bad-600)' }}>(required)</span></label>
+            <select id="exr2" value={exReason} onChange={e => setExReason(e.target.value)}>
+              <option value="">Select…</option>
+              {NOT_APPLICABLE_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div className="f">
+            <label htmlFor="exm2">
+              Remark {exReason === 'Others' ? <span style={{ color: 'var(--bad-600)' }}>(required)</span> : '(optional)'}
+            </label>
+            <textarea id="exm2" value={exRemark} onChange={e => setExRemark(e.target.value)}
+                      placeholder={exReason === 'Others' ? 'Describe why this does not apply.' : 'Any further detail (optional).'} />
+          </div>
+        </Modal>
       )}
     </>
   );

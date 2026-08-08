@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Note, Spinner, fmtDate, useToast } from '@/components/ui';
+import { Modal, Note, Spinner, fmtDate, useToast } from '@/components/ui';
+import { NOT_APPLICABLE_REASONS } from '@/lib/constants';
 
 type EntityRow = { id: string; name: string; short_name: string; country_name: string };
 type Applic = {
@@ -21,6 +22,10 @@ export default function Exclusions() {
   const [cat, setCat] = useState('');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [excludeTarget, setExcludeTarget] = useState<Applic | null>(null);
+  const [reason, setReason] = useState('');
+  const [remark, setRemark] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetch('/api/entities').then(r => r.json()).then(d => {
@@ -57,19 +62,28 @@ export default function Exclusions() {
         load();
       } catch (e) { toast(e instanceof Error ? e.message : 'Could not update.', 'bad'); }
     } else {
-      const reason = prompt(`Why does "${a.title}" not apply to ${entityName}? (shown in the audit trail)`);
-      if (reason === null) return;
-      try {
-        const res = await fetch('/api/compliance-exclusions', {
-          method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ compliance_id: a.compliance_id, entity_id: entityId, reason: reason || undefined }),
-        });
-        const j = await res.json();
-        if (!res.ok) throw new Error(j.error);
-        toast(`Marked not applicable - ${j.affected} obligation${j.affected === 1 ? '' : 's'} excluded from the count.`, 'ok');
-        load();
-      } catch (e) { toast(e instanceof Error ? e.message : 'Could not update.', 'bad'); }
+      setReason(''); setRemark(''); setExcludeTarget(a);
     }
+  }
+
+  async function confirmExclude() {
+    if (!excludeTarget || !reason || saving) return;
+    if (reason === 'Others' && !remark.trim()) return;
+    const finalReason = remark.trim() ? `${reason}: ${remark.trim()}` : reason;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/compliance-exclusions', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ compliance_id: excludeTarget.compliance_id, entity_id: entityId, reason: finalReason }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error);
+      toast(`Marked not applicable - ${j.affected} obligation${j.affected === 1 ? '' : 's'} excluded from the count.`, 'ok');
+      setExcludeTarget(null);
+      load();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not update.', 'bad');
+    } finally { setSaving(false); }
   }
 
   const cats = useMemo(() => [...new Set(rows.map(r => r.category))].sort(), [rows]);
@@ -130,6 +144,32 @@ export default function Exclusions() {
           </div>
         )}
       </div>
+
+      {excludeTarget && (
+        <Modal title="Mark not applicable" sub={excludeTarget.title} onClose={() => setExcludeTarget(null)}
+               footer={<>
+                 <button className="btn" onClick={() => setExcludeTarget(null)} disabled={saving}>Cancel</button>
+                 <button className="btn btn-p" onClick={confirmExclude}
+                         disabled={saving || !reason || (reason === 'Others' && !remark.trim())}>
+                   {saving ? 'Saving…' : 'Mark not applicable'}
+                 </button>
+               </>}>
+          <div className="f">
+            <label htmlFor="exr">Reason <span style={{ color: 'var(--bad-600)' }}>(required)</span></label>
+            <select id="exr" value={reason} onChange={e => setReason(e.target.value)}>
+              <option value="">Select…</option>
+              {NOT_APPLICABLE_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div className="f">
+            <label htmlFor="exm">
+              Remark {reason === 'Others' ? <span style={{ color: 'var(--bad-600)' }}>(required)</span> : '(optional)'}
+            </label>
+            <textarea id="exm" value={remark} onChange={e => setRemark(e.target.value)}
+                      placeholder={reason === 'Others' ? 'Describe why this does not apply.' : 'Any further detail (optional).'} />
+          </div>
+        </Modal>
+      )}
     </>
   );
 }
