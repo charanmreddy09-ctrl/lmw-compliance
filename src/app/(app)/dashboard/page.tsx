@@ -227,6 +227,11 @@ export default function Dashboard() {
     const n = daysFromToday(x.due_date);
     return n != null && n < 0 && (x.risk_level === 'Critical' || x.risk_level === 'High');
   }).length;
+  const dueThisWeek = d.upcoming.filter(x => {
+    const n = daysFromToday(x.due_date);
+    return n != null && n >= 0 && n <= 7;
+  }).length;
+  const openReturns = o.queryRaised + o.rejected;
   const overdueHref = canReport ? '/reports?r=overdue' : '/register';
   const evidenceHref = canReport ? '/reports?r=evidence' : '/register';
   const reviewHref = canReview ? '/reviews' : isCfo ? '/reports?r=executive' : '/register';
@@ -383,17 +388,47 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* The four figures differ by who is looking. The payload is already
+            scoped to the user's entities, so a preparer's "overdue" is their
+            own work, not the group's - what changes here is which four
+            questions get answered, and where each one leads. */}
         <div className="grid g-4" style={{ gap: 16, alignContent: 'start' }}>
-          <Stat label="Critical risks" value={criticalRisks} icon="alert" tone="bad"
-                sub="Critical or high risk, past due" href={overdueHref} cta="View details" />
-          <Stat label="Overdue obligations" value={o.overdue} icon="clock" tone="warn"
-                sub="Past due, no evidence filed" href={overdueHref} cta="View report" />
-          <Stat label="Pending reviews" value={awaitingReviewer} icon="review" tone="info"
-                sub={isCfo ? 'Across all reviewers' : 'Awaiting a decision'} href={reviewHref}
-                cta={canReview ? 'Open queue' : 'View details'} />
-          <Stat label="Evidence coverage" value={o.evidenceCoverage} unit="%" icon="shield"
-                tone={o.evidenceCoverage >= 90 ? 'ok' : 'warn'}
-                sub="Obligations with a document" href={evidenceHref} cta="View evidence" />
+          {canReview ? (
+            <>
+              <Stat label="Awaiting your review" value={awaitingReviewer} icon="review" tone={awaitingReviewer ? 'info' : 'ok'}
+                    sub="Submitted with evidence" href="/reviews" cta="Open queue" />
+              <Stat label="Open with preparers" value={openReturns} icon="flag" tone={openReturns ? 'warn' : 'ok'}
+                    sub="Queried or rejected" href="/reviews" cta="Open queue" />
+              <Stat label="Overdue obligations" value={o.overdue} icon="clock" tone={o.overdue ? 'warn' : 'ok'}
+                    sub="Past due, no evidence filed" href={overdueHref} cta="View report" />
+              <Stat label="Evidence coverage" value={o.evidenceCoverage} unit="%" icon="shield"
+                    tone={o.evidenceCoverage >= 90 ? 'ok' : 'warn'}
+                    sub="Obligations with a document" href={evidenceHref} cta="View evidence" />
+            </>
+          ) : !isCfo ? (
+            <>
+              <Stat label="Due this week" value={dueThisWeek} icon="cal" tone={dueThisWeek ? 'warn' : 'ok'}
+                    sub="Falling due in the next 7 days" href="/register" cta="Open register" />
+              <Stat label="Overdue" value={o.overdue} icon="alert" tone={o.overdue ? 'bad' : 'ok'}
+                    sub="Past due, not yet filed" href="/register" cta="Open register" />
+              <Stat label="Returned to you" value={openReturns} icon="flag" tone={openReturns ? 'warn' : 'ok'}
+                    sub="Queried or rejected, needs correction" href="/register" cta="Open register" />
+              <Stat label="Awaiting review" value={awaitingReviewer} icon="review" tone="info"
+                    sub="Filed, with a reviewer" href="/register" cta="Open register" />
+            </>
+          ) : (
+            <>
+              <Stat label="Critical risks" value={criticalRisks} icon="alert" tone="bad"
+                    sub="Critical or high risk, past due" href={overdueHref} cta="View details" />
+              <Stat label="Overdue obligations" value={o.overdue} icon="clock" tone="warn"
+                    sub="Past due, no evidence filed" href={overdueHref} cta="View report" />
+              <Stat label="Pending reviews" value={awaitingReviewer} icon="review" tone="info"
+                    sub="Across all reviewers" href={reviewHref} cta="View details" />
+              <Stat label="Evidence coverage" value={o.evidenceCoverage} unit="%" icon="shield"
+                    tone={o.evidenceCoverage >= 90 ? 'ok' : 'warn'}
+                    sub="Obligations with a document" href={evidenceHref} cta="View evidence" />
+            </>
+          )}
         </div>
 
         <div className="card qa">
