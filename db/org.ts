@@ -105,8 +105,9 @@ export const ROLES = [
     description: 'Manages users, entities, jurisdictions and the compliance library.',
     permissions: ['users.manage', 'compliance.library', 'duedate.manage', 'audit.view', 'score.view.all', 'reports.generate'] },
 
-  { id: 'AUDITOR', name: 'Auditor (read only)', system: true,
-    description: 'Read-only access to compliances, evidence and the audit trail.',
+  { id: 'AUDITOR', name: 'Auditor', system: true,
+    description: 'Read-only access to compliances, evidence and the audit trail. Cannot approve, '
+      + 'reject or file, but can leave a comment on any submission for the record.',
     permissions: ['score.view.all', 'reports.generate', 'audit.view'] },
 ];
 
@@ -133,4 +134,5 @@ export const USERS: UserSeed[] = [
   { email: 'preparer@lmw.example', name: 'Preparer — LMW Limited', role: 'PREPARER', entities: ['LMW-IN'], file: true },
   { email: 'reviewer@lmw.example', name: 'Reviewer', role: 'REVIEWER', entities: ['*'], review: true },
   { email: 'cfo@lmw.example', name: 'Group CFO', role: 'CFO', entities: ['*'] },
+  { email: 'auditor@lmw.example', name: 'Auditor', role: 'AUDITOR', entities: ['*'] },
 ];
