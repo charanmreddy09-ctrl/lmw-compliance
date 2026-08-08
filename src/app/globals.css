@@ -637,16 +637,29 @@ input[type="file"] { padding: 6px; }
   display: flex; flex-direction: column; justify-content: center;
   background: var(--surface-2);
 }
+/* The panel is blue, and deepens towards the foot. An earlier version laid a
+   93%-opaque white over the photograph, which removed every trace of colour
+   and left the panel reading as grey card stock - the blue was the whole
+   character of the approved design.
+
+   Light enough at the top for navy text to sit on it, deep at the bottom
+   where the glow sits. The two radial gradients are that glow: a network
+   horizon, drawn rather than shipped as another image. */
 .auth2-side-bg {
   position: absolute; inset: 0;
   background-image:
-    linear-gradient(180deg, rgba(255,255,255,.93), rgba(244,246,250,.97)),
-    repeating-linear-gradient(0deg, var(--line-2) 0 1px, transparent 1px 64px),
-    repeating-linear-gradient(90deg, var(--line-2) 0 1px, transparent 1px 64px),
+    radial-gradient(120% 62% at 50% 118%, rgba(96,165,250,.55) 0%, rgba(37,99,235,.28) 38%, transparent 70%),
+    linear-gradient(168deg,
+      rgba(232,241,253,.92) 0%,
+      rgba(203,224,248,.88) 30%,
+      rgba(120,164,222,.86) 58%,
+      rgba(30,64,133,.92) 82%,
+      rgba(13,31,74,.96) 100%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.10) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.10) 0 1px, transparent 1px 64px),
     url('/auth-background.jpg');
-  background-size: cover, 64px 64px, 64px 64px, cover;
+  background-size: cover, cover, 64px 64px, 64px 64px, cover;
   background-position: center;
-  filter: saturate(.85);
 }
 .auth2-side-content { position: relative; z-index: 1; }
 .auth2-eyebrow {
@@ -910,4 +923,55 @@ input[type="file"] { padding: 6px; }
   .auth2-cardfoot { grid-template-columns: 1fr; }
   .auth2-cardfoot .sep { display: none; }
   .auth2-foot { justify-content: center; text-align: center; }
+}
+
+/* ------------------------------------------------- signin: fit one screen
+   The screen overflowed: the headline alone ran to three lines at 44px and
+   pushed the statistics bar and the card's footer below the fold. Everything
+   below is a size reduction - no element is removed, and nothing moves. */
+.auth2 { min-height: 100vh; align-items: stretch; }
+.auth2-side { padding: clamp(20px, 2.6vw, 38px) clamp(22px, 3.4vw, 48px); justify-content: center; }
+
+.auth2-brand { margin-bottom: clamp(14px, 2vw, 22px); gap: 12px; }
+.auth2-brand img { height: 34px; }
+.auth2-brand .bar { height: 24px; }
+.auth2-brand .tag { font-size: 12px; }
+
+.auth2-eyebrow { font-size: 10.5px; margin-bottom: 8px; letter-spacing: .16em; }
+.auth2-h1 { font-size: clamp(24px, 2.5vw, 36px); line-height: 1.12; max-width: 620px; }
+.auth2-sub { margin-top: 9px; font-size: 14.5px; max-width: 520px; }
+
+.auth2-features { margin-top: clamp(16px, 2.2vw, 26px); gap: 11px; max-width: 640px; }
+.auth2-feature { padding: 13px 13px 11px; border-radius: 12px; }
+.auth2-feature .fi { width: 34px; height: 34px; border-radius: 9px; margin-bottom: 9px; }
+.auth2-feature .ft { font-size: 12.5px; }
+.auth2-feature .fd { font-size: 11px; margin-top: 4px; }
+.auth2-feature::after { margin-top: 10px; width: 22px; }
+
+.auth2-stats { margin-top: 14px; max-width: 640px; border-radius: 12px; }
+.auth2-stat { padding: 11px 12px; gap: 9px; }
+.auth2-stat .sv { font-size: 16px; }
+.auth2-stat .sl { font-size: 10px; }
+
+/* On the deepened background the closing line now sits on dark blue. */
+.auth2-footnote { margin-top: 14px; font-size: 11.5px; color: rgba(255,255,255,.86); }
+.auth2-footnote svg { color: rgba(255,255,255,.86); }
+
+/* The card was taller than the viewport, so its footer was cut off. */
+.auth2-panel { padding: 20px; }
+.auth2-card { padding: 26px 28px; max-width: 396px; border-radius: 16px; }
+.auth2-logo { height: 38px; margin-bottom: 14px; }
+.auth2-card h2 { font-size: 22px; }
+.auth2-card .lead { font-size: 12.5px; margin-bottom: 16px; }
+.auth2-card .f { margin-bottom: 10px; }
+.auth2-security { margin-top: 14px; padding: 9px 11px; font-size: 11px; }
+.auth2-cardfoot { margin-top: 16px; padding-top: 13px; }
+
+.auth2-foot { padding: 9px clamp(20px, 3vw, 40px); font-size: 10.5px; }
+
+/* Below this the panel genuinely cannot hold everything at a readable size,
+   so it scrolls rather than shrinking the type further. */
+@media (max-height: 720px) {
+  .auth2 { min-height: 0; }
+  .auth2-side, .auth2-panel { overflow-y: auto; }
 }
