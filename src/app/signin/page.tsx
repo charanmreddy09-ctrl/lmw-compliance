@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { Ic } from '@/components/ui';
 
 export default function SignInPage() {
@@ -12,6 +11,7 @@ export default function SignInPage() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPw, setShowPw] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,92 +39,80 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="auth">
-      <div className="auth-art">
-        <div>
-          <Link href="/" className="row g8" style={{ textDecoration: 'none' }}>
-            <Ic n="back" s={15} c="#93A8CC" />
-            <span className="tiny" style={{ color: '#93A8CC' }}>Back to overview</span>
-          </Link>
-        </div>
+    <div className="auth2">
+      <div className="auth2-side">
+        <div className="auth2-eyebrow">LMW Limited</div>
+        <h1 className="auth2-h1">LMW Compliance<br />Management Platform</h1>
+        <p className="auth2-sub">One platform. Complete compliance visibility.</p>
 
-        <div>
-          <div className="cap mb12" style={{ color: '#7D93B8' }}>LMW Limited</div>
-          <h1 style={{ color: '#fff', fontSize: 27, lineHeight: 1.3, letterSpacing: '-0.02em', maxWidth: 460 }}>
-            LMW Compliance Management Platform
-          </h1>
-          <p className="mt16" style={{ color: '#A9BCD9', fontSize: 13.5, lineHeight: 1.65, maxWidth: 430 }}>
-            A single record of what each entity is required to file, what it actually
-            filed, the document that proves it, and who reviewed it.
-          </p>
-
-          <div className="mt24" style={{ display: 'grid', gap: 10, maxWidth: 430 }}>
-            {[
-              ['Evidence, not assurances', 'Every obligation carries the filed document.'],
-              ['Reviewed before it counts', 'Only approved filings lift the compliance score.'],
-              ['Live across every country you operate in', 'Federal and state/province level, updated from Excel in minutes.'],
-            ].map(([t, d]) => (
-              <div className="row-t g8" key={t}>
-                <span style={{ marginTop: 2, color: '#7FA3D9' }}><Ic n="check2" s={14} /></span>
-                <div>
-                  <div style={{ color: '#fff', fontSize: 12.5, fontWeight: 600 }}>{t}</div>
-                  <div style={{ color: '#8FA5C6', fontSize: 11.5 }}>{d}</div>
-                </div>
+        <div className="auth2-features">
+          {[
+            { icon: 'doc' as const, t: 'Centralised Compliance', d: 'All obligations. All entities. One trusted record.' },
+            { icon: 'shield' as const, t: 'Verified & Reviewed', d: 'Every filing reviewed. Only approved counts.' },
+            { icon: 'globe' as const, t: 'Global. Local. Real-time.', d: 'Live compliance status across every location.' },
+          ].map(f => (
+            <div className="auth2-feature" key={f.t}>
+              <span className="fi"><Ic n={f.icon} s={16} /></span>
+              <div>
+                <div className="ft">{f.t}</div>
+                <div className="fd">{f.d}</div>
               </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="tiny" style={{ color: '#6B80A6' }}>
-          Authorised users only. All activity is recorded in the audit trail.
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="auth-panel">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="https://www.lmwglobal.com/images/lmw-logo.png" alt="LMW"
-             style={{ height: 34, width: 'auto', marginBottom: 26 }} />
+      <div className="auth2-panel">
+        <div className="auth2-card">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/lmw-logo-official.png" alt="LMW" className="auth2-logo" />
 
-        <h2 style={{ fontSize: 19 }}>Sign in</h2>
-        <p className="small muted mb16">Use the email address registered for you on the platform.</p>
+          <h2>Welcome back</h2>
+          <p className="lead">Sign in to continue to your account.</p>
 
-        <form onSubmit={submit} noValidate>
-          <div className="f">
-            <label htmlFor="email">Email address</label>
-            <input id="email" type="email" autoComplete="username" required
-                   value={email} onChange={e => setEmail(e.target.value)}
-                   placeholder="name@lmw.example" disabled={busy} />
-          </div>
+          <form onSubmit={submit} noValidate>
+            <div className="f">
+              <label htmlFor="email">Email address</label>
+              <input id="email" type="email" autoComplete="username" required
+                     value={email} onChange={e => setEmail(e.target.value)}
+                     placeholder="name@lmw.example" disabled={busy} />
+            </div>
 
-          <div className="f">
-            <label htmlFor="pw">Password</label>
-            <input id="pw" type="password" autoComplete="current-password" required
-                   value={password} onChange={e => setPassword(e.target.value)}
-                   placeholder="••••••••••" disabled={busy} />
-          </div>
-
-          {/* fixed slot so the form does not jump when an error appears */}
-          <div style={{ minHeight: 44, marginBottom: 4 }}>
-            {error && (
-              <div className="note note-b">
-                <span style={{ marginTop: 1 }}><Ic n="alert" s={15} /></span>
-                <div>{error}</div>
+            <div className="f">
+              <label htmlFor="pw">Password</label>
+              <div className="auth2-pw">
+                <input id="pw" type={showPw ? 'text' : 'password'} autoComplete="current-password" required
+                       value={password} onChange={e => setPassword(e.target.value)}
+                       placeholder="••••••••••" disabled={busy} />
+                <button type="button" className="auth2-pw-toggle"
+                        onClick={() => setShowPw(v => !v)}
+                        aria-label={showPw ? 'Hide password' : 'Show password'}>
+                  {showPw ? 'Hide' : 'Show'}
+                </button>
               </div>
-            )}
+            </div>
+
+            {/* fixed slot so the form does not jump when an error appears */}
+            <div style={{ minHeight: 44, marginBottom: 4 }}>
+              {error && (
+                <div className="note note-b">
+                  <span style={{ marginTop: 1 }}><Ic n="alert" s={15} /></span>
+                  <div>{error}</div>
+                </div>
+              )}
+            </div>
+
+            <button type="submit" className="btn btn-p btn-block" disabled={busy || !email || !password}>
+              {busy ? 'Signing in…' : 'Sign in'}
+            </button>
+          </form>
+
+          <div className="auth2-security">
+            <span style={{ marginTop: 1 }}>🔒</span>
+            <div>
+              <strong>Authorised users only.</strong> Activity is recorded in the audit trail.
+            </div>
           </div>
-
-          <button type="submit" className="btn btn-p btn-block" disabled={busy || !email || !password}>
-            {busy ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
-
-        <div className="mt24" style={{ borderTop: '1px solid var(--line-2)', paddingTop: 14 }}>
-          <p className="tiny muted mb0">
-            Accounts are created by the CFO’s office or a platform administrator using your
-            company email address. A new account cannot sign in until it has been approved.
-            If you cannot get in, contact your administrator rather than retrying - repeated
-            failures are logged.
-          </p>
         </div>
       </div>
     </div>

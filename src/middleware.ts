@@ -52,5 +52,12 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|company-logo.png).*)'],
+  /* Any static image in /public must stay reachable by a signed-out visitor -
+     the signin page's own logo is one, and this previously only excluded
+     company-logo.png by exact name, so the signin page's actual logo asset
+     was silently redirected through the auth guard back to /signin itself,
+     rendering as a broken image stretched into its fixed box. Excluding by
+     extension covers every current and future asset in /public instead of
+     requiring each filename to be added here by hand. */
+  matcher: ['/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:png|jpg|jpeg|svg|webp|gif|ico)$).*)'],
 };

@@ -622,11 +622,101 @@ input[type="file"] { padding: 6px; }
 .chk .cl { font-weight: 600; }
 .chk .cd { color: var(--ink-3); font-size: 12px; }
 
-/* --------------------------------------------------------- signin/landing */
-.auth { min-height: 100vh; display: grid; grid-template-columns: 1fr 448px; }
-.auth-art { background: var(--navy-900); color: var(--navy-200); padding: 48px 52px; display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; }
-.auth-panel { background: var(--surface); display: flex; flex-direction: column; justify-content: center; padding: 48px 44px; }
-@media (max-width: 900px) { .auth { grid-template-columns: 1fr; } .auth-art { display: none; } }
+/* --------------------------------------------------------------- signin
+   Light, corporate two-column layout: brand story + three feature blocks on
+   the left over a near-invisible engineering-grid texture, a plain white
+   card on the right holding the form. No photography exists in the project
+   for the background, so the "industrial" texture is a pure-CSS blueprint
+   grid rather than a stock/generated image standing in for one. */
+.auth2 {
+  min-height: 100vh; display: grid; grid-template-columns: 1fr 460px;
+  background: var(--surface-2);
+}
+.auth2-side {
+  position: relative; overflow: hidden;
+  padding: clamp(32px, 5vw, 64px) clamp(28px, 6vw, 72px);
+  display: flex; flex-direction: column; justify-content: center;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.94), rgba(244,246,250,.97)),
+    repeating-linear-gradient(0deg, var(--line-2) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(90deg, var(--line-2) 0 1px, transparent 1px 64px);
+}
+.auth2-side::before {
+  /* a single soft blue accent shape, standing in for "precision engineering"
+     without needing an actual photograph */
+  content: ''; position: absolute; top: -180px; right: -180px;
+  width: 420px; height: 420px; border-radius: 50%;
+  background: radial-gradient(circle, var(--navy-100) 0%, transparent 70%);
+}
+.auth2-eyebrow {
+  font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--navy-600); margin-bottom: 14px; position: relative;
+}
+.auth2-h1 {
+  font-size: clamp(30px, 3.6vw, 44px); line-height: 1.15; letter-spacing: -.02em;
+  color: var(--navy-900); font-weight: 700; max-width: 480px; position: relative;
+}
+.auth2-sub {
+  margin-top: 14px; font-size: 17px; line-height: 1.5; color: var(--ink-3);
+  max-width: 420px; position: relative;
+}
+.auth2-features { margin-top: 36px; display: grid; gap: 18px; max-width: 420px; position: relative; }
+.auth2-feature { display: flex; gap: 13px; align-items: flex-start; }
+.auth2-feature .fi {
+  flex-shrink: 0; width: 32px; height: 32px; border-radius: 8px;
+  background: var(--navy-050); color: var(--navy-700);
+  display: flex; align-items: center; justify-content: center;
+}
+.auth2-feature .ft { font-size: 14.5px; font-weight: 600; color: var(--navy-900); }
+.auth2-feature .fd { font-size: 13px; color: var(--ink-3); margin-top: 1px; line-height: 1.4; }
+
+.auth2-panel { display: flex; align-items: center; justify-content: center; padding: 32px; background: var(--surface); }
+.auth2-card {
+  width: 100%; max-width: 420px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 18px;
+  box-shadow: 0 2px 6px rgba(20,33,56,.05), 0 12px 32px rgba(20,33,56,.06);
+  padding: 40px 36px;
+  animation: auth2In .35s ease-out;
+}
+@keyframes auth2In { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.auth2-logo { height: 40px; width: auto; max-width: 160px; object-fit: contain; display: block; margin-bottom: 28px; }
+.auth2-card h2 { font-size: 26px; letter-spacing: -.01em; color: var(--navy-900); }
+.auth2-card .lead { font-size: 13.5px; color: var(--ink-3); margin-top: 4px; margin-bottom: 24px; }
+
+.auth2-pw { position: relative; }
+.auth2-pw input { padding-right: 40px; }
+.auth2-pw-toggle {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer; padding: 6px 8px;
+  font-size: 11.5px; font-weight: 600; color: var(--navy-600);
+}
+.auth2-pw-toggle:hover { color: var(--navy-800); }
+
+.auth2-security {
+  margin-top: 22px; display: flex; gap: 8px; align-items: flex-start;
+  background: var(--navy-050); border: 1px solid var(--navy-100); border-radius: 10px;
+  padding: 10px 12px; font-size: 11.5px; color: var(--navy-700); line-height: 1.45;
+}
+
+@media (max-width: 1024px) {
+  .auth2 { grid-template-columns: 1fr 400px; }
+  .auth2-side { padding: 40px 36px; }
+  .auth2-features { margin-top: 26px; gap: 14px; }
+}
+@media (max-width: 768px) {
+  .auth2 { grid-template-columns: 1fr; }
+  .auth2-side { padding: 28px 24px 8px; background-image: none; }
+  .auth2-side::before { display: none; }
+  .auth2-h1 { max-width: none; font-size: clamp(24px, 6vw, 30px); }
+  .auth2-sub { max-width: none; }
+  .auth2-features { display: none; }
+  .auth2-panel { padding: 16px 20px 32px; }
+  .auth2-card { box-shadow: none; border: none; padding: 24px 4px; }
+}
+@media (max-width: 480px) {
+  .auth2-card { padding: 20px 2px; }
+  .auth2-h1 { font-size: 22px; }
+}
 
 .land { min-height: 100vh; display: flex; flex-direction: column; background: var(--surface); }
 .land-nav { height: 64px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 var(--s6); position: sticky; top: 0; background: var(--surface); z-index: 20; }
