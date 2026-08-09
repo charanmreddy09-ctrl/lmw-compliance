@@ -3,28 +3,27 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Ic } from '@/components/ui';
+import '../signin.css';
 
-/* The statistics bar carries the platform's actual scope, not round numbers
-   chosen because they look impressive. LMW is two legal entities in two
-   countries; the reference design showed "25+ countries / 500+ entities /
-   10K+ compliances", which would be a fabrication on this deployment and the
-   first thing a CFO would catch. The obligation count matches the seeded
-   library, and "Approved only" is a statement about how the score is derived
-   rather than a metric. Update these here if the group's scope changes. */
+/* The scope bar carries this deployment's actual figures. LMW is two legal
+   entities in two countries; a login screen claiming "25+ countries, 500+
+   entities" would be contradicted by the register on the other side of it,
+   and that is the first thing a CFO checks. "Approved only" is a statement
+   about how the score is derived, not a metric dressed up as one. */
 const SCOPE = [
-  { icon: 'globe', value: '2', label: 'Countries' },
-  { icon: 'building', value: '2', label: 'Legal entities' },
-  { icon: 'doc', value: '95+', label: 'Statutory obligations' },
-  { icon: 'shield', value: 'Approved only', label: 'Score basis' },
+  { icon: 'building', value: '2', label: 'Countries', sub: 'Active presence' },
+  { icon: 'users', value: '2', label: 'Legal entities', sub: 'Registered' },
+  { icon: 'doc', value: '95+', label: 'Statutory obligations', sub: 'Tracked and managed' },
+  { icon: 'shield', value: 'Approved only', label: '', sub: 'Activity through defined workflow' },
 ] as const;
 
 const PROPOSITIONS = [
-  { icon: 'doc' as const, title: 'Centralised compliance',
-    body: 'Every obligation, every entity, one record of what was filed.' },
+  { icon: 'list' as const, title: 'Centralised compliance',
+    body: 'All obligations across entities in one trusted record.' },
   { icon: 'shield' as const, title: 'Verified and reviewed',
-    body: 'A reviewer accepts the evidence before anything counts.' },
-  { icon: 'globe' as const, title: 'Group and local',
-    body: 'Live position by country, entity and law.' },
+    body: 'Every filing is reviewed and approved by authorised personnel.' },
+  { icon: 'globe' as const, title: 'Global. Local. Real-time.',
+    body: 'Live compliance status across every geography and entity.' },
 ];
 
 export default function SignInPage() {
@@ -63,140 +62,129 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="auth2">
-      <div className="auth2-side">
-        <div className="auth2-side-bg" />
-        <div className="auth2-side-content">
-          <div className="auth2-brand">
+    <div className="lg">
+      <div className="lg-bg" />
+
+      <div className="lg-inner">
+        <div>
+          <div className="lg-brand">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/lmw-logo-official.png" alt="LMW" />
+            <img src="/lmw-logo-white.png" alt="LMW"
+                 onError={e => { (e.currentTarget as HTMLImageElement).src = '/lmw-logo-official.png'; }} />
             <span className="bar" />
-            <span className="tag">Statutory compliance, evidenced.</span>
+            <span className="tag">Engineering a Better Tomorrow</span>
           </div>
 
-          <div className="auth2-eyebrow">Welcome to</div>
-          <h1 className="auth2-h1">
-            LMW Global Compliance<br />Management Platform
-          </h1>
-          <p className="auth2-sub">One platform. Complete compliance visibility.</p>
+          <div className="lg-eyebrow">Welcome to</div>
+          <h1 className="lg-h1">LMW Global Compliance<br />Management Platform</h1>
+          <div className="lg-rule" />
+          <p className="lg-sub">One platform. Complete compliance visibility.</p>
 
-          <div className="auth2-features">
-            {PROPOSITIONS.map(f => (
-              <div className="auth2-feature" key={f.title}>
-                <span className="fi"><Ic n={f.icon} s={17} /></span>
-                <div className="ft">{f.title}</div>
-                <div className="fd">{f.body}</div>
+          <div className="lg-cards">
+            {PROPOSITIONS.map(p => (
+              <div className="lg-card" key={p.title}>
+                <span className="ic"><Ic n={p.icon} s={19} /></span>
+                <div className="t">{p.title}</div>
+                <div className="d">{p.body}</div>
               </div>
             ))}
           </div>
 
-          <div className="auth2-stats">
+          <div className="lg-stats">
             {SCOPE.map(s => (
-              <div className="auth2-stat" key={s.label}>
-                <span className="si"><Ic n={s.icon} s={18} /></span>
+              <div className="lg-stat" key={s.sub}>
+                <span className="si"><Ic n={s.icon} s={19} /></span>
                 <div style={{ minWidth: 0 }}>
                   <div className="sv">{s.value}</div>
-                  <div className="sl">{s.label}</div>
+                  {s.label && <div className="sl">{s.label}</div>}
+                  <div className="ss">{s.sub}</div>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="auth2-footnote">
-            <Ic n="shield" s={14} /> Evidence-backed. Auditable. Access-controlled.
+          <div className="lg-trust">
+            <Ic n="shield" s={16} /> Secure. Reliable. Compliant.
           </div>
         </div>
-      </div>
 
-      <div className="auth2-panel">
-        <div className="auth2-card">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/lmw-logo-official.png" alt="LMW" className="auth2-logo" />
+        <div className="lg-panel">
+          <div className="lg-form">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/lmw-logo-official.png" alt="LMW" />
 
-          <h2>Welcome back</h2>
-          <p className="lead">Sign in to continue to your account.</p>
+            <h2>Welcome back</h2>
+            <p className="lead">Sign in to continue to your account.</p>
 
-          <form onSubmit={submit} noValidate>
-            <div className="f">
-              <label htmlFor="email">Email address</label>
-              <div className="auth2-field">
-                <span className="ficon"><Ic n="send" s={15} /></span>
+            <form onSubmit={submit} noValidate>
+              <label className="lg-label" htmlFor="email">Email address</label>
+              <div className="lg-input">
+                <span className="ic"><Ic n="send" s={16} /></span>
                 <input id="email" type="email" autoComplete="username" required
                        value={email} onChange={e => setEmail(e.target.value)}
-                       placeholder="name@lmw.example" disabled={busy} />
+                       placeholder="Enter your email" disabled={busy} />
               </div>
-            </div>
 
-            <div className="f">
-              <div className="row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <label htmlFor="pw">Password</label>
-                <button type="button" className="auth2-forgot" onClick={() => setShowForgot(v => !v)}>
+              <div className="lg-labelrow">
+                <label className="lg-label" htmlFor="pw">Password</label>
+                <button type="button" className="lg-forgot" onClick={() => setShowForgot(v => !v)}>
                   Forgot password?
                 </button>
               </div>
-              <div className="auth2-pw">
+              <div className="lg-input has-toggle">
+                <span className="ic"><Ic n="lock" s={16} /></span>
                 <input id="pw" type={showPw ? 'text' : 'password'} autoComplete="current-password" required
                        value={password} onChange={e => setPassword(e.target.value)}
-                       placeholder="••••••••••" disabled={busy} />
-                <button type="button" className="auth2-pw-toggle"
-                        onClick={() => setShowPw(v => !v)}
+                       placeholder="Enter your password" disabled={busy} />
+                <button type="button" className="lg-eye" onClick={() => setShowPw(v => !v)}
                         aria-label={showPw ? 'Hide password' : 'Show password'}>
-                  <Ic n="eye" s={16} />
+                  <Ic n="eye" s={17} />
                 </button>
               </div>
+
               {showForgot && (
-                <p className="tiny muted mt8 mb0">
+                <p className="tiny muted" style={{ marginTop: -8, marginBottom: 14 }}>
                   Password resets are handled by your administrator - contact your CFO&apos;s office or
                   platform administrator to have it reset.
                 </p>
               )}
-            </div>
 
-            {/* fixed slot so the form does not jump when an error appears */}
-            <div style={{ minHeight: 44, marginBottom: 4 }}>
-              {error && (
-                <div className="note note-b">
-                  <span style={{ marginTop: 1 }}><Ic n="alert" s={15} /></span>
-                  <div>{error}</div>
-                </div>
-              )}
-            </div>
-
-            <button type="submit" className="btn btn-p btn-block" disabled={busy || !email || !password}>
-              {busy ? 'Signing in…' : 'Sign in'}
-            </button>
-          </form>
-
-          <div className="auth2-security">
-            <span style={{ marginTop: 1 }}><Ic n="shield" s={14} /></span>
-            <div>
-              <strong>Authorised users only.</strong> Every action is recorded in the audit trail.
-            </div>
-          </div>
-
-          <div className="auth2-cardfoot">
-            <div className="item">
-              <Ic n="info" s={16} />
-              <div>
-                <div className="lbl">Need help?</div>
-                <div className="val">Contact your administrator</div>
+              <div className="lg-err">
+                {error && (
+                  <div>
+                    <span style={{ marginTop: 1 }}><Ic n="alert" s={15} /></span>
+                    <div>{error}</div>
+                  </div>
+                )}
               </div>
-            </div>
-            <span className="sep" />
-            <div className="item">
-              <Ic n="shield" s={16} />
+
+              <button type="submit" className="lg-submit" disabled={busy || !email || !password}>
+                {busy ? 'Signing in…' : 'Sign in'}
+              </button>
+            </form>
+
+            <div className="lg-notice">
+              <Ic n="lock" s={17} />
               <div>
-                <div className="lbl">Security first</div>
-                <div className="val">Access is scoped to your role</div>
+                <div className="t">Authorised users only.</div>
+                <div className="d">All activities are logged and monitored.</div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="auth2-foot">
-        <span>© {new Date().getFullYear()} LMW Limited. All rights reserved.</span>
-        <span>Version 1.2 · Internal use only</span>
+      <div className="lg-foot">
+        <span>© {new Date().getFullYear()} LMW Global Compliance Management Platform. All rights reserved.</span>
+        <span className="lg-foot-links">
+          <span className="row g6"><Ic n="globe" s={15} /> English</span>
+          <span className="sep" />
+          <span>Privacy Policy</span>
+          <span className="sep" />
+          <span>Terms of Use</span>
+          <span className="sep" />
+          <span>Support</span>
+        </span>
       </div>
     </div>
   );
