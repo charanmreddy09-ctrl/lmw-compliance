@@ -68,9 +68,12 @@ export default function SignInPage() {
       <div className="lg-inner">
         <div>
           <div className="lg-brand">
+            {/* The mark is a single-colour navy artwork, so it is knocked out
+                to white in CSS rather than shipping a second file - there is
+                no white variant in public/, and an onError fallback can miss
+                if the load fails before hydration attaches the handler. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/lmw-logo-white.png" alt="LMW"
-                 onError={e => { (e.currentTarget as HTMLImageElement).src = '/lmw-logo-official.png'; }} />
+            <img src="/lmw-logo-official.png" alt="LMW" className="knockout" />
             <span className="bar" />
             <span className="tag">Engineering a Better Tomorrow</span>
           </div>

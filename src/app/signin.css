@@ -41,8 +41,10 @@
 }
 
 /* -------------------------------------------------------------------- left */
-.lg-brand { display: flex; align-items: center; gap: 16px; margin-bottom: clamp(26px, 5vh, 60px); }
-.lg-brand img { height: 42px; width: auto; object-fit: contain; }
+.lg-brand { display: flex; align-items: center; gap: 16px; margin-bottom: clamp(20px, 3.5vh, 40px); }
+.lg-brand img { height: 40px; width: auto; object-fit: contain; }
+/* Navy single-colour artwork knocked out to white for the dark ground. */
+.lg-brand img.knockout { filter: brightness(0) invert(1); }
 .lg-brand .bar { width: 1px; height: 26px; background: rgba(255,255,255,.3); }
 .lg-brand .tag { font-size: 13px; color: rgba(255,255,255,.8); }
 
@@ -54,19 +56,19 @@
   font-size: clamp(30px, 3.3vw, 46px); line-height: 1.14; letter-spacing: -.022em;
   color: #fff; font-weight: 700; max-width: 620px; margin: 0;
 }
-.lg-rule { width: 54px; height: 3px; border-radius: 2px; background: #3E7BC4; margin: 20px 0 18px; }
+.lg-rule { width: 54px; height: 3px; border-radius: 2px; background: #3E7BC4; margin: 16px 0 14px; }
 .lg-sub { font-size: 16px; line-height: 1.5; color: rgba(255,255,255,.74); max-width: 520px; margin: 0; }
 
 .lg-cards {
-  margin-top: clamp(22px, 4vh, 40px);
+  margin-top: clamp(18px, 2.6vh, 28px);
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; max-width: 690px;
 }
 .lg-card {
   background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.13);
-  border-radius: 12px; padding: 20px 18px; backdrop-filter: blur(8px);
+  border-radius: 12px; padding: 16px 15px; backdrop-filter: blur(8px);
 }
 .lg-card .ic {
-  width: 44px; height: 44px; border-radius: 12px; margin-bottom: 14px;
+  width: 40px; height: 40px; border-radius: 11px; margin-bottom: 11px;
   background: rgba(90,150,225,.18); color: #7FB4F5;
   display: flex; align-items: center; justify-content: center;
 }
@@ -74,12 +76,12 @@
 .lg-card .d { font-size: 12.5px; color: rgba(255,255,255,.66); line-height: 1.5; margin-top: 8px; }
 
 .lg-stats {
-  margin-top: 18px; max-width: 690px;
+  margin-top: 14px; max-width: 690px;
   display: grid; grid-template-columns: repeat(4, 1fr);
   background: rgba(255,255,255,.055); border: 1px solid rgba(255,255,255,.13);
   border-radius: 12px; backdrop-filter: blur(8px); overflow: hidden;
 }
-.lg-stat { display: flex; gap: 12px; padding: 18px 16px; border-right: 1px solid rgba(255,255,255,.1); }
+.lg-stat { display: flex; gap: 11px; padding: 14px 14px; border-right: 1px solid rgba(255,255,255,.1); }
 .lg-stat:last-child { border-right: none; }
 .lg-stat .si { color: #7FB4F5; flex-shrink: 0; margin-top: 2px; }
 .lg-stat .sv { font-size: 22px; font-weight: 700; color: #fff; line-height: 1.05; letter-spacing: -.02em; }
@@ -87,7 +89,7 @@
 .lg-stat .ss { font-size: 11px; color: rgba(255,255,255,.55); margin-top: 3px; line-height: 1.3; }
 
 .lg-trust {
-  margin-top: clamp(18px, 3vh, 30px); display: flex; align-items: center; gap: 9px;
+  margin-top: clamp(14px, 2vh, 22px); display: flex; align-items: center; gap: 9px;
   font-size: 12.5px; color: rgba(255,255,255,.66);
 }
 .lg-trust svg { color: #7FB4F5; }
@@ -97,17 +99,17 @@
 .lg-form {
   width: 100%; max-width: 452px; background: #fff; border-radius: 16px;
   box-shadow: 0 24px 64px rgba(3,10,24,.45), 0 2px 8px rgba(3,10,24,.2);
-  padding: 40px 40px 34px;
+  padding: 34px 34px 28px;
 }
-.lg-form > img { height: 46px; width: auto; object-fit: contain; display: block; margin-bottom: 26px; }
+.lg-form > img { height: 42px; width: auto; object-fit: contain; display: block; margin-bottom: 20px; }
 .lg-form h2 { font-size: 28px; font-weight: 700; letter-spacing: -.02em; color: var(--navy-900); }
-.lg-form .lead { font-size: 14px; color: var(--ink-3); margin: 6px 0 26px; }
+.lg-form .lead { font-size: 14px; color: var(--ink-3); margin: 6px 0 22px; }
 
 .lg-label { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 7px; }
 .lg-labelrow { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 7px; }
 .lg-labelrow .lg-label { margin-bottom: 0; }
 
-.lg-input { position: relative; margin-bottom: 18px; }
+.lg-input { position: relative; margin-bottom: 15px; }
 .lg-input .ic {
   position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
   color: var(--ink-4); display: flex; pointer-events: none;
@@ -140,7 +142,7 @@
 .lg-submit:disabled { opacity: .5; cursor: not-allowed; }
 
 .lg-notice {
-  margin-top: 22px; display: flex; gap: 11px; align-items: flex-start;
+  margin-top: 18px; display: flex; gap: 11px; align-items: flex-start;
   background: #EEF3FB; border-radius: 10px; padding: 14px 15px;
 }
 .lg-notice svg { color: var(--navy-700); margin-top: 1px; flex-shrink: 0; }
