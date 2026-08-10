@@ -7,6 +7,7 @@ import {
   Ic, Modal, Note, Spinner, StatusPill, DataTable, ValidationChecks, type Col,
   fmtDate, fmtDateTime, fmtBytes, daysFromToday, RISK_TONE, useToast, downloadFile,
 } from '@/components/ui';
+import { Stepper, BadgeV2, type StepperStep } from '@/components/ui2';
 import type { SessionUser } from '@/lib/rbac';
 import { fyStartYearOf, fyLabel, today } from '@/lib/dates';
 import { MIN_REMARK_LENGTH } from '@/lib/constants';
@@ -53,6 +54,31 @@ type Trail = {
   to_status: string | null; created_at: string; actor: string | null; actor_role: string | null;
   target_user: string | null;
 };
+
+/* Pure visual derivation of the lifecycle stepper from the existing status/
+   workflow_stage fields - no schema change, no new data. */
+function deriveStepperState(o: Obl): StepperStep[] {
+  const s = o.status;
+  const w = o.workflow_stage;
+  const prepared = ['Submitted', 'Under Review', 'Query Raised', 'Approved', 'Rejected'].includes(s) || !!o.filed_date;
+  const preparedActive = ['Not Started', 'Evidence Pending'].includes(s) && w === 'preparer';
+  const reviewed = s === 'Approved' || w === 'country_head' || w === 'closed' || s === 'Rejected';
+  const reviewedActive = w === 'reviewer';
+  const approved = s === 'Approved' && w === 'closed';
+  const approvedActive = w === 'country_head';
+  return [
+    { id: 'created', label: 'Created', state: 'done' },
+    { id: 'assigned', label: 'Assigned', state: o.assigned_to ? 'done' : 'pending' },
+    { id: 'prepared', label: 'Prepared', state: prepared ? 'done' : preparedActive ? 'active' : 'pending' },
+    {
+      id: 'reviewed', label: 'Reviewed',
+      state: reviewed ? 'done' : (reviewedActive || s === 'Query Raised') ? 'active' : 'pending',
+      tone: s === 'Rejected' ? 'bad' : undefined,
+      caption: s === 'Query Raised' ? 'Query raised' : undefined,
+    },
+    { id: 'approved', label: 'Approved', state: approved ? 'done' : approvedActive ? 'active' : 'pending' },
+  ];
+}
 
 function RegisterInner() {
   const search = useSearchParams();
@@ -242,10 +268,21 @@ function RegisterInner() {
       <div className="card">
         <div className="card-h">
           <h3>Compliance register</h3>
-          <span className="tiny muted">{counts.actionable} awaiting action · click a row to file or review the history</span>
+          <span className="tiny muted row g6" style={{ alignItems: 'center' }}>
+            {counts.actionable > 0 && <BadgeV2 tone="warn">{counts.actionable} awaiting action</BadgeV2>}
+            click a row to file or review the history
+          </span>
         </div>
         {loading
-          ? <div className="card-b"><Spinner label="Loading obligations…" /></div>
+          ? <div className="card-b" style={{ display: 'grid', gap: 10 }}>
+              {Array.from({ length: 8 }, (_, r) => (
+                <div key={r} style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12 }}>
+                  {Array.from({ length: 6 }, (_, c) => (
+                    <div key={c} className="skel skel-text" style={{ width: c === 0 ? '80%' : '60%' }} />
+                  ))}
+                </div>
+              ))}
+            </div>
           : <DataTable<Obl & Record<string, unknown>>
               rows={shown as (Obl & Record<string, unknown>)[]}
               cols={cols} rowKey={r => r.id} pageSize={40}
@@ -466,6 +503,9 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
 
       <div className="grid" style={{ gridTemplateColumns: '1.15fr 1fr', gap: 16 }}>
         <div>
+          {o.status !== 'Not Applicable' && (
+            <div className="mb16"><Stepper steps={deriveStepperState(o)} /></div>
+          )}
           <div className="row g8 wrap mb12">
             <StatusPill s={o.status} />
             <span className={`pill ${RISK_TONE[o.risk_level] ?? 'p-mute'}`}>{o.risk_level} risk</span>
