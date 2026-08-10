@@ -10,6 +10,7 @@
    redesign has shipped and settled.
    =========================================================================== */
 import React, { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { Ic, scoreColor, initials, type TrailEntry } from './ui';
 
 /* ------------------------------------------------------------- reduced motion */
@@ -326,4 +327,62 @@ export function QuickTile({ icon, label, onClick, href }: { icon: string; label:
   const body = <><span className="qi"><Ic n={icon} s={17} /></span><span className="ql">{label}</span></>;
   if (href) return <a href={href} className="qa-tile">{body}</a>;
   return <button className="qa-tile" onClick={onClick} type="button">{body}</button>;
+}
+
+/* ------------------------------------------------------------------ sparkline
+   Draws only from real series data passed in - there is no per-KPI history
+   for most of the dashboard's tiles, so this is used where one genuinely
+   exists (the score trend) rather than faked for every card. */
+export function Sparkline({ points, width = 64, height = 24, stroke = '#fff' }: {
+  points: number[]; width?: number; height?: number; stroke?: string;
+}) {
+  if (points.length < 2) return null;
+  const min = Math.min(...points), max = Math.max(...points);
+  const range = max - min || 1;
+  const x = (i: number) => (i / (points.length - 1)) * width;
+  const y = (v: number) => height - ((v - min) / range) * height;
+  const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(p).toFixed(1)}`).join(' ');
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: 'block', overflow: 'visible' }}>
+      <path d={d} fill="none" stroke={stroke} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" opacity={0.9} />
+    </svg>
+  );
+}
+
+/** A compact real-data alternative to a sparkline for KPI tiles that have no
+    time series - a small proportion bar built from today's actual counts
+    (e.g. "3 of 75") rather than an invented trend line. */
+export function MiniProportion({ value, of, color = 'rgba(255,255,255,.9)' }: { value: number; of: number; color?: string }) {
+  const pct = of > 0 ? Math.min(100, Math.round((value / of) * 100)) : 0;
+  return (
+    <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,.25)', overflow: 'hidden', width: '100%' }}>
+      <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 2, transition: 'width .8s var(--ease-out)' }} />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ vivid KPI card
+   The "colourful KPI card" the redesign asks for - a gradient fill instead
+   of a white card with a tinted icon chip, still built on AnimatedNumber for
+   the count-up and the same .card-link hover lift as every other card. */
+export function VividKpiCard({ label, value, unit, sub, icon, gradient, href, decimals = 0, footer }: {
+  label: string; value: number; unit?: string; sub?: React.ReactNode; icon: string;
+  gradient: string; href?: string; decimals?: number; footer?: React.ReactNode;
+}) {
+  const body = (
+    <div className="vkpi" style={{ background: gradient }}>
+      <div className="vkpi-decor" />
+      <div className="vkpi-top">
+        <span className="vkpi-label">{label}</span>
+        <span className="vkpi-ic"><Ic n={icon} s={17} c="#fff" /></span>
+      </div>
+      <div className="vkpi-val">
+        <AnimatedNumber value={value} decimals={decimals} />{unit}
+      </div>
+      {sub && <div className="vkpi-sub">{sub}</div>}
+      {footer && <div className="vkpi-foot">{footer}</div>}
+    </div>
+  );
+  if (!href) return body;
+  return <Link href={href} className="vkpi-link">{body}</Link>;
 }
