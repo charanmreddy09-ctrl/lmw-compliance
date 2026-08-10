@@ -18,7 +18,7 @@ function parseDateSafe(v: string): Date {
 }
 
 type Obl = {
-  id: string; reference: string; period_label: string; due_date: string;
+  id: string; reference: string; period_label: string; due_date: string; fy_start_year: number;
   original_due_date: string | null; filed_date: string | null; status: string;
   workflow_stage: string; delay_days: number; penalty_exposure: string | null; notes: string | null;
   compliance_id: string; code: string; title: string; applicable_law: string | null;
@@ -64,23 +64,39 @@ function RegisterInner() {
   const [err, setErr] = useState<string | null>(null);
 
   const [entity, setEntity] = useState(search.get('entity') ?? '');
-  const [status, setStatus] = useState('');
+  /* Deep-linked from a dashboard tile's count (e.g. "Pending reviews" ->
+     Submitted,Under Review) - comma-separated so a tile that aggregates more
+     than one status can still land on the exact same set of rows. */
+  const [status, setStatus] = useState(search.get('status') ?? '');
   const [cat, setCat] = useState('');
-  /* Deep-linked from the dashboard's Immediate attention panel, so a count
-     there goes straight to the obligations behind it. */
+  /* Deep-linked from the dashboard's Immediate attention panel and the
+     Critical risks tile, so a count there goes straight to the obligations
+     behind it. Comma-separated for the same reason as status above. */
   const [risk, setRisk] = useState(search.get('risk') ?? '');
+  const statusList = useMemo(() => status ? status.split(',') : [], [status]);
+  const riskList = useMemo(() => risk ? risk.split(',') : [], [risk]);
   /* The panel's count is not "every obligation at this risk level" — it's
      specifically open exposure: due and not yet approved. Carrying that
      same condition here keeps the number the CFO clicked and the list they
      land on in agreement instead of the drill-through silently widening
      into the full register. */
   const attentionOnly = search.get('attention') === '1';
+  /* attention=1 (the Immediate attention panel, and the Critical risks tile
+     which reuses it) names a small, exact set regardless of period, so the
+     month/year window is bypassed entirely for it - same as before. A plain
+     status/risk deep link (e.g. Pending reviews) is different: the count it
+     came from is itself scoped to a financial year, so that scope must still
+     apply here - carried via the fy param below, not bypassed. */
+  const deepLinked = attentionOnly;
   const [q, setQ] = useState('');
   /* The register opens on the current month, not the whole year's filing
      calendar dumped in one list — "Full year" is a deliberate switch, not
-     the default, with the financial year defaulting to the current one. */
-  const [viewScope, setViewScope] = useState<'month' | 'year'>('month');
-  const [fy, setFy] = useState<number>(fyStartYearOf(today()));
+     the default, with the financial year defaulting to the current one.
+     A deep link that names a financial year (e.g. "Pending reviews", which
+     the dashboard counts per FY) opens straight into that year instead. */
+  const fyParam = search.get('fy');
+  const [viewScope, setViewScope] = useState<'month' | 'year'>(fyParam ? 'year' : 'month');
+  const [fy, setFy] = useState<number>(fyParam ? Number(fyParam) : fyStartYearOf(today()));
 
   const [openId, setOpenId] = useState<string | null>(search.get('obligation'));
 
@@ -118,7 +134,7 @@ function RegisterInner() {
   const cats = useMemo(() => [...new Set(rows.map(r => r.category))].sort(), [rows]);
   const statuses = useMemo(() => [...new Set(rows.map(r => r.status))].sort(), [rows]);
   const availableFys = useMemo(
-    () => [...new Set(rows.map(r => fyStartYearOf(parseDateSafe(r.due_date))))].sort((a, b) => b - a),
+    () => [...new Set(rows.map(r => r.fy_start_year))].sort((a, b) => b - a),
     [rows]);
 
   const now = today();
@@ -126,21 +142,21 @@ function RegisterInner() {
 
   const shown = useMemo(() => rows.filter(r => {
     const due = parseDateSafe(r.due_date);
-    /* A deep link from the dashboard's Immediate attention panel already
-       names an exact, small set of obligations — the month/year scope
-       would otherwise hide whichever of them don't fall due this month. */
-    const inScope = attentionOnly ? true : viewScope === 'month'
+    /* A deep link from a dashboard tile already names an exact set of
+       obligations — the month/year scope would otherwise hide whichever of
+       them don't fall due this month. */
+    const inScope = deepLinked ? true : viewScope === 'month'
       ? due.getUTCFullYear() === curYear && due.getUTCMonth() === curMonth
-      : fyStartYearOf(due) === fy;
+      : r.fy_start_year === fy;
     return inScope &&
       (!entity || r.entity_id === entity) &&
-      (!status || r.status === status) &&
+      (!statusList.length || statusList.includes(r.status)) &&
       (!cat || r.category === cat) &&
-      (!risk || r.risk_level === risk) &&
+      (!riskList.length || riskList.includes(r.risk_level)) &&
       (!attentionOnly || (r.status !== 'Approved' && r.status !== 'Not Applicable' && (daysFromToday(r.due_date) ?? 1) <= 0)) &&
       (!q || `${r.title} ${r.code} ${r.reference} ${r.form_reference ?? ''} ${r.period_label}`
         .toLowerCase().includes(q.toLowerCase()));
-  }), [rows, viewScope, fy, curMonth, curYear, entity, status, cat, risk, attentionOnly, q]);
+  }), [rows, viewScope, fy, curMonth, curYear, entity, statusList, cat, riskList, attentionOnly, deepLinked, q]);
 
   const counts = useMemo(() => ({
     actionable: shown.filter(r => ['Not Started', 'Evidence Pending', 'Overdue', 'Query Raised', 'Rejected'].includes(r.status)).length,

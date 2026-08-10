@@ -39,7 +39,7 @@ export const GET = handler(async (req: Request) => {
 
   const rows = await q(`
     SELECT o.id, o.reference, o.period_label, o.due_date, o.original_due_date, o.filed_date,
-           o.status, o.workflow_stage, o.delay_days, o.penalty_exposure, o.notes,
+           o.fy_start_year, o.status, o.workflow_stage, o.delay_days, o.penalty_exposure, o.notes,
            c.id AS compliance_id, c.code, c.title, c.applicable_law, c.form_reference,
            c.authority, c.frequency, c.risk_level, c.evidence_required, c.penalty,
            c.government_site,

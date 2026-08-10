@@ -239,7 +239,17 @@ export default function Dashboard() {
   const openReturns = o.queryRaised + o.rejected;
   const overdueHref = canReport ? '/reports?r=overdue' : '/register';
   const evidenceHref = canReport ? '/reports?r=evidence' : '/register';
-  const reviewHref = canReview ? '/reviews' : isCfo ? '/reports?r=executive' : '/register';
+  /* Critical risks names an exact set (Critical/High, past due, unfiled) -
+     the same condition the register's own "Immediate attention" deep link
+     already uses, so the count clicked and the rows landed on agree, rather
+     than reusing the generic overdue report every other overdue tile opens. */
+  const criticalRisksHref = '/register?risk=Critical,High&attention=1';
+  /* Pending reviews has no report of its own and a CFO holds no
+     compliance.review, so this used to fall back to the executive summary -
+     a different number entirely. The register's own multi-status filter
+     (added alongside this) can show exactly the Submitted/Under Review set
+     the tile counts, scoped to the same financial year. */
+  const pendingReviewsHref = `/register?status=Submitted,Under Review&fy=${d.selectedFy}`;
 
   const b = d.brief;
   const movedYesterday = b.approved + b.submitted + b.queries + b.rejected + b.escalated;
@@ -424,11 +434,11 @@ export default function Dashboard() {
           ) : (
             <>
               <Stat label="Critical risks" value={criticalRisks} icon="alert" tone="bad"
-                    sub="Critical or high risk, past due" href={overdueHref} cta="View details" />
+                    sub="Critical or high risk, past due" href={criticalRisksHref} cta="View details" />
               <Stat label="Overdue obligations" value={o.overdue} icon="clock" tone="warn"
                     sub="Past due, no evidence filed" href={overdueHref} cta="View report" />
               <Stat label="Pending reviews" value={awaitingReviewer} icon="review" tone="info"
-                    sub="Across all reviewers" href={reviewHref} cta="View details" />
+                    sub="Across all reviewers" href={pendingReviewsHref} cta="View details" />
               <Stat label="Evidence coverage" value={o.evidenceCoverage} unit="%" icon="shield"
                     tone={o.evidenceCoverage >= 90 ? 'ok' : 'warn'}
                     sub="Obligations with a document" href={evidenceHref} cta="View evidence" />
