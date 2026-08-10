@@ -338,39 +338,34 @@ export default function Dashboard() {
           any chart. Everything here is a link: a brief that cannot be acted
           on from where it is read is just a newsletter. Nothing is invented -
           each figure is a count the API already returns. */}
-      <div className="card mb16 dash-hero">
+      <div className="card mb16 dash-hero stagger-in stagger-1">
         <div className="dash-hero-top">
           <div className="dash-hero-greet">
-            <h2 style={{ color: '#fff' }}>{greeting()}, {user.name.split(' ')[0]} 👋</h2>
+            <h2>{greeting()}, {user.name.split(' ')[0]} 👋</h2>
             <p className="dash-hero-line">
               {attention === 0
                 ? "Everything looks good — nothing needs your attention right now."
                 : <>Everything looks good, but <strong>{attention} item{attention === 1 ? '' : 's'}</strong> need{attention === 1 ? 's' : ''} your attention this week.</>}
             </p>
-            <span className="tiny" style={{ color: 'rgba(255,255,255,.62)' }}>
+            <span className="tiny muted">
               {new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
               {' · '}{d.scopeLabel}
             </span>
-            {attention > 0 && (
-              <a href="#attention" className="btn btn-p mt12" style={{ width: 'fit-content' }}>
-                View action items <Ic n="arrowR" s={13} />
-              </a>
-            )}
           </div>
           <div className="dash-hero-ring">
             <ProgressRing value={o.score} size={148} strokeWidth={13} segments={heroSegments}
                            onSegmentHover={seg => setHoveredSeg(seg)}
                            center={
                              <>
-                               <div className="num" style={{ fontSize: 30, fontWeight: 700, color: '#fff', lineHeight: 1 }}>
+                               <div className="num" style={{ fontSize: 30, fontWeight: 700, color: 'var(--navy-900)', lineHeight: 1 }}>
                                  <AnimatedNumber value={o.score} decimals={1} />
                                </div>
-                               <div className="tiny" style={{ color: 'rgba(255,255,255,.62)', marginTop: 2 }}>Compliance Health</div>
+                               <div className="tiny dim" style={{ marginTop: 2 }}>Compliance Health</div>
                              </>
                            } />
             <div className="dash-hero-legend">
               {hoveredSeg ? (
-                <div className="tiny" style={{ color: '#fff' }}><strong>{hoveredSeg.value}</strong> {hoveredSeg.label.toLowerCase()}</div>
+                <div className="tiny"><strong>{hoveredSeg.value}</strong> {hoveredSeg.label.toLowerCase()}</div>
               ) : <Delta value={trendDelta} />}
             </div>
           </div>
@@ -464,7 +459,7 @@ export default function Dashboard() {
       </div>
 
       {/* ----------------------------------------------------------- QUICK ACTIONS */}
-      <div className="qa-grid mb16">
+      <div className="qa-grid mb16 stagger-in stagger-2">
         <QuickTile icon="book" label="Compliance Library" href="/compliance" />
         <QuickTile icon="cal" label="Open Calendar" href="/calendar" />
         {canReport && <QuickTile icon="report" label="View Reports" href="/reports" />}
@@ -480,7 +475,7 @@ export default function Dashboard() {
           rather than a report it would be refused. Card depth/hover comes
           free from .card-link in globals.css; the count-up is the only thing
           added here. */}
-      <div className="mb16">
+      <div className="mb16 stagger-in stagger-3">
         {/* The four figures differ by who is looking. The payload is already
             scoped to the user's entities, so a preparer's "overdue" is their
             own work, not the group's - what changes here is which four
@@ -526,7 +521,7 @@ export default function Dashboard() {
       </div>
 
       {/* ------------------------------------------------------------ headline */}
-      <div className="card mb16">
+      <div className="card mb16 stagger-in stagger-4">
         <div className="card-h">
           <div>
             <h3>Score breakdown</h3>
@@ -604,7 +599,7 @@ export default function Dashboard() {
       {/* -------------------------------------------------------- ACT TABS
           Always visible at the top, next to the headline score - not buried
           in a tab further down the page. */}
-      <div className="card act-tabs mb16">
+      <div className="card act-tabs mb16 stagger-in stagger-5">
         <div className="act-tabs-h">
           {CAT_TABS.map(t => (
             <button key={t.id} className={`act-tab${catTab === t.id ? ' on' : ''}`} onClick={() => setCatTab(t.id)}>
@@ -680,7 +675,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="tabs no-print">
+      <div className="tabs no-print stagger-in stagger-6">
         {TABS.map(t => (
           <button key={t.id} className={`tab${tab === t.id ? ' on' : ''}`} onClick={() => setTab(t.id)}>
             {t.label}

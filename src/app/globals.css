@@ -567,9 +567,15 @@ input[type="file"] { padding: 6px; }
 
 /* ------------------------------------------------------------------ toast */
 .toasts { position: fixed; bottom: var(--s5); right: var(--s5); z-index: 200; display: flex; flex-direction: column; gap: var(--s2); align-items: flex-end; }
-.toast { background: var(--navy-900); color: #fff; padding: 10px 15px; border-radius: var(--r); font-size: 12.5px; box-shadow: var(--shadow-3); max-width: 400px; animation: tin .16s ease; }
+.toast {
+  background: var(--navy-900); color: #fff; padding: 10px 15px; border-radius: var(--r); font-size: 12.5px;
+  box-shadow: var(--shadow-3); max-width: 400px; display: flex; align-items: center; gap: 9px;
+  animation: tin .22s var(--ease-out);
+}
+.toast.leaving { animation: tout .22s var(--ease-out) forwards; }
 .toast.ok { background: var(--ok-700); } .toast.bad { background: var(--bad-700); } .toast.warn { background: var(--warn-700); }
-@keyframes tin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes tin { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes tout { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(12px); } }
 
 /* legend (shared by the calendar) */
 .legend { display: flex; gap: var(--s3); flex-wrap: wrap; font-size: 11px; color: var(--ink-3); margin-top: var(--s2); }
@@ -1078,10 +1084,27 @@ input[type="file"] { padding: 6px; }
 /* ------------------------------------------------------------- card depth
    Every .card in the app picks this up automatically — the single biggest
    lever for "the whole app feels alive", not just the dashboard. */
-.card { transition: box-shadow var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out); }
+.card { transition: box-shadow var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out), border-color var(--dur-2) ease; }
 .card-link:hover, .card.hoverable:hover {
-  box-shadow: var(--shadow-hover); transform: translateY(-2px);
+  box-shadow: var(--shadow-hover); transform: translateY(-2px) scale(1.01); border-color: var(--navy-200);
 }
+.card-link:active, .card.hoverable:active { transform: translateY(-1px) scale(.995); }
+.card-link .stat-ic, .card-link:hover .stat-ic { transition: transform var(--dur-2) var(--ease-out); }
+.card-link:hover .stat-ic { transform: translateY(-1px); }
+
+/* --------------------------------------------------------- entrance stagger
+   A short, once-only reveal sequence on page load so content feels like it
+   arrives rather than simply appearing - "everything smoothly coming into
+   place", not a loading delay. Reduced-motion collapses the duration via the
+   existing global rule, so this degrades to an instant, static layout. */
+@keyframes stagger-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.stagger-in { animation: stagger-in .5s var(--ease-out) both; }
+.stagger-1 { animation-delay: 0ms; }
+.stagger-2 { animation-delay: 80ms; }
+.stagger-3 { animation-delay: 150ms; }
+.stagger-4 { animation-delay: 220ms; }
+.stagger-5 { animation-delay: 300ms; }
+.stagger-6 { animation-delay: 380ms; }
 
 /* ------------------------------------------------------------------ button
    Hover/press/loading/success states layered onto the existing pill .btn. */
@@ -1272,28 +1295,27 @@ input[type="file"] { padding: 6px; }
 .nav-a:hover svg { transform: translateX(1px); }
 
 /* ------------------------------------------------------------- dashboard hero
-   Greeting + one-line status + the compliance-health ring, over a subtle
-   dotted pattern on the navy brand base — the "this looks alive" opener the
-   management demo asked for, replacing the plain "Executive brief" header. */
+   Greeting + one-line status + the compliance-health ring. Depth comes from
+   an almost-subliminal dot grid and a soft shadow on the ring itself, not
+   from a colour change — this stays the same white surface as every other
+   card in the app, just with more visual rhythm than a bare header. */
 .dash-hero {
-  background: radial-gradient(circle at 100% 0%, var(--navy-800) 0%, var(--navy-900) 60%);
-  background-image:
-    radial-gradient(circle at 100% 0%, var(--navy-800) 0%, var(--navy-900) 60%),
-    radial-gradient(1.5px 1.5px at 12% 30%, rgba(255,255,255,.09), transparent 60%),
-    radial-gradient(1.5px 1.5px at 32% 70%, rgba(255,255,255,.07), transparent 60%),
-    radial-gradient(1.5px 1.5px at 68% 20%, rgba(255,255,255,.08), transparent 60%),
-    radial-gradient(1.5px 1.5px at 85% 55%, rgba(255,255,255,.09), transparent 60%),
-    radial-gradient(1.5px 1.5px at 50% 85%, rgba(255,255,255,.06), transparent 60%);
-  background-size: cover, 60px 60px, 60px 60px, 60px 60px, 60px 60px, 60px 60px;
-  color: #fff; overflow: hidden;
+  background:
+    radial-gradient(1.4px 1.4px at 8% 22%, var(--line) 60%, transparent 61%),
+    radial-gradient(1.4px 1.4px at 24% 68%, var(--line) 60%, transparent 61%),
+    radial-gradient(1.4px 1.4px at 42% 14%, var(--line) 60%, transparent 61%),
+    var(--surface);
+  background-size: 46px 46px, 46px 46px, 46px 46px, auto;
+  background-repeat: repeat, repeat, repeat, no-repeat;
+  overflow: hidden;
 }
 .dash-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: var(--s5) var(--s5) 0; flex-wrap: wrap; }
 .dash-hero-greet { display: flex; flex-direction: column; gap: 6px; min-width: 240px; }
-.dash-hero-line { font-size: 13.5px; color: rgba(255,255,255,.82); max-width: 480px; margin: 0; }
-.dash-hero-ring { display: flex; flex-direction: column; align-items: center; gap: 8px; flex-shrink: 0; }
+.dash-hero-greet h2 { font-size: 19px; }
+.dash-hero-line { font-size: 13.5px; color: var(--ink-2); max-width: 480px; margin: 0; }
+.dash-hero-ring { display: flex; flex-direction: column; align-items: center; gap: 8px; flex-shrink: 0; filter: drop-shadow(0 8px 16px rgba(20,33,56,.10)); }
 .dash-hero-legend { min-height: 18px; }
-.dash-hero-body { background: rgba(255,255,255,.97); border-radius: var(--r-2) var(--r-2) 0 0; margin-top: var(--s5); color: var(--ink); }
-.dash-hero-body .k, .dash-hero-body .v { color: inherit; }
+.dash-hero-body { background: var(--surface); border-radius: var(--r-2) var(--r-2) 0 0; margin-top: var(--s5); color: var(--ink); }
 @media (max-width: 720px) {
   .dash-hero-top { flex-direction: column; align-items: flex-start; }
   .dash-hero-ring { align-self: center; }

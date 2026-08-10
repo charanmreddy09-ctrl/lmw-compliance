@@ -132,22 +132,31 @@ export function initials(n: string): string {
 }
 
 /* -------------------------------------------------------------- toasts */
-type Toast = { id: number; msg: string; kind?: string };
+type Toast = { id: number; msg: string; kind?: string; leaving?: boolean };
 const ToastCtx = createContext<(msg: string, kind?: string) => void>(() => {});
 export const useToast = () => useContext(ToastCtx);
+const TOAST_ICON: Record<string, string> = { ok: 'check2', bad: 'alert', warn: 'alert' };
 
 export function ToastHost({ children }: { children: React.ReactNode }) {
   const [list, setList] = useState<Toast[]>([]);
   const push = useCallback((msg: string, kind?: string) => {
     const id = Date.now() + Math.random();
     setList(l => [...l, { id, msg, kind }]);
-    setTimeout(() => setList(l => l.filter(t => t.id !== id)), 4200);
+    /* Marked "leaving" first so the exit transition can play, then actually
+       removed once it has - a toast that just vanishes reads as a glitch. */
+    setTimeout(() => setList(l => l.map(t => t.id === id ? { ...t, leaving: true } : t)), 4200);
+    setTimeout(() => setList(l => l.filter(t => t.id !== id)), 4520);
   }, []);
   return (
     <ToastCtx.Provider value={push}>
       {children}
       <div className="toasts">
-        {list.map(t => <div key={t.id} className={`toast ${t.kind ?? ''}`}>{t.msg}</div>)}
+        {list.map(t => (
+          <div key={t.id} className={`toast ${t.kind ?? ''}${t.leaving ? ' leaving' : ''}`}>
+            <Ic n={TOAST_ICON[t.kind ?? ''] ?? 'info'} s={15} />
+            <span>{t.msg}</span>
+          </div>
+        ))}
       </div>
     </ToastCtx.Provider>
   );
