@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Ic, Modal, Note, Spinner, StatusPill, useToast, downloadFile,
+  Ic, Modal, Note, StatusPill, useToast, downloadFile,
   fmtDate, fmtDateTime, RISK_TONE,
 } from '@/components/ui';
+import { VividKpiCard, SkeletonCard } from '@/components/ui2';
 import ImportModal from '@/components/ImportModal';
 import type { SessionUser } from '@/lib/rbac';
 
@@ -218,16 +219,14 @@ export default function Calendar() {
       </div>
 
       <div className="grid g-4 mb16">
-        {[
-          ['Falling due this month', stats.total, 'Across the selected scope'],
-          ['Approved', stats.approved, 'Evidence accepted'],
-          ['Open', stats.open, 'Needs filing or review'],
-          ['Overdue', stats.overdue, 'Past due, not filed'],
-        ].map(([l, v, s]) => (
-          <div className="card kpi" key={String(l)}>
-            <div className="kl">{l}</div><div className="kv">{v as number}</div><div className="ks">{s}</div>
-          </div>
-        ))}
+        <VividKpiCard label="Falling due this month" value={stats.total} icon="cal" gradient="var(--grad-teal)"
+                      sub="Across the selected scope" />
+        <VividKpiCard label="Approved" value={stats.approved} icon="check2" gradient="var(--grad-emerald)"
+                      sub="Evidence accepted" />
+        <VividKpiCard label="Open" value={stats.open} icon="clock" gradient="var(--grad-amber)"
+                      sub="Needs filing or review" />
+        <VividKpiCard label="Overdue" value={stats.overdue} icon="alert" gradient="var(--grad-coral)"
+                      sub="Past due, not filed" />
       </div>
 
       {changes.length > 0 && (
@@ -240,14 +239,20 @@ export default function Calendar() {
         </div>
       )}
 
-      {loading && <Spinner label="Loading the calendar…" />}
+      {loading && (
+        <div className="card"><div className="card-b">
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+            {Array.from({ length: 35 }, (_, i) => <div key={i} className="skel skel-card" style={{ height: 112 }} />)}
+          </div>
+        </div></div>
+      )}
 
       {!loading && view === 'month' && (
         <div className="card"><div className="card-b">
           <div className="cal" style={{ marginBottom: 3 }}>
             {DOW.map(d => <div className="cdow" key={d}>{d}</div>)}
           </div>
-          <div className="cal">
+          <div className="cal reveal-cal" key={`${year}-${month}`}>
             {grid.map((c, i) => {
               const list = c.date ? (byDay.get(c.date) ?? []) : [];
               return (
@@ -270,10 +275,10 @@ export default function Calendar() {
             })}
           </div>
           <div className="legend">
-            <span><i style={{ background: 'var(--ok-100)', border: '1px solid var(--ok-600)' }} />Approved</span>
-            <span><i style={{ background: 'var(--info-100)', border: '1px solid var(--navy-600)' }} />In review</span>
-            <span><i style={{ background: 'var(--warn-100)', border: '1px solid var(--warn-600)' }} />Open</span>
-            <span><i style={{ background: 'var(--bad-100)', border: '1px solid var(--bad-600)' }} />Overdue or rejected</span>
+            <span><i style={{ background: 'var(--emerald-500)' }} />Approved</span>
+            <span><i style={{ background: 'var(--indigo-500)' }} />In review</span>
+            <span><i style={{ background: 'var(--amber-500)' }} />Open</span>
+            <span><i style={{ background: 'var(--coral-500)' }} />Overdue or rejected</span>
             <span>• marks a revised due date</span>
           </div>
         </div></div>
