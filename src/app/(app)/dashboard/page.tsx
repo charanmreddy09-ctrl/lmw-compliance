@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  Ic, Stat, Delta, Kpi, Note, StatusPill, DataTable, RISK_TONE,
+  Ic, Delta, Kpi, Note, StatusPill, DataTable, RISK_TONE,
   scoreColor, fmtDate, fmtDateTime, daysFromToday, downloadFile, useToast, initials,
 } from '@/components/ui';
 import {
   ProgressRing, AnimatedNumber, BadgeV2, QuickTile, SkeletonCard, SkeletonTable,
-  EmptyState, IllustrationAllClear,
+  EmptyState, IllustrationAllClear, VividKpiCard, MiniProportion, Sparkline,
 } from '@/components/ui2';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -82,6 +82,9 @@ const ACTION_LABEL: Record<string, string> = {
   comment: 'commented on', reassign: 'reassigned', delegate: 'delegated',
   escalate: 'escalated', resubmit: 'resubmitted', reopen: 'reopened',
 };
+/** Entity cards cycle through the bold accent gradients so a multi-entity
+    group doesn't read as one repeated grey card. */
+const ENTITY_ACCENTS = ['var(--grad-primary)', 'var(--grad-teal)', 'var(--grad-violet)'];
 const ACTION_ICON: Record<string, string> = {
   submit: 'upload', approve: 'check2', reject: 'x', query: 'alert',
   comment: 'doc', reassign: 'users', delegate: 'send', escalate: 'arrowR',
@@ -326,10 +329,11 @@ export default function Dashboard() {
      category, just computed for the overall scope in view. */
   const heroInProgress = Math.max(0, o.total - o.approved - o.overdue);
   const heroSegments = [
-    { key: 'approved', value: o.approved, color: 'var(--ok-600)', label: 'Approved' },
-    { key: 'progress', value: heroInProgress, color: 'var(--navy-500)', label: 'In progress' },
-    { key: 'overdue', value: o.overdue, color: 'var(--bad-600)', label: 'Overdue' },
+    { key: 'approved', value: o.approved, color: 'var(--emerald-500)', label: 'Compliant' },
+    { key: 'progress', value: heroInProgress, color: 'var(--amber-500)', label: 'Due soon' },
+    { key: 'overdue', value: o.overdue, color: 'var(--coral-500)', label: 'Overdue' },
   ].filter(s => s.value > 0);
+  const scoreTrendPoints = d.trend.map(p => p.score);
 
   return (
     <>
@@ -368,6 +372,9 @@ export default function Dashboard() {
                 <div className="tiny"><strong>{hoveredSeg.value}</strong> {hoveredSeg.label.toLowerCase()}</div>
               ) : <Delta value={trendDelta} />}
             </div>
+            {scoreTrendPoints.length > 1 && (
+              <Sparkline points={scoreTrendPoints} width={100} height={26} stroke="var(--indigo-600)" />
+            )}
           </div>
         </div>
         <div className="dash-hero-body card-b grid g-3" style={{ gap: 20 }}>
@@ -483,38 +490,37 @@ export default function Dashboard() {
         <div className="grid g-4" style={{ gap: 16, alignContent: 'start' }}>
           {canReview ? (
             <>
-              <Stat label="Awaiting your review" value={<AnimatedNumber value={awaitingReviewer} />} icon="review" tone={awaitingReviewer ? 'info' : 'ok'}
-                    sub="Submitted with evidence" href="/reviews" cta="Open queue" />
-              <Stat label="Open with preparers" value={<AnimatedNumber value={openReturns} />} icon="flag" tone={openReturns ? 'warn' : 'ok'}
-                    sub="Queried or rejected" href="/reviews" cta="Open queue" />
-              <Stat label="Overdue obligations" value={<AnimatedNumber value={o.overdue} />} icon="clock" tone={o.overdue ? 'warn' : 'ok'}
-                    sub="Past due, no evidence filed" href={overdueHref} cta="View report" />
-              <Stat label="Evidence coverage" value={<AnimatedNumber value={o.evidenceCoverage} decimals={1} />} unit="%" icon="shield"
-                    tone={o.evidenceCoverage >= 90 ? 'ok' : 'warn'}
-                    sub="Obligations with a document" href={evidenceHref} cta="View evidence" />
+              <VividKpiCard label="Awaiting your review" value={awaitingReviewer} icon="review" gradient="var(--grad-violet)"
+                            sub="Submitted with evidence" href="/reviews" />
+              <VividKpiCard label="Open with preparers" value={openReturns} icon="flag" gradient="var(--grad-amber)"
+                            sub="Queried or rejected" href="/reviews" />
+              <VividKpiCard label="Overdue obligations" value={o.overdue} icon="clock" gradient="var(--grad-coral)"
+                            sub="Past due, no evidence filed" href={overdueHref} />
+              <VividKpiCard label="Evidence coverage" value={o.evidenceCoverage} decimals={1} unit="%" icon="shield" gradient="var(--grad-emerald)"
+                            sub="Obligations with a document" href={evidenceHref} />
             </>
           ) : !isCfo ? (
             <>
-              <Stat label="Due this week" value={<AnimatedNumber value={dueThisWeek} />} icon="cal" tone={dueThisWeek ? 'warn' : 'ok'}
-                    sub="Falling due in the next 7 days" href="/register" cta="Open register" />
-              <Stat label="Overdue" value={<AnimatedNumber value={o.overdue} />} icon="alert" tone={o.overdue ? 'bad' : 'ok'}
-                    sub="Past due, not yet filed" href="/register" cta="Open register" />
-              <Stat label="Returned to you" value={<AnimatedNumber value={openReturns} />} icon="flag" tone={openReturns ? 'warn' : 'ok'}
-                    sub="Queried or rejected, needs correction" href="/register" cta="Open register" />
-              <Stat label="Awaiting review" value={<AnimatedNumber value={awaitingReviewer} />} icon="review" tone="info"
-                    sub="Filed, with a reviewer" href="/register" cta="Open register" />
+              <VividKpiCard label="Due this week" value={dueThisWeek} icon="cal" gradient="var(--grad-amber)"
+                            sub="Falling due in the next 7 days" href="/register" />
+              <VividKpiCard label="Overdue" value={o.overdue} icon="alert" gradient="var(--grad-coral)"
+                            sub="Past due, not yet filed" href="/register" />
+              <VividKpiCard label="Returned to you" value={openReturns} icon="flag" gradient="var(--grad-violet)"
+                            sub="Queried or rejected, needs correction" href="/register" />
+              <VividKpiCard label="Awaiting review" value={awaitingReviewer} icon="review" gradient="var(--grad-teal)"
+                            sub="Filed, with a reviewer" href="/register" />
             </>
           ) : (
             <>
-              <Stat label="Critical risks" value={<AnimatedNumber value={criticalRisks} />} icon="alert" tone="bad"
-                    sub="Critical or high risk, past due" href={criticalRisksHref} cta="View details" />
-              <Stat label="Overdue obligations" value={<AnimatedNumber value={o.overdue} />} icon="clock" tone="warn"
-                    sub="Past due, no evidence filed" href={overdueHref} cta="View report" />
-              <Stat label="Pending reviews" value={<AnimatedNumber value={awaitingReviewer} />} icon="review" tone="info"
-                    sub="Across all reviewers" href={pendingReviewsHref} cta="View details" />
-              <Stat label="Evidence coverage" value={<AnimatedNumber value={o.evidenceCoverage} decimals={1} />} unit="%" icon="shield"
-                    tone={o.evidenceCoverage >= 90 ? 'ok' : 'warn'}
-                    sub="Obligations with a document" href={evidenceHref} cta="View evidence" />
+              <VividKpiCard label="Critical risks" value={criticalRisks} icon="alert" gradient="var(--grad-coral)"
+                            sub="Critical or high risk, past due" href={criticalRisksHref} />
+              <VividKpiCard label="Overdue obligations" value={o.overdue} icon="clock" gradient="var(--grad-amber)"
+                            sub="Past due, no evidence filed" href={overdueHref} />
+              <VividKpiCard label="Pending reviews" value={awaitingReviewer} icon="review" gradient="var(--grad-violet)"
+                            sub="Across all reviewers" href={pendingReviewsHref} />
+              <VividKpiCard label="Evidence coverage" value={o.evidenceCoverage} decimals={1} unit="%" icon="shield" gradient="var(--grad-emerald)"
+                            sub="Obligations with a document" href={evidenceHref}
+                            footer={<MiniProportion value={o.approved} of={o.total} />} />
             </>
           )}
         </div>
@@ -629,9 +635,9 @@ export default function Dashboard() {
               {(() => {
                 const r = 40, C = 2 * Math.PI * r;
                 const segs = [
-                  { n: catTotals.approved, color: 'var(--ok-600)' },
-                  { n: catInProgress, color: 'var(--navy-600)' },
-                  { n: catTotals.overdue, color: 'var(--bad-600)' },
+                  { n: catTotals.approved, color: 'var(--emerald-500)' },
+                  { n: catInProgress, color: 'var(--amber-500)' },
+                  { n: catTotals.overdue, color: 'var(--coral-500)' },
                 ];
                 let acc = 0;
                 return (
@@ -653,17 +659,17 @@ export default function Dashboard() {
               })()}
               <div className="stack" style={{ width: 170, flexShrink: 0 }}>
                 <div className="row g8" style={{ alignItems: 'center' }}>
-                  <span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--ok-600)', flexShrink: 0 }} />
+                  <span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--emerald-500)', flexShrink: 0 }} />
                   <span className="tiny muted grow">Approved</span>
                   <span className="tiny num strong">{catTotals.approved}</span>
                 </div>
                 <div className="row g8" style={{ alignItems: 'center' }}>
-                  <span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--navy-600)', flexShrink: 0 }} />
+                  <span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--amber-500)', flexShrink: 0 }} />
                   <span className="tiny muted grow">In progress</span>
                   <span className="tiny num strong">{catInProgress}</span>
                 </div>
                 <div className="row g8" style={{ alignItems: 'center' }}>
-                  <span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--bad-600)', flexShrink: 0 }} />
+                  <span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--coral-500)', flexShrink: 0 }} />
                   <span className="tiny muted grow">Overdue</span>
                   <span className="tiny num strong">{catTotals.overdue}</span>
                 </div>
@@ -695,21 +701,23 @@ export default function Dashboard() {
                 </button>
               </div>
               <div className="grid g-3">
-                {[...entityRanked].reverse().slice(0, 3).map(e => {
+                {[...entityRanked].reverse().slice(0, 3).map((e, i) => {
                   const s = e.s!;
+                  const accent = ENTITY_ACCENTS[i % ENTITY_ACCENTS.length];
                   return (
-                    <Link key={e.id} href={`/entities/${e.id}`} className="card card-link hoverable">
+                    <Link key={e.id} href={`/entities/${e.id}`} className="card card-link hoverable entity-card">
+                      <div className="entity-accent" style={{ background: accent }} />
                       <div className="card-b">
                         <div className="row between" style={{ marginBottom: 4 }}>
                           <div className="t1 strong">{e.short_name}</div>
                           <span className="num strong" style={{ color: scoreColor(s.score) }}>{s.score.toFixed(0)}<Pctu /></span>
                         </div>
                         <div className="tiny muted mb8">{s.total} obligations · {e.country_name}</div>
-                        <div className="bar" style={{ marginBottom: 10 }}>
-                          <i style={{ width: `${s.score}%`, background: scoreColor(s.score) }} />
+                        <div className="bar" style={{ marginBottom: 10, background: 'var(--line-2)' }}>
+                          <i style={{ width: `${s.score}%`, background: accent }} />
                         </div>
                         <div className="row g8">
-                          {s.submitted + s.underReview > 0 && <BadgeV2 tone="info">{s.submitted + s.underReview} due soon</BadgeV2>}
+                          {s.submitted + s.underReview > 0 && <BadgeV2 tone="warn">{s.submitted + s.underReview} due soon</BadgeV2>}
                           {s.overdue > 0 && <BadgeV2 tone="bad" pulse>{s.overdue} overdue</BadgeV2>}
                           {s.overdue === 0 && s.submitted + s.underReview === 0 && <BadgeV2 tone="ok">All clear</BadgeV2>}
                         </div>
@@ -1023,8 +1031,12 @@ export default function Dashboard() {
                 <AreaChart data={d.trend} margin={{ top: 10, right: 12, left: 4, bottom: 0 }}>
                   <defs>
                     <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--navy-600)" stopOpacity={0.28} />
-                      <stop offset="100%" stopColor="var(--navy-600)" stopOpacity={0.02} />
+                      <stop offset="0%" stopColor="var(--indigo-500)" stopOpacity={0.32} />
+                      <stop offset="100%" stopColor="var(--purple-500)" stopOpacity={0.02} />
+                    </linearGradient>
+                    <linearGradient id="trendStroke" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="var(--indigo-600)" />
+                      <stop offset="100%" stopColor="var(--purple-600)" />
                     </linearGradient>
                   </defs>
                   <CartesianGrid stroke="var(--line-2)" vertical={false} />
@@ -1035,9 +1047,9 @@ export default function Dashboard() {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     formatter={(value: any) => [`${value}%`, 'Compliance']}
                     labelFormatter={l => l} />
-                  <Area type="monotone" dataKey="score" stroke="var(--navy-600)" strokeWidth={2.5}
-                        fill="url(#trendFill)" dot={{ r: 3.5, fill: 'var(--navy-600)', strokeWidth: 0 }}
-                        activeDot={{ r: 5 }} isAnimationActive animationDuration={700} />
+                  <Area type="monotone" dataKey="score" stroke="url(#trendStroke)" strokeWidth={2.75}
+                        fill="url(#trendFill)" dot={{ r: 3.5, fill: 'var(--indigo-600)', strokeWidth: 0 }}
+                        activeDot={{ r: 5, fill: 'var(--purple-600)' }} isAnimationActive animationDuration={700} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

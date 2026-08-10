@@ -48,6 +48,47 @@
   --bad-600:  #BE2A36;
   --bad-100:  #FBE6E8;
 
+  /* --------------------------------------------------------------------
+     v1.3 BOLD PALETTE — a deliberate multi-colour system layered on top of
+     the structural navy/status tokens above. Navy/red/status stay exactly
+     as they were (StatusPill, tables, forms all still read them) — these
+     are new, additive tokens for decorative surfaces: hero backgrounds,
+     KPI card fills, chart gradients, the sidebar, primary buttons. Assigned
+     with intent, not randomly: indigo/purple is the primary brand gradient,
+     teal is the secondary accent, emerald/amber/coral read as compliant,
+     due-soon and overdue at a glance (deliberately brighter than the
+     existing ok/warn/bad status tokens, which stay reserved for status
+     pills and tables), pink is used
+     only as a gradient terminus, never as a fill on its own. */
+  --indigo-700: #4338CA;
+  --indigo-600: #4F46E5;
+  --indigo-500: #6366F1;
+  --indigo-100: #E0E7FF;
+  --purple-700: #7E22CE;
+  --purple-600: #9333EA;
+  --purple-500: #A855F7;
+  --purple-100: #F3E8FF;
+  --teal-700:   #0F766E;
+  --teal-600:   #0D9488;
+  --teal-500:   #14B8A6;
+  --teal-100:   #CCFBF1;
+  --emerald-600:#059669;
+  --emerald-500:#10B981;
+  --amber-600:  #D97706;
+  --amber-500:  #F59E0B;
+  --coral-600:  #E11D48;
+  --coral-500:  #FB7185;
+  --pink-500:   #EC4899;
+  --pink-300:   #F9A8D4;
+
+  --grad-primary:   linear-gradient(135deg, var(--indigo-600) 0%, var(--purple-600) 100%);
+  --grad-teal:      linear-gradient(135deg, var(--teal-600) 0%, var(--indigo-500) 100%);
+  --grad-emerald:   linear-gradient(135deg, var(--emerald-600) 0%, var(--teal-600) 100%);
+  --grad-amber:     linear-gradient(135deg, var(--amber-500) 0%, #EA580C 100%);
+  --grad-coral:     linear-gradient(135deg, var(--coral-600) 0%, var(--pink-500) 100%);
+  --grad-violet:    linear-gradient(135deg, var(--purple-600) 0%, var(--pink-500) 100%);
+  --shadow-glow-indigo: 0 0 0 1px rgba(79,70,229,.18), 0 8px 24px rgba(79,70,229,.22);
+
   /* neutrals */
   --ink:      #161F2E;
   --ink-2:    #3A4658;
@@ -155,7 +196,7 @@ img { display: block; max-width: 100%; }
    it dark, and the dark rail is what anchors the page — the work surface is
    almost entirely white, so without it the interface has no edge. */
 .side {
-  background: var(--navy-900);
+  background: linear-gradient(180deg, var(--navy-900) 0%, #1E1B4B 100%);
   display: flex; flex-direction: column;
   position: sticky; top: 0; height: 100vh; overflow-y: auto;
 }
@@ -186,8 +227,11 @@ img { display: block; max-width: 100%; }
   transition: background .12s ease, color .12s ease;
 }
 .nav-a:hover { background: rgba(255,255,255,.08); color: #fff; text-decoration: none; }
-.nav-a.on { background: var(--navy-700); color: #fff; font-weight: 600; }
-.nav-a.on:hover { background: var(--navy-600); color: #fff; }
+.nav-a.on {
+  background: var(--grad-primary); color: #fff; font-weight: 600;
+  box-shadow: 0 4px 14px rgba(79,70,229,.4);
+}
+.nav-a.on:hover { filter: brightness(1.08); color: #fff; }
 .nav-a .ct {
   margin-left: auto; font-family: var(--font-num); font-variant-numeric: tabular-nums;
   font-size: 10.5px; font-weight: 700; background: rgba(255,255,255,.14); color: #fff;
@@ -246,9 +290,14 @@ img { display: block; max-width: 100%; }
 .iconbtn:hover { background: var(--canvas); color: var(--navy-700); }
 .iconbtn .pip {
   position: absolute; top: 5px; right: 5px; min-width: 15px; height: 15px; padding: 0 3px;
-  border-radius: 8px; background: var(--bad-600); border: 2px solid #fff; color: #fff;
+  border-radius: 8px; background: var(--coral-600); border: 2px solid #fff; color: #fff;
   font-size: 9px; font-weight: 700; line-height: 11px; text-align: center;
 }
+.iconbtn .pip::after {
+  content: ''; position: absolute; inset: -3px; border-radius: 10px; background: var(--coral-500);
+  opacity: .5; z-index: -1; animation: bell-pulse 1.8s ease-out infinite;
+}
+@keyframes bell-pulse { 0% { transform: scale(.7); opacity: .5; } 100% { transform: scale(1.8); opacity: 0; } }
 
 .who { display: flex; align-items: center; gap: var(--s2); padding-left: var(--s3); }
 .av {
@@ -469,8 +518,12 @@ tr:hover .rowact { color: var(--ink-3); }
 }
 .btn:hover { background: var(--canvas); border-color: var(--navy-200); color: var(--navy-800); text-decoration: none; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
-.btn-p { background: var(--navy-700); border-color: var(--navy-700); color: #fff; }
-.btn-p:hover { background: var(--navy-800); border-color: var(--navy-800); color: #fff; }
+.btn-p {
+  background: var(--grad-primary); border-color: transparent; color: #fff;
+  box-shadow: 0 2px 8px rgba(79,70,229,.28);
+}
+.btn-p:hover { filter: brightness(1.08); border-color: transparent; color: #fff; box-shadow: 0 4px 14px rgba(79,70,229,.36); }
+.btn-p:not(:disabled):hover { box-shadow: var(--shadow-glow-indigo); }
 .btn-ok { background: var(--ok-600); border-color: var(--ok-600); color: #fff; }
 .btn-ok:hover { background: var(--ok-700); border-color: var(--ok-700); color: #fff; }
 .btn-bad { background: var(--bad-600); border-color: var(--bad-600); color: #fff; }
@@ -1283,40 +1336,90 @@ input[type="file"] { padding: 6px; }
 .rpt-card .rgo { margin-top: auto; display: flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; color: var(--navy-600); }
 
 /* ------------------------------------------------------------- nav glow
-   Additive to the existing .nav-a.on rule — a left accent bar + soft glow
-   instead of a flat fill only. */
+   The active item's own gradient fill (see the bold-palette .nav-a.on rule
+   above) already carries the colour and glow - this just adds the icon
+   micro-movement on hover. */
 .nav-a { position: relative; transition: background var(--dur-1) ease; }
-.nav-a.on { box-shadow: var(--shadow-glow-navy); }
-.nav-a.on::before {
-  content: ''; position: absolute; left: -8px; top: 8px; bottom: 8px; width: 3px; border-radius: 2px;
-  background: var(--navy-500);
-}
 .nav-a svg { transition: transform var(--dur-1) var(--ease-out); }
 .nav-a:hover svg { transform: translateX(1px); }
 
 /* ------------------------------------------------------------- dashboard hero
-   Greeting + one-line status + the compliance-health ring. Depth comes from
-   an almost-subliminal dot grid and a soft shadow on the ring itself, not
-   from a colour change — this stays the same white surface as every other
-   card in the app, just with more visual rhythm than a bare header. */
+   Greeting + one-line status + the compliance-health ring, over a colourful
+   mesh of blurred indigo/purple/teal blobs at low opacity on a light base -
+   the "eliminate the blank white area" brief, without going to a solid dark
+   panel (that read as a colour change on its own, which was explicitly
+   walked back). The mesh drifts almost imperceptibly; reduced-motion freezes
+   it via the global rule. */
 .dash-hero {
-  background:
-    radial-gradient(1.4px 1.4px at 8% 22%, var(--line) 60%, transparent 61%),
-    radial-gradient(1.4px 1.4px at 24% 68%, var(--line) 60%, transparent 61%),
-    radial-gradient(1.4px 1.4px at 42% 14%, var(--line) 60%, transparent 61%),
-    var(--surface);
-  background-size: 46px 46px, 46px 46px, 46px 46px, auto;
-  background-repeat: repeat, repeat, repeat, no-repeat;
-  overflow: hidden;
+  position: relative; overflow: hidden;
+  background: var(--surface);
 }
-.dash-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: var(--s5) var(--s5) 0; flex-wrap: wrap; }
+.dash-hero::before {
+  content: ''; position: absolute; inset: 0; z-index: 0; opacity: .16;
+  background:
+    radial-gradient(38% 55% at 8% 15%, var(--indigo-500), transparent 70%),
+    radial-gradient(32% 50% at 32% 85%, var(--purple-500), transparent 70%),
+    radial-gradient(30% 45% at 78% 20%, var(--teal-500), transparent 70%),
+    radial-gradient(26% 40% at 92% 80%, var(--pink-500), transparent 70%);
+  filter: blur(6px);
+  animation: mesh-drift 22s ease-in-out infinite alternate;
+}
+@keyframes mesh-drift {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(-2%, 1.5%) scale(1.04); }
+}
+.dash-hero-top { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: var(--s5) var(--s5) 0; flex-wrap: wrap; }
 .dash-hero-greet { display: flex; flex-direction: column; gap: 6px; min-width: 240px; }
 .dash-hero-greet h2 { font-size: 19px; }
 .dash-hero-line { font-size: 13.5px; color: var(--ink-2); max-width: 480px; margin: 0; }
-.dash-hero-ring { display: flex; flex-direction: column; align-items: center; gap: 8px; flex-shrink: 0; filter: drop-shadow(0 8px 16px rgba(20,33,56,.10)); }
+.dash-hero-ring { display: flex; flex-direction: column; align-items: center; gap: 8px; flex-shrink: 0; filter: drop-shadow(0 8px 20px rgba(79,70,229,.16)); }
 .dash-hero-legend { min-height: 18px; }
-.dash-hero-body { background: var(--surface); border-radius: var(--r-2) var(--r-2) 0 0; margin-top: var(--s5); color: var(--ink); }
+.dash-hero-body { position: relative; z-index: 1; background: var(--surface); border-radius: var(--r-2) var(--r-2) 0 0; margin-top: var(--s5); color: var(--ink); }
 @media (max-width: 720px) {
   .dash-hero-top { flex-direction: column; align-items: flex-start; }
   .dash-hero-ring { align-self: center; }
 }
+
+/* ------------------------------------------------------------------ vivid KPI
+   Gradient-filled KPI tile - the "colourful KPI card" the bold redesign
+   calls for, replacing the white card + tinted icon chip on the four
+   dashboard headline figures specifically (everywhere else keeps the
+   existing Stat/Kpi treatment, so tables and secondary tiles don't turn
+   into a wall of gradient). */
+.vkpi-link { display: block; border-radius: var(--r-2); text-decoration: none; color: inherit; }
+.vkpi {
+  position: relative; overflow: hidden; border-radius: var(--r-2);
+  padding: var(--s4) var(--s4) 14px; color: #fff; min-height: 118px;
+  display: flex; flex-direction: column; gap: 8px;
+  box-shadow: 0 6px 18px rgba(20,33,56,.14);
+  transition: transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
+}
+.vkpi-link:hover .vkpi { transform: translateY(-3px) scale(1.015); box-shadow: 0 12px 28px rgba(20,33,56,.22); }
+.vkpi-link:active .vkpi { transform: translateY(-1px) scale(1.005); }
+.vkpi-decor {
+  position: absolute; top: -30px; right: -30px; width: 100px; height: 100px;
+  border-radius: 50%; background: rgba(255,255,255,.12); pointer-events: none;
+}
+.vkpi-top { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; }
+.vkpi-label { font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: rgba(255,255,255,.88); }
+.vkpi-ic { width: 32px; height: 32px; border-radius: 9px; background: rgba(255,255,255,.18); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.vkpi-val { position: relative; z-index: 1; font-size: 28px; font-weight: 700; letter-spacing: -.02em; line-height: 1; font-family: var(--font-num); }
+.vkpi-sub { position: relative; z-index: 1; font-size: 11.5px; color: rgba(255,255,255,.82); }
+.vkpi-foot { position: relative; z-index: 1; margin-top: auto; }
+
+/* ------------------------------------------------------------------ entity card
+   A coloured top accent bar in place of the plain grey progress fill -
+   "give each entity a subtle accent colour" without turning the whole
+   card into a gradient fill (this one stays readable at a glance, in
+   a grid of many entities). */
+.entity-card { position: relative; overflow: hidden; padding-top: 4px; }
+.entity-accent { position: absolute; top: 0; left: 0; right: 0; height: 4px; }
+
+/* ------------------------------------------------------------------ toned tl2
+   Colourful timeline dots instead of the single navy/mono set - approve is
+   emerald, reject/escalate coral, query amber, everything else stays a
+   neutral indigo tint rather than plain grey. */
+.tl2-node.ok { background: var(--emerald-500); color: #fff; }
+.tl2-node.bad { background: var(--coral-500); color: #fff; }
+.tl2-node.warn { background: var(--amber-500); color: #fff; }
+.tl2-node { background: var(--indigo-100); color: var(--indigo-700); }
