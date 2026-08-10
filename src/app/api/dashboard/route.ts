@@ -25,10 +25,17 @@ export const GET = handler(async (req: Request) => {
   /* Defaults to the current financial year, but a CFO can pick another one
      from the dropdown — comparing years is a legitimate dashboard question,
      not something that belongs only in Reports. */
-  const fyParam = new URL(req.url).searchParams.get('fy');
+  const url = new URL(req.url);
+  const fyParam = url.searchParams.get('fy');
   const fyRequested = fyParam ? parseInt(fyParam, 10) : null;
   const fy = fyRequested != null && !Number.isNaN(fyRequested) ? fyRequested : fyStartYearOf(today());
   const { sql: scopeSql, vals: scopeVals } = buildScope(scope, fy);
+
+  /* Dashboard's Compliance Performance chart period toggle (6/12 months, or
+     YTD computed client-side into a month count) - defaults to 6 so existing
+     callers that never pass this see no change. */
+  const monthsParam = parseInt(url.searchParams.get('months') ?? '6', 10);
+  const trendMonths = Number.isFinite(monthsParam) ? Math.max(1, Math.min(24, monthsParam)) : 6;
 
   /* The country scores are needed twice: on their own, and as the basis of
      the country league table. Started once and shared, so the weighted
@@ -49,7 +56,7 @@ export const GET = handler(async (req: Request) => {
        rather than operational, so it is not allowed to take the dashboard
        down with it — a missing chart is recoverable, a dead dashboard in
        front of the board is not. */
-    monthlyTrend(ids, 6).catch(() => [] as Awaited<ReturnType<typeof monthlyTrend>>),
+    monthlyTrend(ids, trendMonths).catch(() => [] as Awaited<ReturnType<typeof monthlyTrend>>),
   ]);
   const availableFys = fyRows.map(r => ({ startYear: r.fy_start_year, label: fyLabel(r.fy_start_year) }));
 
