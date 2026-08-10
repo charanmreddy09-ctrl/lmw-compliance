@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Ic, ToastHost, Modal, initials, fmtDateTime, Spinner } from '@/components/ui';
+import { PageTransition } from '@/components/ui2';
 import type { SessionUser } from '@/lib/rbac';
 
 type Notif = {
@@ -364,7 +365,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </header>
 
           <main className="content">
-            {children}
+            <PageTransition pathKey={pathname}>{children}</PageTransition>
             <footer className="foot no-print">
               <span>© {new Date().getFullYear()} LMW Limited. All rights reserved.</span>
               <span>Version 1.2 · Internal use only</span>

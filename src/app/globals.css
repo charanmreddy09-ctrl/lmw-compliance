@@ -1057,3 +1057,216 @@ input[type="file"] { padding: 6px; }
   .auth2-eyebrow, .auth2-h1, .auth2-sub { color: #fff; }
   .auth2-sub { color: rgba(255,255,255,.72); }
 }
+
+/* ===========================================================================
+   v1.3 REDESIGN — foundation tokens and shared primitives
+   ---------------------------------------------------------------------------
+   Additive only: nothing above this line is renumbered or removed. "Premium"
+   here comes from depth, motion and micro-interaction on the existing navy
+   brand base and 8pt spacing scale — not a new hue or type system. Every rule
+   below is covered by the global prefers-reduced-motion block already in this
+   file; JS-driven animation (count-up, reveal-on-scroll) checks matchMedia
+   itself since that block only reaches CSS animation/transition properties.
+   =========================================================================== */
+:root {
+  --shadow-glow-navy: 0 0 0 1px rgba(51,87,142,.16), 0 4px 16px rgba(20,33,56,.10);
+  --shadow-hover: 0 10px 28px rgba(20,33,56,.12), 0 2px 8px rgba(20,33,56,.06);
+  --ease-out: cubic-bezier(.16,1,.3,1);
+  --dur-1: 120ms; --dur-2: 200ms; --dur-3: 320ms;
+}
+
+/* ------------------------------------------------------------- card depth
+   Every .card in the app picks this up automatically — the single biggest
+   lever for "the whole app feels alive", not just the dashboard. */
+.card { transition: box-shadow var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out); }
+.card-link:hover, .card.hoverable:hover {
+  box-shadow: var(--shadow-hover); transform: translateY(-2px);
+}
+
+/* ------------------------------------------------------------------ button
+   Hover/press/loading/success states layered onto the existing pill .btn. */
+.btn { transition: transform var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out), background var(--dur-1) ease; }
+.btn:not(:disabled):hover { box-shadow: var(--shadow-glow-navy); }
+.btn:not(:disabled):active { transform: scale(.97); }
+.btn[data-state="loading"] { cursor: wait; opacity: .82; }
+.btn[data-state="success"] {
+  background: var(--ok-600) !important; border-color: var(--ok-600) !important; color: #fff !important;
+}
+.btn-spin { animation: spin .8s linear infinite; margin-right: 2px; }
+
+/* ------------------------------------------------------------------- table
+   Row hover + a slightly firmer feel than the flat existing .dt. */
+.dt tbody tr.click { cursor: pointer; transition: background var(--dur-1) ease; }
+.dt tbody tr.click:hover { background: var(--navy-050); }
+.dt tbody tr.click:active { background: var(--navy-100); }
+
+/* --------------------------------------------------------------- skeletons
+   Shimmer placeholders sized by the caller to match real content — no
+   layout jump on swap. */
+@keyframes skel-shimmer { 0% { background-position: -300px 0; } 100% { background-position: 300px 0; } }
+.skel {
+  background: linear-gradient(90deg, var(--line-2) 25%, var(--canvas) 37%, var(--line-2) 63%);
+  background-size: 600px 100%;
+  animation: skel-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--r);
+}
+.skel-text { height: 12px; margin-bottom: 8px; }
+.skel-text:last-child { margin-bottom: 0; width: 70%; }
+.skel-title { height: 18px; width: 45%; margin-bottom: 14px; }
+.skel-card { border-radius: var(--r-2); }
+.skel-circle { border-radius: 50%; }
+
+/* ------------------------------------------------------------- reveal-in
+   One-time fade+rise as a card enters the viewport (useRevealOnScroll). */
+.reveal-in { opacity: 0; transform: translateY(10px); transition: opacity var(--dur-3) var(--ease-out), transform var(--dur-3) var(--ease-out); }
+.reveal-in.visible { opacity: 1; transform: none; }
+
+/* --------------------------------------------------------------- page fade
+   PageTransition wrapper in (app)/layout.tsx. */
+.page-fade { animation: page-fade-in var(--dur-3) var(--ease-out); }
+@keyframes page-fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* ------------------------------------------------------------- badge v2
+   Soft-fill status pill with an optional live pulse dot. Same tone tokens
+   as .pill/STATUS_TONE/RISK_TONE — just a richer visual treatment. */
+.badge2 {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 11px 4px 9px; border-radius: var(--r-pill);
+  font-size: 11.5px; font-weight: 600; line-height: 1.4;
+  border: 1px solid transparent;
+}
+.badge2 .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.badge2.pulse .dot { position: relative; }
+.badge2.pulse .dot::after {
+  content: ''; position: absolute; inset: -3px; border-radius: 50%;
+  background: currentColor; opacity: .5; animation: badge-pulse 1.8s ease-out infinite;
+}
+@keyframes badge-pulse { 0% { transform: scale(.6); opacity: .55; } 100% { transform: scale(2.1); opacity: 0; } }
+.badge2-ok   { background: var(--ok-100);   color: var(--ok-700);   border-color: rgba(15,107,65,.18); }
+.badge2-warn { background: var(--warn-100); color: var(--warn-700); border-color: rgba(138,84,6,.18); }
+.badge2-bad  { background: var(--bad-100);  color: var(--bad-700);  border-color: rgba(152,32,43,.18); }
+.badge2-info { background: var(--info-100); color: var(--info-700); border-color: rgba(27,75,150,.18); }
+.badge2-mute { background: var(--navy-050); color: var(--ink-3);    border-color: var(--line); }
+
+/* ---------------------------------------------------------------- ring seg
+   Hover affordance on ProgressRing's stacked-arc segments. */
+.ring-seg { cursor: pointer; transition: stroke-width var(--dur-1) ease, opacity var(--dur-1) ease; }
+.ring-seg:hover { opacity: .85; }
+.ring-wrap { position: relative; display: inline-flex; }
+.ring-legend { display: flex; flex-direction: column; gap: 8px; }
+.ring-legend-item { display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: default; transition: opacity var(--dur-1) ease; }
+.ring-legend-item .sw { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+.ring-legend-item.dim { opacity: .4; }
+
+/* --------------------------------------------------------------- stepper
+   Created -> Assigned -> Prepared -> Reviewed -> Approved, purely derived
+   from status/workflow_stage — see register/page.tsx's deriveStepperState. */
+.stepper { display: flex; align-items: flex-start; gap: 0; padding: 4px 0 8px; }
+.stepper-step { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 0; position: relative; }
+.stepper-step .node {
+  width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--line); background: var(--surface); color: var(--ink-4); flex-shrink: 0;
+  transition: background var(--dur-2) ease, border-color var(--dur-2) ease, color var(--dur-2) ease, transform var(--dur-2) var(--ease-out);
+  z-index: 1;
+}
+.stepper-step .line {
+  position: absolute; top: 13px; left: 50%; width: 100%; height: 2px; background: var(--line); z-index: 0;
+  transition: background var(--dur-3) ease;
+}
+.stepper-step:last-child .line { display: none; }
+.stepper-step .lbl { margin-top: 8px; font-size: 11px; font-weight: 600; color: var(--ink-3); text-align: center; }
+.stepper-step .cap { font-size: 10px; color: var(--ink-4); margin-top: 1px; text-align: center; }
+.stepper-step.done .node { background: var(--ok-600); border-color: var(--ok-600); color: #fff; }
+.stepper-step.done .line { background: var(--ok-600); }
+.stepper-step.done .lbl { color: var(--ink); }
+.stepper-step.done.bad .node { background: var(--bad-600); border-color: var(--bad-600); }
+.stepper-step.done.bad .line { background: var(--line); }
+.stepper-step.active .node {
+  border-color: var(--navy-600); color: var(--navy-700);
+  box-shadow: 0 0 0 4px var(--navy-050); transform: scale(1.08);
+}
+.stepper-step.active .lbl { color: var(--navy-700); }
+
+/* ---------------------------------------------------------------- empty state */
+.empty2 { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 40px 20px; gap: 4px; }
+.empty2 svg { margin-bottom: 12px; }
+.empty2 h4 { font-size: 14px; color: var(--navy-900); }
+.empty2 p { font-size: 12.5px; color: var(--ink-3); max-width: 320px; margin: 4px 0 14px; }
+
+/* --------------------------------------------------------------- timeline v2 */
+.tl2 { position: relative; }
+.tl2-item { display: flex; gap: 12px; padding-bottom: 18px; position: relative; }
+.tl2-item:last-child { padding-bottom: 0; }
+.tl2-item::before {
+  content: ''; position: absolute; left: 13px; top: 28px; bottom: 0; width: 2px; background: var(--line-2);
+}
+.tl2-item:last-child::before { display: none; }
+.tl2-node {
+  width: 27px; height: 27px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  background: var(--navy-050); color: var(--navy-700); z-index: 1;
+}
+.tl2-node.ok { background: var(--ok-100); color: var(--ok-700); }
+.tl2-node.bad { background: var(--bad-100); color: var(--bad-700); }
+.tl2-node.warn { background: var(--warn-100); color: var(--warn-700); }
+.tl2-body { flex: 1; min-width: 0; padding-top: 2px; }
+.tl2-avatar {
+  width: 18px; height: 18px; border-radius: 50%; background: var(--navy-100); color: var(--navy-700);
+  display: inline-flex; align-items: center; justify-content: center; font-size: 8.5px; font-weight: 700;
+  vertical-align: middle; margin-right: 5px;
+}
+
+/* --------------------------------------------------------------- quick tiles */
+.qa-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.qa-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
+  padding: 16px 10px; border-radius: var(--r-2); border: 1px solid var(--line); background: var(--surface);
+  color: var(--ink); transition: background var(--dur-1) ease, border-color var(--dur-1) ease, transform var(--dur-1) var(--ease-out);
+  cursor: pointer;
+}
+.qa-tile:hover { background: var(--navy-050); border-color: var(--navy-200); transform: translateY(-1px); }
+.qa-tile .qi {
+  width: 34px; height: 34px; border-radius: 10px; background: var(--navy-100); color: var(--navy-700);
+  display: flex; align-items: center; justify-content: center; transition: transform var(--dur-1) var(--ease-out);
+}
+.qa-tile:hover .qi { transform: translateY(-2px); }
+.qa-tile .ql { font-size: 11.5px; font-weight: 600; }
+
+/* ------------------------------------------------------------- drawer (slide-in)
+   Notification panel — a right-anchored sheet rather than a centered modal. */
+.drawer-mask { position: fixed; inset: 0; background: rgba(20,33,56,.32); backdrop-filter: blur(1px); z-index: 60; animation: drawer-fade var(--dur-2) ease; }
+@keyframes drawer-fade { from { opacity: 0; } to { opacity: 1; } }
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, 100vw); background: var(--surface);
+  box-shadow: -8px 0 32px rgba(20,33,56,.18); z-index: 61; display: flex; flex-direction: column;
+  animation: drawer-in var(--dur-3) var(--ease-out);
+}
+@keyframes drawer-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+.drawer-h { padding: var(--s4); border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; }
+.drawer-b { flex: 1; overflow-y: auto; padding: var(--s3) var(--s4); }
+.drawer-f { padding: var(--s3) var(--s4); border-top: 1px solid var(--line); }
+
+/* ------------------------------------------------------------- report cards */
+.rpt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.rpt-card {
+  display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: var(--r-2);
+  border: 1px solid var(--line); background: var(--surface); cursor: pointer; text-align: left;
+  transition: box-shadow var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out), border-color var(--dur-1) ease;
+}
+.rpt-card:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); border-color: var(--navy-200); }
+.rpt-card.on { border-color: var(--navy-600); box-shadow: var(--shadow-glow-navy); }
+.rpt-card .ri { width: 36px; height: 36px; border-radius: 10px; background: var(--navy-100); color: var(--navy-700); display: flex; align-items: center; justify-content: center; }
+.rpt-card .rt { font-size: 13px; font-weight: 600; color: var(--navy-900); }
+.rpt-card .rd { font-size: 11.5px; color: var(--ink-3); line-height: 1.4; }
+.rpt-card .rgo { margin-top: auto; display: flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; color: var(--navy-600); }
+
+/* ------------------------------------------------------------- nav glow
+   Additive to the existing .nav-a.on rule — a left accent bar + soft glow
+   instead of a flat fill only. */
+.nav-a { position: relative; transition: background var(--dur-1) ease; }
+.nav-a.on { box-shadow: var(--shadow-glow-navy); }
+.nav-a.on::before {
+  content: ''; position: absolute; left: -8px; top: 8px; bottom: 8px; width: 3px; border-radius: 2px;
+  background: var(--navy-500);
+}
+.nav-a svg { transition: transform var(--dur-1) var(--ease-out); }
+.nav-a:hover svg { transform: translateX(1px); }
