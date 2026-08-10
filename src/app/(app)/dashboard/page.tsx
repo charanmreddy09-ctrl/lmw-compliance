@@ -3,9 +3,16 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  Ic, Gauge, Stat, Delta, Kpi, Note, Spinner, StatusPill, DataTable, RISK_TONE,
-  scoreColor, fmtDate, fmtDateTime, daysFromToday, downloadFile, useToast,
+  Ic, Stat, Delta, Kpi, Note, StatusPill, DataTable, RISK_TONE,
+  scoreColor, fmtDate, fmtDateTime, daysFromToday, downloadFile, useToast, initials,
 } from '@/components/ui';
+import {
+  ProgressRing, AnimatedNumber, BadgeV2, QuickTile, SkeletonCard, SkeletonTable,
+  EmptyState, IllustrationAllClear,
+} from '@/components/ui2';
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from 'recharts';
 import type { SessionUser } from '@/lib/rbac';
 import type { ScoreBreakdown, CountryRow } from '@/lib/score';
 
@@ -75,9 +82,10 @@ const ACTION_LABEL: Record<string, string> = {
   comment: 'commented on', reassign: 'reassigned', delegate: 'delegated',
   escalate: 'escalated', resubmit: 'resubmitted', reopen: 'reopened',
 };
-/** Severity chip tones, matching the compliance library's own risk levels. */
-const SEV_TONE: Record<string, string> = {
-  Critical: 'p-bad', High: 'p-bad', Medium: 'p-warn', Low: 'p-mute',
+const ACTION_ICON: Record<string, string> = {
+  submit: 'upload', approve: 'check2', reject: 'x', query: 'alert',
+  comment: 'doc', reassign: 'users', delegate: 'send', escalate: 'arrowR',
+  resubmit: 'swap', reopen: 'swap',
 };
 
 const ACTION_TONE: Record<string, string> = {
@@ -113,6 +121,37 @@ function Pct({ n, of }: { n: number; of: number }) {
   const pct = of ? Math.round((n / of) * 100) : 0;
   return <span className="tiny dim" style={{ fontFamily: 'var(--font-sans)', marginLeft: 5 }}>({pct}%)</span>;
 }
+/** IST-anchored, matching the house timezone convention used everywhere else
+    on this page (fmtDateTime etc.) - a "Good evening" at 6pm IST should not
+    flip to "Good morning" for a viewer whose own clock reads midnight. */
+function greeting(): string {
+  const hr = Number(new Date().toLocaleString('en-GB', { timeZone: 'Asia/Kolkata', hour: 'numeric', hour12: false }));
+  return hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
+}
+/** Months from the start of financial year `fy` (April) up to and including
+    the current month, IST — the dashboard's other FY-scoped figures already
+    treat April as the FY anchor, so "YTD" here means the same thing. */
+function ytdMonths(fy: number): number {
+  const now = new Date();
+  const y = now.getUTCFullYear(), m = now.getUTCMonth();
+  const fyStartsThisCalendarYear = m >= 3; // Apr(3)..Dec
+  const curFyStart = fyStartsThisCalendarYear ? y : y - 1;
+  const monthsSinceFyStart = (y - curFyStart) * 12 + (m - 3) + 1;
+  const extraFullYears = Math.max(0, curFyStart - fy) * 12;
+  return Math.max(1, monthsSinceFyStart + extraFullYears);
+}
+
+function DashboardSkeleton() {
+  return (
+    <>
+      <SkeletonCard height={150} />
+      <div className="grid g-4 mt16 mb16">
+        {Array.from({ length: 4 }, (_, i) => <SkeletonCard key={i} height={110} />)}
+      </div>
+      <SkeletonTable rows={6} cols={5} />
+    </>
+  );
+}
 
 export default function Dashboard() {
   const toast = useToast();
@@ -127,6 +166,8 @@ export default function Dashboard() {
      it) but a CFO can pick another year from the dropdown — comparing years
      is a legitimate dashboard question, not Reports-only. */
   const [fyFilter, setFyFilter] = useState<number | ''>('');
+  const [chartRange, setChartRange] = useState<'6m' | '12m' | 'ytd'>('6m');
+  const [hoveredSeg, setHoveredSeg] = useState<{ label: string; value: number } | null>(null);
 
   const [syncing, setSyncing] = useState(false);
 
@@ -135,7 +176,11 @@ export default function Dashboard() {
     async function load(showSpinnerOnFail: boolean) {
       setSyncing(true);
       try {
-        const qs = fyFilter !== '' ? `?fy=${fyFilter}` : '';
+        const params = new URLSearchParams();
+        if (fyFilter !== '') params.set('fy', String(fyFilter));
+        params.set('months', String(
+          chartRange === '6m' ? 6 : chartRange === '12m' ? 12 : ytdMonths(fyFilter === '' ? new Date().getUTCFullYear() : fyFilter)));
+        const qs = `?${params.toString()}`;
         const [me, dash] = await Promise.all([
           fetch('/api/auth/me').then(r => r.json()),
           fetch(`/api/dashboard${qs}`).then(async r => {
@@ -164,12 +209,12 @@ export default function Dashboard() {
        without anyone needing to reload the page. */
     const t = setInterval(() => load(false), 60_000);
     return () => { live = false; clearInterval(t); };
-  }, [fyFilter]);
+  }, [fyFilter, chartRange]);
 
   const isCfo = user?.role === 'CFO';
 
   if (err) return <Note kind="b">{err}</Note>;
-  if (!d || !user) return <Spinner label="Building the compliance picture…" />;
+  if (!d || !user) return <DashboardSkeleton />;
 
   const o = countryFilter ? (d.byCountryScore[countryFilter] ?? d.overall) : d.overall;
   const futureCount = countryFilter ? (d.futureByCountry[countryFilter] ?? 0) : d.futureOverall;
@@ -276,6 +321,16 @@ export default function Dashboard() {
     return { pct: Math.round((approved / total) * 100), total, approved, overdue: Number(h.overdue) };
   }
 
+  /* The hero ring's three segments — same "approved / everything else still
+     open / overdue" split the act-tabs ring below already uses for a single
+     category, just computed for the overall scope in view. */
+  const heroInProgress = Math.max(0, o.total - o.approved - o.overdue);
+  const heroSegments = [
+    { key: 'approved', value: o.approved, color: 'var(--ok-600)', label: 'Approved' },
+    { key: 'progress', value: heroInProgress, color: 'var(--navy-500)', label: 'In progress' },
+    { key: 'overdue', value: o.overdue, color: 'var(--bad-600)', label: 'Overdue' },
+  ].filter(s => s.value > 0);
+
   return (
     <>
       {/* --------------------------------------------------------- B1 / B2
@@ -283,22 +338,44 @@ export default function Dashboard() {
           any chart. Everything here is a link: a brief that cannot be acted
           on from where it is read is just a newsletter. Nothing is invented -
           each figure is a count the API already returns. */}
-      <div className="card mb16">
-        <div className="card-h">
-          <div>
-            <h3>Executive brief</h3>
-            <span className="tiny muted">
+      <div className="card mb16 dash-hero">
+        <div className="dash-hero-top">
+          <div className="dash-hero-greet">
+            <h2 style={{ color: '#fff' }}>{greeting()}, {user.name.split(' ')[0]} 👋</h2>
+            <p className="dash-hero-line">
+              {attention === 0
+                ? "Everything looks good — nothing needs your attention right now."
+                : <>Everything looks good, but <strong>{attention} item{attention === 1 ? '' : 's'}</strong> need{attention === 1 ? 's' : ''} your attention this week.</>}
+            </p>
+            <span className="tiny" style={{ color: 'rgba(255,255,255,.62)' }}>
               {new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
               {' · '}{d.scopeLabel}
             </span>
+            {attention > 0 && (
+              <a href="#attention" className="btn btn-p mt12" style={{ width: 'fit-content' }}>
+                View action items <Ic n="arrowR" s={13} />
+              </a>
+            )}
           </div>
-          {attention > 0 && (
-            <span className={`pill ${b.severity.Critical > 0 ? 'p-bad' : 'p-warn'}`}>
-              {attention} item{attention === 1 ? '' : 's'} need attention
-            </span>
-          )}
+          <div className="dash-hero-ring">
+            <ProgressRing value={o.score} size={148} strokeWidth={13} segments={heroSegments}
+                           onSegmentHover={seg => setHoveredSeg(seg)}
+                           center={
+                             <>
+                               <div className="num" style={{ fontSize: 30, fontWeight: 700, color: '#fff', lineHeight: 1 }}>
+                                 <AnimatedNumber value={o.score} decimals={1} />
+                               </div>
+                               <div className="tiny" style={{ color: 'rgba(255,255,255,.62)', marginTop: 2 }}>Compliance Health</div>
+                             </>
+                           } />
+            <div className="dash-hero-legend">
+              {hoveredSeg ? (
+                <div className="tiny" style={{ color: '#fff' }}><strong>{hoveredSeg.value}</strong> {hoveredSeg.label.toLowerCase()}</div>
+              ) : <Delta value={trendDelta} />}
+            </div>
+          </div>
         </div>
-        <div className="card-b grid g-3" style={{ gap: 20 }}>
+        <div className="dash-hero-body card-b grid g-3" style={{ gap: 20 }}>
           <div>
             <div className="cap mb8">Since yesterday</div>
             {movedYesterday === 0 ? (
@@ -314,8 +391,8 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div>
-            <div className="cap mb8">Immediate attention</div>
+          <div id="attention">
+            <div className="cap mb8">What needs your attention</div>
             {attention === 0 ? (
               <div className="small muted">Nothing due is currently unapproved.</div>
             ) : (
@@ -328,7 +405,10 @@ export default function Dashboard() {
                   .map(k => (
                     <Link key={k} href={`/register?risk=${k}&attention=1`} className="sev-row">
                       <span className="num sev-n">{b.severity[k]}</span>
-                      <span className={`pill ${SEV_TONE[k]} nd tiny`}>{k}</span>
+                      <BadgeV2 tone={k === 'Critical' || k === 'High' ? 'bad' : k === 'Medium' ? 'warn' : 'mute'}
+                               pulse={b.severityOverdue[k] > 0}>
+                        {k}
+                      </BadgeV2>
                       {b.severityOverdue[k] > 0 && (
                         <span className="tiny" style={{ color: 'var(--bad-600)' }}>
                           {b.severityOverdue[k]} overdue
@@ -383,26 +463,24 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ----------------------------------------------------- EXECUTIVE ROW
-          Health score, the four figures that decide what happens next, and
-          the shortcuts people actually use. Every tile is a link - a number
-          on this dashboard is never a dead end - and every destination is
-          role-aware, so a preparer holding no reports.generate is sent to the
-          register rather than a report it would be refused. */}
-      <div className="hero-row mb16">
-        <div className="card">
-          <div className="card-h"><h3>Compliance health score</h3></div>
-          <div className="card-b" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-            <Gauge value={o.score} />
-            <Delta value={trendDelta} />
-            <div className="tiny dim center">
-              {d.fyLabel}
-              {' · '}
-              {countryFilter ? d.byCountry.find(c => c.countryCode === countryFilter)?.countryName : 'All countries'}
-            </div>
-          </div>
-        </div>
+      {/* ----------------------------------------------------------- QUICK ACTIONS */}
+      <div className="qa-grid mb16">
+        <QuickTile icon="book" label="Compliance Library" href="/compliance" />
+        <QuickTile icon="cal" label="Open Calendar" href="/calendar" />
+        {canReport && <QuickTile icon="report" label="View Reports" href="/reports" />}
+        {canReview && <QuickTile icon="review" label="Review Queue" href="/reviews" />}
+        <QuickTile icon="list" label="Compliance Register" href="/register" />
+      </div>
 
+      {/* ----------------------------------------------------------- KPI ROW
+          The four figures that decide what happens next, and the shortcuts
+          people actually use. Every tile is a link - a number on this
+          dashboard is never a dead end - and every destination is role-aware,
+          so a preparer holding no reports.generate is sent to the register
+          rather than a report it would be refused. Card depth/hover comes
+          free from .card-link in globals.css; the count-up is the only thing
+          added here. */}
+      <div className="mb16">
         {/* The four figures differ by who is looking. The payload is already
             scoped to the user's entities, so a preparer's "overdue" is their
             own work, not the group's - what changes here is which four
@@ -410,36 +488,36 @@ export default function Dashboard() {
         <div className="grid g-4" style={{ gap: 16, alignContent: 'start' }}>
           {canReview ? (
             <>
-              <Stat label="Awaiting your review" value={awaitingReviewer} icon="review" tone={awaitingReviewer ? 'info' : 'ok'}
+              <Stat label="Awaiting your review" value={<AnimatedNumber value={awaitingReviewer} />} icon="review" tone={awaitingReviewer ? 'info' : 'ok'}
                     sub="Submitted with evidence" href="/reviews" cta="Open queue" />
-              <Stat label="Open with preparers" value={openReturns} icon="flag" tone={openReturns ? 'warn' : 'ok'}
+              <Stat label="Open with preparers" value={<AnimatedNumber value={openReturns} />} icon="flag" tone={openReturns ? 'warn' : 'ok'}
                     sub="Queried or rejected" href="/reviews" cta="Open queue" />
-              <Stat label="Overdue obligations" value={o.overdue} icon="clock" tone={o.overdue ? 'warn' : 'ok'}
+              <Stat label="Overdue obligations" value={<AnimatedNumber value={o.overdue} />} icon="clock" tone={o.overdue ? 'warn' : 'ok'}
                     sub="Past due, no evidence filed" href={overdueHref} cta="View report" />
-              <Stat label="Evidence coverage" value={o.evidenceCoverage} unit="%" icon="shield"
+              <Stat label="Evidence coverage" value={<AnimatedNumber value={o.evidenceCoverage} decimals={1} />} unit="%" icon="shield"
                     tone={o.evidenceCoverage >= 90 ? 'ok' : 'warn'}
                     sub="Obligations with a document" href={evidenceHref} cta="View evidence" />
             </>
           ) : !isCfo ? (
             <>
-              <Stat label="Due this week" value={dueThisWeek} icon="cal" tone={dueThisWeek ? 'warn' : 'ok'}
+              <Stat label="Due this week" value={<AnimatedNumber value={dueThisWeek} />} icon="cal" tone={dueThisWeek ? 'warn' : 'ok'}
                     sub="Falling due in the next 7 days" href="/register" cta="Open register" />
-              <Stat label="Overdue" value={o.overdue} icon="alert" tone={o.overdue ? 'bad' : 'ok'}
+              <Stat label="Overdue" value={<AnimatedNumber value={o.overdue} />} icon="alert" tone={o.overdue ? 'bad' : 'ok'}
                     sub="Past due, not yet filed" href="/register" cta="Open register" />
-              <Stat label="Returned to you" value={openReturns} icon="flag" tone={openReturns ? 'warn' : 'ok'}
+              <Stat label="Returned to you" value={<AnimatedNumber value={openReturns} />} icon="flag" tone={openReturns ? 'warn' : 'ok'}
                     sub="Queried or rejected, needs correction" href="/register" cta="Open register" />
-              <Stat label="Awaiting review" value={awaitingReviewer} icon="review" tone="info"
+              <Stat label="Awaiting review" value={<AnimatedNumber value={awaitingReviewer} />} icon="review" tone="info"
                     sub="Filed, with a reviewer" href="/register" cta="Open register" />
             </>
           ) : (
             <>
-              <Stat label="Critical risks" value={criticalRisks} icon="alert" tone="bad"
+              <Stat label="Critical risks" value={<AnimatedNumber value={criticalRisks} />} icon="alert" tone="bad"
                     sub="Critical or high risk, past due" href={criticalRisksHref} cta="View details" />
-              <Stat label="Overdue obligations" value={o.overdue} icon="clock" tone="warn"
+              <Stat label="Overdue obligations" value={<AnimatedNumber value={o.overdue} />} icon="clock" tone="warn"
                     sub="Past due, no evidence filed" href={overdueHref} cta="View report" />
-              <Stat label="Pending reviews" value={awaitingReviewer} icon="review" tone="info"
+              <Stat label="Pending reviews" value={<AnimatedNumber value={awaitingReviewer} />} icon="review" tone="info"
                     sub="Across all reviewers" href={pendingReviewsHref} cta="View details" />
-              <Stat label="Evidence coverage" value={o.evidenceCoverage} unit="%" icon="shield"
+              <Stat label="Evidence coverage" value={<AnimatedNumber value={o.evidenceCoverage} decimals={1} />} unit="%" icon="shield"
                     tone={o.evidenceCoverage >= 90 ? 'ok' : 'warn'}
                     sub="Obligations with a document" href={evidenceHref} cta="View evidence" />
             </>
@@ -613,6 +691,41 @@ export default function Dashboard() {
       {/* ------------------------------------------------------------ OVERVIEW */}
       {tab === 'overview' && (
         <>
+          {entityRanked.length > 1 && (
+            <div className="mb16">
+              <div className="row between mb8">
+                <h3 style={{ fontSize: 13.5 }}>Entity performance</h3>
+                <button className="btn btn-xs no-print" onClick={() => setTab('entities')}>
+                  All entities <Ic n="arrowR" s={12} />
+                </button>
+              </div>
+              <div className="grid g-3">
+                {[...entityRanked].reverse().slice(0, 3).map(e => {
+                  const s = e.s!;
+                  return (
+                    <Link key={e.id} href={`/entities/${e.id}`} className="card card-link hoverable">
+                      <div className="card-b">
+                        <div className="row between" style={{ marginBottom: 4 }}>
+                          <div className="t1 strong">{e.short_name}</div>
+                          <span className="num strong" style={{ color: scoreColor(s.score) }}>{s.score.toFixed(0)}<Pctu /></span>
+                        </div>
+                        <div className="tiny muted mb8">{s.total} obligations · {e.country_name}</div>
+                        <div className="bar" style={{ marginBottom: 10 }}>
+                          <i style={{ width: `${s.score}%`, background: scoreColor(s.score) }} />
+                        </div>
+                        <div className="row g8">
+                          {s.submitted + s.underReview > 0 && <BadgeV2 tone="info">{s.submitted + s.underReview} due soon</BadgeV2>}
+                          {s.overdue > 0 && <BadgeV2 tone="bad" pulse>{s.overdue} overdue</BadgeV2>}
+                          {s.overdue === 0 && s.submitted + s.underReview === 0 && <BadgeV2 tone="ok">All clear</BadgeV2>}
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="card mb16">
             <div className="card-h"><h3>Recent due date changes</h3></div>
             <div className="card-b">
@@ -662,18 +775,31 @@ export default function Dashboard() {
               rowKey={r => r.id}
               pageSize={12}
               onRow={r => { window.location.href = `/register?obligation=${r.id}`; }}
-              empty="Nothing falls due in this window."
+              empty="Nothing due here — you're all caught up in this window."
               cols={[
                 { key: 'due_date', label: 'Due', sort: true, cls: 'nowrap',
                   render: r => {
                     const n = daysFromToday(r.due_date);
+                    const dt = new Date(r.due_date.length === 10 ? r.due_date + 'T00:00:00Z' : r.due_date);
+                    const overdue = n != null && n < 0;
+                    const soon = n != null && n >= 0 && n <= 2;
                     return (
-                      <>
-                        <div className="num">{fmtDate(r.due_date)}</div>
-                        <div className="t2" style={{ color: n != null && n < 0 ? 'var(--bad-600)' : undefined }}>
+                      <div className="row g8">
+                        <div style={{
+                          width: 34, height: 34, borderRadius: 9, flexShrink: 0, textAlign: 'center',
+                          background: overdue ? 'var(--bad-100)' : soon ? 'var(--warn-100)' : 'var(--navy-050)',
+                          color: overdue ? 'var(--bad-700)' : soon ? 'var(--warn-700)' : 'var(--navy-700)',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1.1,
+                        }}>
+                          <span style={{ fontSize: 12, fontWeight: 700 }}>{dt.getUTCDate()}</span>
+                          <span style={{ fontSize: 8, textTransform: 'uppercase', fontWeight: 600 }}>
+                            {dt.toLocaleDateString('en-GB', { month: 'short' })}
+                          </span>
+                        </div>
+                        <div className="t2" style={{ color: overdue ? 'var(--bad-600)' : undefined }}>
                           {n == null ? '' : n < 0 ? `${-n} d overdue` : n === 0 ? 'today' : `in ${n} d`}
                         </div>
-                      </>
+                      </div>
                     );
                   } },
                 { key: 'title', label: 'Compliance', sort: true, cls: 'w',
@@ -885,35 +1011,40 @@ export default function Dashboard() {
         <>
           <div className="card mb16">
             <div className="card-h">
-              <h3>Group compliance score - last 6 months</h3>
-              <span className="tiny muted">Reconstructed from approval and filing dates, not a point-in-time reading</span>
+              <div>
+                <h3>Compliance Performance</h3>
+                <span className="tiny muted">Reconstructed from approval and filing dates, not a point-in-time reading</span>
+              </div>
+              <div className="seg no-print">
+                {(['6m', '12m', 'ytd'] as const).map(id => (
+                  <button key={id} className={chartRange === id ? 'on' : ''} onClick={() => setChartRange(id)}>
+                    {id === '6m' ? '6 Months' : id === '12m' ? '12 Months' : 'YTD'}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="card-b">
-              {(() => {
-                const w = 640, h = 140, pad = 28;
-                const pts = d.trend;
-                const max = 100, min = 0;
-                const x = (i: number) => pad + (i / Math.max(1, pts.length - 1)) * (w - pad * 2);
-                const y = (v: number) => h - pad - ((v - min) / (max - min)) * (h - pad * 2);
-                const path = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(p.score)}`).join(' ');
-                return (
-                  <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 160 }}>
-                    {[0, 25, 50, 75, 100].map(g => (
-                      <line key={g} x1={pad} x2={w - pad} y1={y(g)} y2={y(g)}
-                            stroke="var(--line-2)" strokeWidth={1} />
-                    ))}
-                    <path d={path} fill="none" stroke="var(--navy-600)" strokeWidth={2.5} />
-                    {pts.map((p, i) => (
-                      <g key={p.monthEnd}>
-                        <circle cx={x(i)} cy={y(p.score)} r={4} fill={scoreColor(p.score)} />
-                        <text x={x(i)} y={y(p.score) - 10} textAnchor="middle" fontSize={11} fontWeight={600}
-                              fill="var(--ink-2)">{p.score}</text>
-                        <text x={x(i)} y={h - 6} textAnchor="middle" fontSize={11} fill="var(--ink-4)">{p.label}</text>
-                      </g>
-                    ))}
-                  </svg>
-                );
-              })()}
+            <div className="card-b" style={{ height: 260 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={d.trend} margin={{ top: 10, right: 12, left: 4, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--navy-600)" stopOpacity={0.28} />
+                      <stop offset="100%" stopColor="var(--navy-600)" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="var(--line-2)" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--ink-4)' }} axisLine={false} tickLine={false} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: 'var(--ink-4)' }} axisLine={false} tickLine={false} width={34} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 10, border: '1px solid var(--line)', fontSize: 12, boxShadow: 'var(--shadow-hover)' }}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    formatter={(value: any) => [`${value}%`, 'Compliance']}
+                    labelFormatter={l => l} />
+                  <Area type="monotone" dataKey="score" stroke="var(--navy-600)" strokeWidth={2.5}
+                        fill="url(#trendFill)" dot={{ r: 3.5, fill: 'var(--navy-600)', strokeWidth: 0 }}
+                        activeDot={{ r: 5 }} isAnimationActive animationDuration={700} />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           </div>
 
@@ -964,19 +1095,27 @@ export default function Dashboard() {
         <div className="card">
           <div className="card-h"><h3>Recent activity</h3><span className="tiny muted">Newest first</span></div>
           <div className="card-b">
-            {d.activity.length === 0 && <div className="empty">No activity recorded yet.</div>}
-            <div className="tl">
-              {d.activity.map(a => (
-                <div className={`tl-i ${ACTION_TONE[a.action] ?? ''}`} key={a.id}>
-                  <div className="tl-t">
-                    <strong>{a.actor ?? 'System'}</strong> {ACTION_LABEL[a.action] ?? a.action}{' '}
-                    <strong>{a.title}</strong> <span className="muted">({a.entity})</span>
+            {d.activity.length === 0 ? (
+              <EmptyState icon={<IllustrationAllClear size={80} />} title="No activity recorded yet"
+                          body="Approvals, queries and filings will show up here as they happen." />
+            ) : (
+              <div className="tl2">
+                {d.activity.map(a => (
+                  <div className="tl2-item" key={a.id}>
+                    <div className={`tl2-node ${ACTION_TONE[a.action] ?? ''}`}><Ic n={ACTION_ICON[a.action] ?? 'info'} s={13} /></div>
+                    <div className="tl2-body">
+                      <div className="small">
+                        {a.actor && <span className="tl2-avatar">{initials(a.actor)}</span>}
+                        <strong>{a.actor ?? 'System'}</strong> {ACTION_LABEL[a.action] ?? a.action}{' '}
+                        <strong>{a.title}</strong> <span className="muted">({a.entity})</span>
+                      </div>
+                      {a.comment && <div className="small muted mt4">{a.comment}</div>}
+                      <div className="tl-m mt4">{fmtDateTime(a.created_at)}</div>
+                    </div>
                   </div>
-                  {a.comment && <div className="small muted mt4">{a.comment}</div>}
-                  <div className="tl-m mt4">{fmtDateTime(a.created_at)}</div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

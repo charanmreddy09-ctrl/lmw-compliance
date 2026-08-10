@@ -1270,3 +1270,31 @@ input[type="file"] { padding: 6px; }
 }
 .nav-a svg { transition: transform var(--dur-1) var(--ease-out); }
 .nav-a:hover svg { transform: translateX(1px); }
+
+/* ------------------------------------------------------------- dashboard hero
+   Greeting + one-line status + the compliance-health ring, over a subtle
+   dotted pattern on the navy brand base — the "this looks alive" opener the
+   management demo asked for, replacing the plain "Executive brief" header. */
+.dash-hero {
+  background: radial-gradient(circle at 100% 0%, var(--navy-800) 0%, var(--navy-900) 60%);
+  background-image:
+    radial-gradient(circle at 100% 0%, var(--navy-800) 0%, var(--navy-900) 60%),
+    radial-gradient(1.5px 1.5px at 12% 30%, rgba(255,255,255,.09), transparent 60%),
+    radial-gradient(1.5px 1.5px at 32% 70%, rgba(255,255,255,.07), transparent 60%),
+    radial-gradient(1.5px 1.5px at 68% 20%, rgba(255,255,255,.08), transparent 60%),
+    radial-gradient(1.5px 1.5px at 85% 55%, rgba(255,255,255,.09), transparent 60%),
+    radial-gradient(1.5px 1.5px at 50% 85%, rgba(255,255,255,.06), transparent 60%);
+  background-size: cover, 60px 60px, 60px 60px, 60px 60px, 60px 60px, 60px 60px;
+  color: #fff; overflow: hidden;
+}
+.dash-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: var(--s5) var(--s5) 0; flex-wrap: wrap; }
+.dash-hero-greet { display: flex; flex-direction: column; gap: 6px; min-width: 240px; }
+.dash-hero-line { font-size: 13.5px; color: rgba(255,255,255,.82); max-width: 480px; margin: 0; }
+.dash-hero-ring { display: flex; flex-direction: column; align-items: center; gap: 8px; flex-shrink: 0; }
+.dash-hero-legend { min-height: 18px; }
+.dash-hero-body { background: rgba(255,255,255,.97); border-radius: var(--r-2) var(--r-2) 0 0; margin-top: var(--s5); color: var(--ink); }
+.dash-hero-body .k, .dash-hero-body .v { color: inherit; }
+@media (max-width: 720px) {
+  .dash-hero-top { flex-direction: column; align-items: flex-start; }
+  .dash-hero-ring { align-self: center; }
+}
