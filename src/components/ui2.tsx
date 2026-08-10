@@ -21,18 +21,20 @@ function prefersReducedMotion(): boolean {
 /* ------------------------------------------------------------------ count-up
    rAF-driven, snaps instantly for reduced-motion. Animates once per mount of
    the component holding it - callers that want it to replay on data change
-   should key the component, not rely on this re-animating on every render. */
+   replays from its own previous value whenever `target` actually changes -
+   first mount counts up from 0, a later refresh that lands on a different
+   number counts from the old figure to the new one, and a refresh that
+   lands on the same number does nothing (no needless replay). */
 export function useCountUp(target: number, opts?: { duration?: number; decimals?: number }): number {
   const duration = opts?.duration ?? 900;
   const decimals = opts?.decimals ?? 0;
   const [value, setValue] = useState(prefersReducedMotion() ? target : 0);
-  const started = useRef(false);
+  const prevTarget = useRef<number | null>(prefersReducedMotion() ? target : null);
 
   useEffect(() => {
-    if (prefersReducedMotion()) { setValue(target); return; }
-    if (started.current) { setValue(target); return; }
-    started.current = true;
-    const from = 0;
+    if (prefersReducedMotion()) { setValue(target); prevTarget.current = target; return; }
+    const from = prevTarget.current ?? 0;
+    if (from === target) return;
     const t0 = performance.now();
     let raf = 0;
     const tick = (now: number) => {
@@ -40,7 +42,7 @@ export function useCountUp(target: number, opts?: { duration?: number; decimals?
       const eased = 1 - Math.pow(1 - p, 3);
       setValue(from + (target - from) * eased);
       if (p < 1) raf = requestAnimationFrame(tick);
-      else setValue(target);
+      else { setValue(target); prevTarget.current = target; }
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
