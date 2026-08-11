@@ -5,6 +5,7 @@ import {
   Ic, Modal, Note, Spinner, DataTable, type Col,
   fmtDate, fmtDateTime, useToast, initials,
 } from '@/components/ui';
+import { VividKpiCard, BadgeV2, SkeletonCard } from '@/components/ui2';
 import type { SessionUser } from '@/lib/rbac';
 
 type User = {
@@ -27,8 +28,6 @@ type Audit = {
   id: number; actor_email: string; actor_role: string | null; action: string;
   object_type: string; object_id: string | null; detail: string | null; created_at: string;
 };
-
-const STATUS_TONE: Record<string, string> = { active: 'p-ok', pending: 'p-warn', disabled: 'p-mute' };
 
 /* -------------------------------------------------------------- C19 / C20 */
 type JobHealth = {
@@ -202,7 +201,7 @@ export default function Admin() {
     { key: 'last_login_at', label: 'Last sign-in', sort: true, cls: 'small nowrap',
       render: r => r.last_login_at ? fmtDateTime(r.last_login_at) : <span className="dim">Never</span> },
     { key: 'status', label: 'Status', sort: true,
-      render: r => <span className={`pill ${STATUS_TONE[r.status] ?? 'p-mute'}`}>{r.status}</span> },
+      render: r => <BadgeV2 tone={r.status === 'active' ? 'ok' : r.status === 'pending' ? 'warn' : 'mute'}>{r.status}</BadgeV2> },
     { key: 'actions', label: '', cls: 'nowrap no-print',
       render: r => (
         <div className="row g4">
@@ -244,7 +243,11 @@ export default function Admin() {
     : 0;
 
   if (err) return <Note kind="b">{err}</Note>;
-  if (loading) return <Spinner label="Loading administration…" />;
+  if (loading) return (
+    <div className="grid g-3">
+      {Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} height={140} />)}
+    </div>
+  );
 
   const TABS = [
     ...(canUsers ? [{ id: 'users', label: `Users (${users.length})` }] : []),
@@ -278,20 +281,14 @@ export default function Admin() {
             </Note>
           </div>
 
-          <div className="grid g-4 mb16">
-            {[
-              ['Active accounts', users.filter(u => u.status === 'active').length],
-              ['Awaiting approval', users.filter(u => u.status === 'pending').length],
-              ['Disabled', users.filter(u => u.status === 'disabled').length],
-              ['With review authority', users.filter(u => u.can_review).length],
-            ].map(([l, v]) => (
-              <div className="card kpi" key={String(l)}>
-                <div className="kl">{l}</div><div className="kv">{v as number}</div>
-              </div>
-            ))}
+          <div className="grid g-4 mb16 stagger-in stagger-1">
+            <VividKpiCard label="Active accounts" value={users.filter(u => u.status === 'active').length} icon="check2" gradient="var(--grad-emerald)" />
+            <VividKpiCard label="Awaiting approval" value={users.filter(u => u.status === 'pending').length} icon="clock" gradient="var(--grad-amber)" />
+            <VividKpiCard label="Disabled" value={users.filter(u => u.status === 'disabled').length} icon="lock" gradient="var(--grad-coral)" />
+            <VividKpiCard label="With review authority" value={users.filter(u => u.can_review).length} icon="shield" gradient="var(--grad-violet)" />
           </div>
 
-          <div className="card">
+          <div className="card stagger-in stagger-2">
             <div className="card-h">
               <h3>Users</h3>
               <button className="btn btn-p btn-s no-print" onClick={() => setInvite(true)}>
@@ -317,7 +314,7 @@ export default function Admin() {
             </Note>
           </div>
 
-          <div className="card">
+          <div className="card stagger-in stagger-1">
             <div className="card-h">
               <h3>Review delegations</h3>
               {canDeleg && (
@@ -353,9 +350,7 @@ export default function Admin() {
                       </td>
                       <td className="small">{d.from_name}</td>
                       <td>
-                        <span className={`pill ${d.is_active ? 'p-ok' : 'p-mute'}`}>
-                          {d.is_active ? 'Active' : 'Revoked'}
-                        </span>
+                        <BadgeV2 tone={d.is_active ? 'ok' : 'mute'}>{d.is_active ? 'Active' : 'Revoked'}</BadgeV2>
                       </td>
                       <td className="no-print">
                         {d.is_active && canDeleg && (
@@ -438,9 +433,9 @@ export default function Admin() {
                           <td><div className="t1">{j.label}</div>
                             <div className="t2 mono">{j.job}</div></td>
                           <td>
-                            <span className={`pill ${j.state === 'healthy' ? 'p-ok' : 'p-bad'}`}>
+                            <BadgeV2 tone={j.state === 'healthy' ? 'ok' : 'bad'} pulse={j.state !== 'healthy'}>
                               {j.state === 'healthy' ? 'Healthy' : j.state === 'silent' ? 'Silent' : 'Never run'}
-                            </span>
+                            </BadgeV2>
                           </td>
                           <td className="small nowrap">
                             {j.lastRun ? (<>{fmtDateTime(j.lastRun)}
@@ -495,7 +490,7 @@ export default function Admin() {
                         return (
                           <tr key={a.key}>
                             <td className="right">
-                              <span className={`pill ${m.tone} nd`}>{a.count}</span>
+                              <BadgeV2 tone={m.tone === 'p-bad' ? 'bad' : m.tone === 'p-warn' ? 'warn' : 'mute'} pulse={m.severe}>{a.count}</BadgeV2>
                             </td>
                             <td>
                               <div className="t1">{m.label}</div>
@@ -513,17 +508,10 @@ export default function Admin() {
                 </div>
               </div>
 
-              <div className="grid g-3">
-                {([
-                  ['Notifications sent (7d)', ops.notifications.sent7d, ''],
-                  ['Unread notifications', ops.notifications.unread, ''],
-                  ['Popups awaiting acknowledgement', ops.notifications.popupsOpen, ''],
-                ] as const).map(([label, value]) => (
-                  <div className="card kpi" key={label}>
-                    <div className="kl">{label}</div>
-                    <div className="kv-num">{value}</div>
-                  </div>
-                ))}
+              <div className="grid g-3 stagger-in stagger-3">
+                <VividKpiCard label="Notifications sent (7d)" value={ops.notifications.sent7d} icon="bell" gradient="var(--grad-primary)" />
+                <VividKpiCard label="Unread notifications" value={ops.notifications.unread} icon="bell" gradient="var(--grad-amber)" />
+                <VividKpiCard label="Popups awaiting acknowledgement" value={ops.notifications.popupsOpen} icon="alert" gradient="var(--grad-coral)" />
               </div>
             </>
           )}

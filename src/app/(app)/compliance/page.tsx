@@ -6,6 +6,7 @@ import {
   fmtDate, RISK_TONE, useToast, downloadFile,
 } from '@/components/ui';
 import ImportModal from '@/components/ImportModal';
+import { VividKpiCard, BadgeV2 } from '@/components/ui2';
 import type { SessionUser } from '@/lib/rbac';
 
 type Pending = {
@@ -287,8 +288,8 @@ export default function Library() {
       render: r => <span className={`pill ${RISK_TONE[r.risk_level] ?? 'p-mute'}`}>{r.risk_level}</span> },
     { key: 'verified', label: 'Status', sort: true, value: r => (r.verified ? 1 : 0),
       render: r => r.verified
-        ? <span className="pill p-ok" title={`${r.verified_by ?? ''} ${r.verified_on ?? ''}`}>Reviewed</span>
-        : <span className="pill p-mute">New obligation/amendment</span> },
+        ? <span title={`${r.verified_by ?? ''} ${r.verified_on ?? ''}`}><BadgeV2 tone="ok">Reviewed</BadgeV2></span>
+        : <BadgeV2 tone="mute">New obligation/amendment</BadgeV2> },
     { key: 'actions', label: '', cls: 'nowrap no-print',
       render: r => (
         <div className="row g4">
@@ -344,7 +345,7 @@ export default function Library() {
   return (
     <>
       {canManageDueDates && (
-        <div className="card mb16">
+        <div className="card mb16 stagger-in stagger-1">
           <div className="card-h">
             <div>
               <h3>Due-date sync</h3>
@@ -363,7 +364,10 @@ export default function Library() {
               : pending.map(p => (
                 <div key={p.id} className="row between g8 wrap" style={{ padding: '9px 0', borderBottom: '1px solid var(--line-2)' }}>
                   <div className="grow">
-                    <div className="small strong">{p.title}</div>
+                    <div className="row g8 wrap" style={{ alignItems: 'center' }}>
+                      <span className="small strong">{p.title}</span>
+                      <BadgeV2 tone="info">Proposed</BadgeV2>
+                    </div>
                     <div className="tiny muted mt4">
                       {p.old_due_date ? <>{fmtDate(p.old_due_date)} <Ic n="arrowR" s={10} /> </> : null}
                       <strong>{fmtDate(p.new_due_date)}</strong> · {p.country_code}
@@ -413,19 +417,13 @@ export default function Library() {
         </div>
       </div>
 
-      <div className="grid g-3 mb16">
-        {[
-          ['Compliance list', stats.total, 'Matching the current filters'],
-          ['State / provincial', stats.state, 'Apply only where registered'],
-          ['Applicable Obligations', stats.inUse, 'Live in the register'],
-        ].map(([l, v, s]) => (
-          <div className="card kpi" key={String(l)}>
-            <div className="kl">{l}</div><div className="kv">{v as number}</div><div className="ks">{s}</div>
-          </div>
-        ))}
+      <div className="grid g-3 mb16 stagger-in stagger-2">
+        <VividKpiCard label="Compliance list" value={stats.total} sub="Matching the current filters" icon="book" gradient="var(--grad-primary)" />
+        <VividKpiCard label="State / provincial" value={stats.state} sub="Apply only where registered" icon="globe" gradient="var(--grad-teal)" />
+        <VividKpiCard label="Applicable Obligations" value={stats.inUse} sub="Live in the register" icon="list" gradient="var(--grad-violet)" />
       </div>
 
-      <div className="card">
+      <div className="card stagger-in stagger-3">
         <div className="card-h">
           <h3>Compliance library</h3>
           <div className="row g6 wrap no-print">
@@ -462,7 +460,15 @@ export default function Library() {
           </div>
         </div>
         {loading
-          ? <div className="card-b"><Spinner label="Loading the library…" /></div>
+          ? <div className="card-b" style={{ display: 'grid', gap: 10 }}>
+              {Array.from({ length: 10 }, (_, r) => (
+                <div key={r} style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+                  {Array.from({ length: 5 }, (_, c) => (
+                    <div key={c} className="skel skel-text" style={{ width: c === 0 ? '80%' : '60%' }} />
+                  ))}
+                </div>
+              ))}
+            </div>
           : <DataTable<Comp & Record<string, unknown>>
               rows={rows as (Comp & Record<string, unknown>)[]}
               cols={cols} rowKey={r => r.id} pageSize={50}
