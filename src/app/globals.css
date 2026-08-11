@@ -848,6 +848,30 @@ input[type="file"] { padding: 6px; }
   .card { box-shadow: none; break-inside: avoid; border-color: #ccc; }
   .card-link { border-color: #ccc; }
   @page { margin: 14mm; }
+
+  /* A gradient-filled tile reads as a blank white box the moment a PDF/print
+     engine drops background graphics, leaving white text on white paper -
+     printed output falls back to a plain card with dark text and a coloured
+     left border instead. */
+  .vkpi {
+    background: #fff !important; color: var(--ink) !important;
+    box-shadow: none !important; border: 1px solid #ccc; border-left: 4px solid var(--navy-600);
+    break-inside: avoid;
+  }
+  .vkpi-decor { display: none !important; }
+  .vkpi-label { color: var(--ink-3) !important; }
+  .vkpi-val { color: var(--navy-900) !important; }
+  .vkpi-sub { color: var(--ink-3) !important; }
+  .vkpi-ic { background: var(--navy-050) !important; }
+  .vkpi-ic svg { stroke: var(--navy-700) !important; }
+  .rpt-table-card::before { display: none !important; }
+  .rpt-table thead tr { background: var(--surface-2) !important; }
+  .rpt-table tbody tr:nth-child(even) td { background: var(--surface-2) !important; }
+
+  /* The Reports page's own sidebar+content grid is inline-styled, so hiding
+     the sidebar with .no-print still left its 270px column reserved - the
+     printed report sat in a narrow strip with a blank gap on the left. */
+  .rpt-layout { grid-template-columns: 1fr !important; }
 }
 
 /* Users who prefer reduced motion get none of the transitions above. */

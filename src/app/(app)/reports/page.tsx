@@ -232,7 +232,7 @@ function ReportsInner() {
 
   return (
     <>
-      <div className="grid" style={{ gridTemplateColumns: '270px 1fr', gap: 16, alignItems: 'start' }}>
+      <div className="grid rpt-layout" style={{ gridTemplateColumns: '270px 1fr', gap: 16, alignItems: 'start' }}>
         <div className="card no-print" style={{ position: 'sticky', top: 68 }}>
           <div className="card-h"><h3>Reports</h3></div>
           <div style={{ padding: '5px 0' }}>
