@@ -96,7 +96,7 @@
   --ink-4:    #8B95A6;
   --line:     #DFE4EC;
   --line-2:   #EDF0F5;
-  --canvas:   #F4F6FA;
+  --canvas:   #F5F4FB;
   --surface:  #FFFFFF;
   --surface-2:#F8FAFC;
 
@@ -145,7 +145,12 @@ body {
   font-size: 13.5px;
   line-height: 1.5;
   color: var(--ink);
-  background: var(--canvas);
+  background:
+    radial-gradient(1100px 600px at 6% -8%, color-mix(in srgb, var(--indigo-500) 7%, transparent), transparent 60%),
+    radial-gradient(900px 520px at 100% 0%, color-mix(in srgb, var(--teal-500) 6%, transparent), transparent 60%),
+    radial-gradient(800px 520px at 45% 100%, color-mix(in srgb, var(--amber-500) 5%, transparent), transparent 55%),
+    var(--canvas);
+  background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -1452,4 +1457,15 @@ input[type="file"] { padding: 6px; }
 .tl2-node.ok { background: var(--emerald-500); color: #fff; }
 .tl2-node.bad { background: var(--coral-500); color: #fff; }
 .tl2-node.warn { background: var(--amber-500); color: #fff; }
+
+/* ------------------------------------------------------------------ report tables
+   Scoped to the Reports page only - a coloured header and gentle zebra
+   striping so a results table reads as considered rather than a raw dump,
+   without touching the plain .dt table used everywhere else in the app. */
+.rpt-table-card { position: relative; overflow: hidden; padding-top: 3px; }
+.rpt-table-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--grad-primary); }
+.rpt-table thead tr { background: linear-gradient(90deg, color-mix(in srgb, var(--indigo-500) 8%, transparent), color-mix(in srgb, var(--teal-500) 6%, transparent)); }
+.rpt-table th { color: var(--navy-800); }
+.rpt-table tbody tr:nth-child(even) td { background: var(--surface-2); }
+.rpt-table tbody tr:hover td { background: var(--indigo-100) !important; }
 .tl2-node { background: var(--indigo-100); color: var(--indigo-700); }
