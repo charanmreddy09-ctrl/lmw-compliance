@@ -194,23 +194,13 @@ function ReportsInner() {
       <div className="grid" style={{ gridTemplateColumns: '270px 1fr', gap: 16, alignItems: 'start' }}>
         <div className="card no-print" style={{ position: 'sticky', top: 68 }}>
           <div className="card-h"><h3>Reports</h3></div>
-          <div style={{ padding: '5px 0' }}>
+          <div className="rpt-grid" style={{ gridTemplateColumns: '1fr', padding: 12 }}>
             {REPORTS.map(r => (
-              <button key={r.id} onClick={() => { setActive(r.id); setMisSub(null); }}
-                      style={{
-                        display: 'flex', alignItems: 'flex-start', gap: 9, width: '100%',
-                        padding: '8px 13px', border: 'none', background: active === r.id ? 'var(--navy-050)' : 'none',
-                        borderLeft: `2px solid ${active === r.id ? 'var(--navy-700)' : 'transparent'}`,
-                        cursor: 'pointer', textAlign: 'left',
-                      }}>
-                <span style={{ marginTop: 1, color: active === r.id ? 'var(--navy-700)' : 'var(--ink-4)' }}>
-                  <Ic n={r.icon} s={15} />
-                </span>
-                <span>
-                  <span className="small strong" style={{ color: active === r.id ? 'var(--navy-800)' : 'var(--ink)' }}>
-                    {r.name}
-                  </span>
-                </span>
+              <button key={r.id} className={`rpt-card${active === r.id ? ' on' : ''}`}
+                      onClick={() => { setActive(r.id); setMisSub(null); }}>
+                <span className="ri"><Ic n={r.icon} s={16} /></span>
+                <span className="rt">{r.name}</span>
+                <span className="rd">{r.d}</span>
               </button>
             ))}
           </div>
@@ -294,29 +284,20 @@ function ReportsInner() {
           </div>
 
           {active === 'mis' && !misItem && (
-            <div className="card">
-              <div style={{ padding: '5px 0' }}>
-                {MIS_ITEMS.map(m => (
-                  <button key={m.id} onClick={() => setMisSub(m.id)}
-                          className="row g16"
-                          style={{
-                            width: '100%', padding: '14px 16px', border: 'none',
-                            borderBottom: '1px solid var(--line-2)', background: 'none',
-                            cursor: 'pointer', textAlign: 'left',
-                          }}>
-                    <span className={`pill ${m.freq === 'Monthly' ? 'p-warn' : m.freq === 'Annual' ? 'p-ok' : 'p-info'} nd`}
-                          style={{ minWidth: 76, textAlign: 'center' }}>
+            <div className="rpt-grid">
+              {MIS_ITEMS.map(m => (
+                <button key={m.id} className="rpt-card" onClick={() => setMisSub(m.id)}>
+                  <span className="row between" style={{ width: '100%' }}>
+                    <span className="ri"><Ic n={REPORTS.find(r => r.id === m.reportType)?.icon ?? 'sheet'} s={16} /></span>
+                    <span className={`pill ${m.freq === 'Monthly' ? 'p-warn' : m.freq === 'Annual' ? 'p-ok' : 'p-info'} nd tiny`}>
                       {m.freq}
                     </span>
-                    <div>
-                      <div className="small strong">{m.name}</div>
-                      <div className="tiny muted mt4">{m.d}</div>
-                    </div>
-                    <span className="grow" />
-                    <Ic n="chevR" s={14} />
-                  </button>
-                ))}
-              </div>
+                  </span>
+                  <span className="rt">{m.name}</span>
+                  <span className="rd">{m.d}</span>
+                  <span className="rgo">Open <Ic n="chevR" s={12} /></span>
+                </button>
+              ))}
             </div>
           )}
 
@@ -459,7 +440,17 @@ function ReportsInner() {
           )}
 
           {showGenericTable && err && <Note kind="b">{err}</Note>}
-          {showGenericTable && loading && <Spinner label="Generating the report…" />}
+          {showGenericTable && loading && (
+            <div className="card"><div className="card-b" style={{ display: 'grid', gap: 10 }}>
+              {Array.from({ length: 8 }, (_, r) => (
+                <div key={r} style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12 }}>
+                  {Array.from({ length: 6 }, (_, c) => (
+                    <div key={c} className="skel skel-text" style={{ width: c === 0 ? '80%' : '60%' }} />
+                  ))}
+                </div>
+              ))}
+            </div></div>
+          )}
 
           {showGenericTable && !loading && data && (
             <>
