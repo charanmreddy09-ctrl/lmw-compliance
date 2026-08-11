@@ -79,9 +79,9 @@ export default function Landing() {
         </nav>
       </header>
 
-      <section className="land-hero row g24 wrap" style={{ alignItems: 'center' }}>
+      <section className="land-hero row g24 wrap reveal-in" style={{ alignItems: 'center' }}>
         <div style={{ maxWidth: 640, flex: '1 1 480px' }}>
-          <div className="cap mb12" style={{ color: 'var(--red-600)' }}>Version 1.2</div>
+          <div className="cap mb12" style={{ color: 'var(--red-600)' }}>Version 1.3</div>
           <h1 style={{ fontSize: 34, lineHeight: 1.18, letterSpacing: '-0.02em' }}>
             Statutory compliance the Board can rely on, because every entry is
             backed by the document that proves it.
@@ -104,14 +104,14 @@ export default function Landing() {
       </section>
 
       <div className="land-hero" style={{ paddingTop: 0 }}>
-        <div className="grid g-4">
+        <div className="grid g-4 stagger-in stagger-2">
           {[
             ['Entities in scope', '2', 'LMW Limited (India) and LMW Global FZE (UAE)'],
             ['Statutory obligations', '95+', 'National plus Tamil Nadu / UAE free-zone level'],
             ['Evidence held', 'Every filing', 'Versioned, checksummed, downloadable'],
             ['Score basis', 'Approved only', 'Self-declaration does not count'],
           ].map(([l, v, s]) => (
-            <div className="card kpi" key={l}>
+            <div className="card kpi hoverable" key={l}>
               <div className="kl">{l}</div>
               <div className="kv-num">{v}</div>
               <div className="ks">{s}</div>
@@ -124,9 +124,9 @@ export default function Landing() {
         <div style={{ maxWidth: 1120, margin: '0 auto' }}>
           <div className="cap mb8">How a filing moves through the platform</div>
           <h2 style={{ fontSize: 22, marginBottom: 22 }}>From obligation to Board-level score, with a full audit trail</h2>
-          <div className="grid g-5">
+          <div className="grid g-5 reveal-in">
             {FLOW.map(f => (
-              <div className="card card-b" key={f.n}>
+              <div className="card card-b hoverable" key={f.n}>
                 <div className="num" style={{ fontSize: 20, color: 'var(--red-600)', fontWeight: 500 }}>{f.n}</div>
                 <h3 className="mt8">{f.t}</h3>
                 <p className="small muted mt4 mb0" style={{ lineHeight: 1.55 }}>{f.d}</p>
@@ -140,11 +140,11 @@ export default function Landing() {
         <div style={{ maxWidth: 1120, margin: '0 auto' }}>
           <div className="cap mb8">Platform capabilities</div>
           <h2 style={{ fontSize: 22, marginBottom: 22 }}>Everything the compliance function needs, in one system of record</h2>
-          <div className="grid g-3">
+          <div className="grid g-3 reveal-in">
             {MODULES.map(m => {
               const tint = TINTS[m.tint];
               return (
-                <div className="card card-b" key={m.t}>
+                <div className="card card-b hoverable" key={m.t}>
                   <div className="row g10" style={{ alignItems: 'center', marginBottom: 10 }}>
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -204,7 +204,7 @@ export default function Landing() {
       <footer style={{ borderTop: '1px solid var(--line)', padding: '18px 26px' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto' }} className="row between wrap g12">
           <span className="tiny muted">
-            LMW Compliance Management Platform · Version 1.2 · Internal use only
+            LMW Compliance Management Platform · Version 1.3 · Internal use only
           </span>
           <Link href="/signin" className="tiny strong">Sign in</Link>
         </div>
