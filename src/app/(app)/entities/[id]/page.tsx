@@ -4,9 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
-  Ic, Dial, Kpi, Modal, Note, Spinner, StatusPill, DataTable, type Col,
+  Ic, Kpi, Modal, Note, Spinner, StatusPill, DataTable, type Col,
   scoreColor, fmtDate, fmtDateTime, daysFromToday, RISK_TONE, useToast, downloadFile,
 } from '@/components/ui';
+import { ProgressRing, AnimatedNumber, BadgeV2, SkeletonCard } from '@/components/ui2';
 import type { ScoreBreakdown } from '@/lib/score';
 import type { SessionUser } from '@/lib/rbac';
 import { NOT_APPLICABLE_REASONS } from '@/lib/constants';
@@ -122,11 +123,22 @@ export default function EntityDetail() {
   }, [d, status, cat, q]);
 
   if (err) return <Note kind="b">{err}</Note>;
-  if (!d) return <Spinner label="Loading entity…" />;
+  if (!d) return (
+    <>
+      <SkeletonCard height={64} />
+      <div className="mt16"><SkeletonCard height={220} /></div>
+    </>
+  );
 
   const e = d.entity;
   const s = d.score;
   const subStates = d.states.filter(x => x.level !== 'federal');
+  const scoreInProgress = Math.max(0, (s?.total ?? 0) - (s?.approved ?? 0) - (s?.overdue ?? 0));
+  const scoreSegments = [
+    { key: 'approved', value: s?.approved ?? 0, color: 'var(--emerald-500)', label: 'Compliant' },
+    { key: 'progress', value: scoreInProgress, color: 'var(--amber-500)', label: 'In progress' },
+    { key: 'overdue', value: s?.overdue ?? 0, color: 'var(--coral-500)', label: 'Overdue' },
+  ].filter(seg => seg.value > 0);
 
   const cols: Col<Obl & Record<string, unknown>>[] = [
     { key: 'due_date', label: 'Due', sort: true, cls: 'nowrap',
@@ -173,11 +185,19 @@ export default function EntityDetail() {
       </div>
 
       <div className="grid g-side mb16">
-        <div className="card">
+        <div className="card stagger-in stagger-1">
           <div className="card-h"><h3>Compliance score</h3>
             <span className="tiny muted">Approved, evidence-backed obligations only</span></div>
           <div className="card-b row g24 wrap">
-            <Dial value={s?.score ?? 0} size={104} />
+            <ProgressRing value={s?.score ?? 0} size={104} strokeWidth={9} segments={scoreSegments}
+              center={
+                <>
+                  <span className="num strong" style={{ fontSize: 22, color: scoreColor(s?.score ?? 0), lineHeight: 1 }}>
+                    <AnimatedNumber value={s?.score ?? 0} decimals={1} />
+                  </span>
+                  <span className="tiny dim" style={{ marginTop: 2 }}>SCORE</span>
+                </>
+              } />
             <div className="grow" style={{ minWidth: 230 }}>
               <div className="stack">
                 <div><span className="k">Applicable</span><span className="v num">{s?.total ?? 0}</span></div>
@@ -204,14 +224,14 @@ export default function EntityDetail() {
           </div>
         </div>
 
-        <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', alignContent: 'start' }}>
-          <Kpi label="Evidence coverage" value={<>{s?.evidenceCoverage ?? 0}<span style={{ fontSize: 13 }}>%</span></>}
+        <div className="grid stagger-in stagger-2" style={{ gridTemplateColumns: '1fr 1fr', alignContent: 'start' }}>
+          <Kpi label="Evidence coverage" value={<><AnimatedNumber value={s?.evidenceCoverage ?? 0} decimals={1} /><span style={{ fontSize: 13 }}>%</span></>}
                sub="With a document" bar={s?.evidenceCoverage ?? 0} />
-          <Kpi label="On-time filing" value={<>{s?.onTimeRate ?? 0}<span style={{ fontSize: 13 }}>%</span></>}
+          <Kpi label="On-time filing" value={<><AnimatedNumber value={s?.onTimeRate ?? 0} decimals={1} /><span style={{ fontSize: 13 }}>%</span></>}
                sub="By the due date" bar={s?.onTimeRate ?? 0} />
-          <Kpi label="Average delay" value={<>{s?.avgDelayDays ?? 0}<span style={{ fontSize: 13 }}> d</span></>}
+          <Kpi label="Average delay" value={<><AnimatedNumber value={s?.avgDelayDays ?? 0} decimals={1} /><span style={{ fontSize: 13 }}> d</span></>}
                sub="Where late" bar={Math.min(100, (s?.avgDelayDays ?? 0) * 4)} barColor="var(--warn-600)" />
-          <Kpi label="Filed late" value={s?.filedLate ?? 0} sub="Historic count"
+          <Kpi label="Filed late" value={<AnimatedNumber value={s?.filedLate ?? 0} />} sub="Historic count"
                bar={s?.total ? ((s.filedLate / s.total) * 100) : 0} barColor="var(--warn-600)" />
         </div>
       </div>
@@ -227,7 +247,7 @@ export default function EntityDetail() {
         </div>
       )}
 
-      <div className="tabs no-print">
+      <div className="tabs no-print stagger-in stagger-3">
         {[
           { id: 'register', label: `Obligation register (${d.obligations.length})` },
           { id: 'category', label: 'By category' },

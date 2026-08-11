@@ -684,10 +684,10 @@ input[type="file"] { padding: 6px; }
 .tl::before { content: ""; position: absolute; left: 5px; top: 5px; bottom: 5px; width: 1px; background: var(--line); }
 .tl-i { position: relative; padding: 0 0 var(--s4); }
 .tl-i:last-child { padding-bottom: 0; }
-.tl-i::before { content: ""; position: absolute; left: -18px; top: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--surface); border: 2px solid var(--navy-500); }
-.tl-i.ok::before { border-color: var(--ok-600); }
-.tl-i.bad::before { border-color: var(--bad-600); }
-.tl-i.warn::before { border-color: var(--warn-600); }
+.tl-i::before { content: ""; position: absolute; left: -18px; top: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--surface); border: 2px solid var(--navy-500); transition: box-shadow var(--dur-2) ease; }
+.tl-i.ok::before { border-color: var(--emerald-500); background: var(--emerald-500); box-shadow: 0 0 0 3px var(--emerald-100); }
+.tl-i.bad::before { border-color: var(--coral-500); background: var(--coral-500); box-shadow: 0 0 0 3px color-mix(in srgb, var(--coral-500) 18%, transparent); }
+.tl-i.warn::before { border-color: var(--amber-500); background: var(--amber-500); box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber-500) 18%, transparent); }
 .tl-t { font-size: 12.5px; line-height: 1.45; }
 .tl-m { font-size: 11px; color: var(--ink-4); font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 
