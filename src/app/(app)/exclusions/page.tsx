@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, Note, Spinner, fmtDate, useToast } from '@/components/ui';
+import { BadgeV2, EmptyState } from '@/components/ui2';
 import { NOT_APPLICABLE_REASONS } from '@/lib/constants';
 
 type EntityRow = { id: string; name: string; short_name: string; country_name: string };
@@ -113,24 +114,35 @@ export default function Exclusions() {
             Mark a compliance not applicable to remove it and its obligations from this entity&apos;s counts
           </span>
         </div>
-        {loading ? <div className="card-b"><Spinner label="Loading…" /></div> : (
+        {loading
+          ? <div className="card-b" style={{ display: 'grid', gap: 10 }}>
+              {Array.from({ length: 6 }, (_, r) => (
+                <div key={r} style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                  {Array.from({ length: 4 }, (_, c) => (
+                    <div key={c} className="skel skel-text" style={{ width: c === 0 ? '80%' : '60%' }} />
+                  ))}
+                </div>
+              ))}
+            </div>
+          : shown.length === 0 ? (
+            <div className="card-b">
+              <EmptyState title="Nothing to show" body="No compliances match this entity and filter." />
+            </div>
+          ) : (
           <div className="tw">
             <table className="dt">
               <thead><tr><th>Compliance</th><th>Law</th><th>Status</th><th></th></tr></thead>
               <tbody>
-                {shown.length === 0 && (
-                  <tr><td colSpan={4}><div className="empty">No compliances match this entity and filter.</div></td></tr>
-                )}
                 {shown.map(a => (
                   <tr key={a.compliance_id}>
                     <td><div className="t1">{a.title}</div><div className="t2 mono">{a.code}</div></td>
                     <td className="small">{a.category}</td>
                     <td>
                       {a.excluded
-                        ? <span className="pill p-mute" title={`${a.excluded_by ?? ''} ${a.excluded_at ? fmtDate(a.excluded_at) : ''}`}>
-                            Not applicable{a.reason ? ` - ${a.reason}` : ''}
+                        ? <span title={`${a.excluded_by ?? ''} ${a.excluded_at ? fmtDate(a.excluded_at) : ''}`}>
+                            <BadgeV2 tone="mute">Not applicable{a.reason ? ` - ${a.reason}` : ''}</BadgeV2>
                           </span>
-                        : <span className="pill p-ok nd">Applicable</span>}
+                        : <BadgeV2 tone="ok">Applicable</BadgeV2>}
                     </td>
                     <td className="nowrap no-print">
                       <button className="btn btn-xs" onClick={() => toggle(a)}>
