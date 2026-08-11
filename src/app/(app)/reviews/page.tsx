@@ -4,10 +4,37 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Ic, Modal, Note, Spinner, StatusPill, DataTable, ValidationChecks, type Col,
-  fmtDate, fmtDateTime, fmtBytes, daysFromToday, RISK_TONE, useToast, downloadFile, Kpi,
+  fmtDate, fmtDateTime, fmtBytes, daysFromToday, RISK_TONE, useToast, downloadFile,
   Lifecycle, scoreColor,
 } from '@/components/ui';
+import { VividKpiCard, AnimatedNumber, Stepper, type StepperStep } from '@/components/ui2';
 import { MIN_REMARK_LENGTH } from '@/lib/constants';
+
+/* Same pure derivation as the register drawer's stepper - visual only, no
+   schema change. Duplicated rather than imported so this file's business
+   rule stays next to its own drawer, matching the register page's approach. */
+function deriveStepperState(o: Record<string, string | number | string[] | null>): StepperStep[] {
+  const s = String(o.status);
+  const w = String(o.workflow_stage);
+  const prepared = ['Submitted', 'Under Review', 'Query Raised', 'Approved', 'Rejected'].includes(s) || !!o.filed_date;
+  const preparedActive = ['Not Started', 'Evidence Pending'].includes(s) && w === 'preparer';
+  const reviewed = s === 'Approved' || w === 'country_head' || w === 'closed' || s === 'Rejected';
+  const reviewedActive = w === 'reviewer';
+  const approved = s === 'Approved' && w === 'closed';
+  const approvedActive = w === 'country_head';
+  return [
+    { id: 'created', label: 'Created', state: 'done' },
+    { id: 'assigned', label: 'Assigned', state: o.assigned_to ? 'done' : 'pending' },
+    { id: 'prepared', label: 'Prepared', state: prepared ? 'done' : preparedActive ? 'active' : 'pending' },
+    {
+      id: 'reviewed', label: 'Reviewed',
+      state: reviewed ? 'done' : (reviewedActive || s === 'Query Raised') ? 'active' : 'pending',
+      tone: s === 'Rejected' ? 'bad' : undefined,
+      caption: s === 'Query Raised' ? 'Query raised' : undefined,
+    },
+    { id: 'approved', label: 'Approved', state: approved ? 'done' : approvedActive ? 'active' : 'pending' },
+  ];
+}
 
 type QRow = {
   id: string; reference: string; period_label: string; due_date: string;
@@ -168,7 +195,7 @@ function ReviewsInner() {
 
   return (
     <>
-      <div className="card mb16">
+      <div className="card mb16 stagger-in stagger-1">
         <div className="card-h">
           <div>
             <h3>Escalation matrix</h3>
@@ -191,7 +218,7 @@ function ReviewsInner() {
           rolling 90 days - so a query-and-resubmit counts as two reviews
           rather than one very slow one. */}
       {stats && stats.decisions > 0 && (
-        <div className="card mb16">
+        <div className="card mb16 stagger-in stagger-1">
           <div className="card-h">
             <div>
               <h3>Your review record</h3>
@@ -201,13 +228,13 @@ function ReviewsInner() {
           <div className="card-b row g24 wrap">
             <div>
               <div className="tiny dim">Decisions taken</div>
-              <div className="num strong" style={{ fontSize: 22, lineHeight: 1.1 }}>{stats.decisions}</div>
+              <div className="num strong" style={{ fontSize: 22, lineHeight: 1.1 }}><AnimatedNumber value={stats.decisions} /></div>
             </div>
             <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--line-2)' }} />
             <div>
               <div className="tiny dim">Average turnaround</div>
               <div className="num strong" style={{ fontSize: 22, lineHeight: 1.1 }}>
-                {stats.avgHours == null ? '-' : <>{stats.avgHours}<span style={{ fontSize: 13, fontFamily: 'var(--font-sans)', marginLeft: 2 }}>h</span></>}
+                {stats.avgHours == null ? '-' : <><AnimatedNumber value={stats.avgHours} decimals={1} /><span style={{ fontSize: 13, fontFamily: 'var(--font-sans)', marginLeft: 2 }}>h</span></>}
               </div>
             </div>
             <div>
@@ -216,21 +243,21 @@ function ReviewsInner() {
                 fontSize: 22, lineHeight: 1.1,
                 color: stats.slaRate == null ? undefined : scoreColor(stats.slaRate),
               }}>
-                {stats.slaRate == null ? '-' : <>{stats.slaRate}<span style={{ fontSize: 13, fontFamily: 'var(--font-sans)' }}>%</span></>}
+                {stats.slaRate == null ? '-' : <><AnimatedNumber value={stats.slaRate} decimals={1} /><span style={{ fontSize: 13, fontFamily: 'var(--font-sans)' }}>%</span></>}
               </div>
             </div>
             <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--line-2)' }} />
             <div>
               <div className="tiny dim">Approved</div>
-              <div className="num strong" style={{ fontSize: 17, color: 'var(--ok-700)' }}>{stats.approved}</div>
+              <div className="num strong" style={{ fontSize: 17, color: 'var(--ok-700)' }}><AnimatedNumber value={stats.approved} /></div>
             </div>
             <div>
               <div className="tiny dim">Queried</div>
-              <div className="num strong" style={{ fontSize: 17, color: 'var(--warn-700)' }}>{stats.queried}</div>
+              <div className="num strong" style={{ fontSize: 17, color: 'var(--warn-700)' }}><AnimatedNumber value={stats.queried} /></div>
             </div>
             <div>
               <div className="tiny dim">Rejected</div>
-              <div className="num strong" style={{ fontSize: 17, color: 'var(--bad-600)' }}>{stats.rejected}</div>
+              <div className="num strong" style={{ fontSize: 17, color: 'var(--bad-600)' }}><AnimatedNumber value={stats.rejected} /></div>
             </div>
             {stats.measured < stats.decisions && (
               <div className="grow tiny dim" style={{ alignSelf: 'flex-end', textAlign: 'right', minWidth: 160 }}>
@@ -242,18 +269,15 @@ function ReviewsInner() {
         </div>
       )}
 
-      <div className="grid g-4 mb16">
-        <Kpi label="Awaiting your review" value={buckets.pending.length}
-             sub="Submitted with evidence" barColor="var(--navy-600)"
-             bar={rows.length ? (buckets.pending.length / rows.length) * 100 : 0} />
-        <Kpi label="Flagged by validation" value={flagged}
-             sub="Warnings or blocking issues" barColor="var(--warn-600)"
-             bar={buckets.pending.length ? (flagged / buckets.pending.length) * 100 : 0} />
-        <Kpi label="Filed late" value={late} sub="Delay already recorded" barColor="var(--bad-600)"
-             bar={buckets.pending.length ? (late / buckets.pending.length) * 100 : 0} />
-        <Kpi label="Open with preparers" value={buckets.queried.length + buckets.rejected.length}
-             sub="Queried or rejected" barColor="var(--warn-600)"
-             bar={rows.length ? ((buckets.queried.length + buckets.rejected.length) / rows.length) * 100 : 0} />
+      <div className="grid g-4 mb16 stagger-in stagger-2">
+        <VividKpiCard label="Awaiting your review" value={buckets.pending.length}
+             sub="Submitted with evidence" icon="eye" gradient="var(--grad-violet)" />
+        <VividKpiCard label="Flagged by validation" value={flagged}
+             sub="Warnings or blocking issues" icon="alert" gradient="var(--grad-amber)" />
+        <VividKpiCard label="Filed late" value={late} sub="Delay already recorded"
+             icon="clock" gradient="var(--grad-coral)" />
+        <VividKpiCard label="Open with preparers" value={buckets.queried.length + buckets.rejected.length}
+             sub="Queried or rejected" icon="swap" gradient="var(--grad-teal)" />
       </div>
 
       <div className="tabs no-print">
@@ -286,7 +310,15 @@ function ReviewsInner() {
           </div>
         </div>
         {loading
-          ? <div className="card-b"><Spinner label="Loading the review queue…" /></div>
+          ? <div className="card-b" style={{ display: 'grid', gap: 10 }}>
+              {Array.from({ length: 8 }, (_, r) => (
+                <div key={r} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 12 }}>
+                  {Array.from({ length: 7 }, (_, c) => (
+                    <div key={c} className="skel skel-text" style={{ width: c === 0 ? '80%' : '60%' }} />
+                  ))}
+                </div>
+              ))}
+            </div>
           : <DataTable<QRow & Record<string, unknown>>
               rows={shown as (QRow & Record<string, unknown>)[]}
               cols={cols} rowKey={r => r.id} pageSize={30}
@@ -408,6 +440,9 @@ function ReviewDrawer({ id, onClose, onDone }: { id: string; onClose: () => void
 
       <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div>
+          {o.status !== 'Not Applicable' && (
+            <div className="mb16"><Stepper steps={deriveStepperState(o)} /></div>
+          )}
           <div className="row g8 wrap mb12">
             <StatusPill s={String(o.status)} />
             <span className={`pill ${RISK_TONE[String(o.risk_level)] ?? 'p-mute'}`}>{String(o.risk_level)} risk</span>
