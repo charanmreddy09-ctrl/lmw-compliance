@@ -290,7 +290,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   </div>
                 </div>
               </div>
-              <div className="side-ver">Version 1.2</div>
+              <div className="side-ver">Version 1.3</div>
             </div>
           )}
 
@@ -368,7 +368,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <PageTransition pathKey={pathname}>{children}</PageTransition>
             <footer className="foot no-print">
               <span>© {new Date().getFullYear()} LMW Limited. All rights reserved.</span>
-              <span>Version 1.2 · Internal use only</span>
+              <span>Version 1.3 · Internal use only</span>
             </footer>
           </main>
         </div>
