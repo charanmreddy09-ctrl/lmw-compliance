@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Ic, Note, Spinner, useToast, downloadFile, fmtDateTime, scoreColor } from '@/components/ui';
+import { AnimatedNumber } from '@/components/ui2';
 import {
   OUTCOME_POINTS, DEDUCTIONS, CRITICALITY_WEIGHT, EVIDENCE_TIERS,
   EVIDENCE_UNCLASSIFIED, EVIDENCE_FLOOR,
@@ -34,6 +35,41 @@ const MONTH_NAMES = [
     (e.g. FY2026-27 -> Jan-Mar 2027, Apr-Dec 2026). */
 function calYearForMonth(fyStartYear: number, month1to12: number): number {
   return month1to12 >= 4 ? fyStartYear : fyStartYear + 1;
+}
+
+/** Visual language for a Metric/Value(/Basis) row - a colour and icon chosen
+    from the metric's own name, purely presentational. The figure itself is
+    never touched: it is whatever the API already computed. */
+function metricTileMeta(metric: string): { icon: string; gradient: string } {
+  const m = metric.toLowerCase();
+  if (m.includes('overdue')) return { icon: 'alert', gradient: 'var(--grad-coral)' };
+  if (m.includes('quer') || m.includes('reject')) return { icon: 'alert', gradient: 'var(--grad-amber)' };
+  if (m.includes('awaiting') || m.includes('review')) return { icon: 'eye', gradient: 'var(--grad-violet)' };
+  if (m.includes('evidence') || m.includes('coverage')) return { icon: 'doc', gradient: 'var(--grad-teal)' };
+  if (m.includes('on-time') || m.includes('rate')) return { icon: 'clock', gradient: 'var(--grad-emerald)' };
+  if (m.includes('score')) return { icon: 'shield', gradient: 'var(--grad-primary)' };
+  return { icon: 'info', gradient: 'var(--grad-primary)' };
+}
+
+/** How many decimal places a number is already expressed to, so a count-up
+    animation replays the exact figure the API rounded to rather than a
+    different precision. */
+function decimalsOf(n: number): number {
+  const s = String(n);
+  const i = s.indexOf('.');
+  return i === -1 ? 0 : s.length - i - 1;
+}
+
+/** Splits "58.8%" into a numeric part (for the count-up) and its suffix, so
+    a percentage still animates instead of rendering as inert text. Values
+    that aren't a plain number-plus-suffix are returned unchanged. */
+function splitMetricValue(v: unknown): { numeric: number; decimals: number; suffix: string } | null {
+  if (typeof v === 'number') return { numeric: v, decimals: decimalsOf(v), suffix: '' };
+  if (typeof v === 'string') {
+    const m = v.match(/^(-?\d+(?:\.\d+)?)(.*)$/);
+    if (m) return { numeric: Number(m[1]), decimals: decimalsOf(Number(m[1])), suffix: m[2] };
+  }
+  return null;
 }
 
 const REPORTS = [
@@ -161,6 +197,11 @@ function ReportsInner() {
   const showGenericTable = active !== 'methodology'
     && (active !== 'mis' || (!!misItem && misItem.id !== 'certificate'));
   const cols = data?.rows.length ? Object.keys(data.rows[0]) : [];
+  /* A handful of reports (Executive summary, and the MIS items that reuse it)
+     return one row per headline figure - Metric/Value/Basis - rather than one
+     row per obligation. Those read far better as a stat grid than as a table
+     with two or three columns and six rows. */
+  const isMetricRows = cols[0] === 'Metric' && cols[1] === 'Value';
   /* A column is numeric if every row's value for it is a number (or blank) -
      checked across all rows, not just the first, so a column doesn't end up
      with its header aligned one way and its body cells the other. Centred,
@@ -194,13 +235,23 @@ function ReportsInner() {
       <div className="grid" style={{ gridTemplateColumns: '270px 1fr', gap: 16, alignItems: 'start' }}>
         <div className="card no-print" style={{ position: 'sticky', top: 68 }}>
           <div className="card-h"><h3>Reports</h3></div>
-          <div className="rpt-grid" style={{ gridTemplateColumns: '1fr', padding: 12 }}>
+          <div style={{ padding: '5px 0' }}>
             {REPORTS.map(r => (
-              <button key={r.id} className={`rpt-card${active === r.id ? ' on' : ''}`}
-                      onClick={() => { setActive(r.id); setMisSub(null); }}>
-                <span className="ri"><Ic n={r.icon} s={16} /></span>
-                <span className="rt">{r.name}</span>
-                <span className="rd">{r.d}</span>
+              <button key={r.id} onClick={() => { setActive(r.id); setMisSub(null); }}
+                      style={{
+                        display: 'flex', alignItems: 'flex-start', gap: 9, width: '100%',
+                        padding: '8px 13px', border: 'none', background: active === r.id ? 'var(--navy-050)' : 'none',
+                        borderLeft: `2px solid ${active === r.id ? 'var(--navy-700)' : 'transparent'}`,
+                        cursor: 'pointer', textAlign: 'left',
+                      }}>
+                <span style={{ marginTop: 1, color: active === r.id ? 'var(--navy-700)' : 'var(--ink-4)' }}>
+                  <Ic n={r.icon} s={15} />
+                </span>
+                <span>
+                  <span className="small strong" style={{ color: active === r.id ? 'var(--navy-800)' : 'var(--ink)' }}>
+                    {r.name}
+                  </span>
+                </span>
               </button>
             ))}
           </div>
@@ -284,20 +335,29 @@ function ReportsInner() {
           </div>
 
           {active === 'mis' && !misItem && (
-            <div className="rpt-grid">
-              {MIS_ITEMS.map(m => (
-                <button key={m.id} className="rpt-card" onClick={() => setMisSub(m.id)}>
-                  <span className="row between" style={{ width: '100%' }}>
-                    <span className="ri"><Ic n={REPORTS.find(r => r.id === m.reportType)?.icon ?? 'sheet'} s={16} /></span>
-                    <span className={`pill ${m.freq === 'Monthly' ? 'p-warn' : m.freq === 'Annual' ? 'p-ok' : 'p-info'} nd tiny`}>
+            <div className="card">
+              <div style={{ padding: '5px 0' }}>
+                {MIS_ITEMS.map(m => (
+                  <button key={m.id} onClick={() => setMisSub(m.id)}
+                          className="row g16"
+                          style={{
+                            width: '100%', padding: '14px 16px', border: 'none',
+                            borderBottom: '1px solid var(--line-2)', background: 'none',
+                            cursor: 'pointer', textAlign: 'left',
+                          }}>
+                    <span className={`pill ${m.freq === 'Monthly' ? 'p-warn' : m.freq === 'Annual' ? 'p-ok' : 'p-info'} nd`}
+                          style={{ minWidth: 76, textAlign: 'center' }}>
                       {m.freq}
                     </span>
-                  </span>
-                  <span className="rt">{m.name}</span>
-                  <span className="rd">{m.d}</span>
-                  <span className="rgo">Open <Ic n="chevR" s={12} /></span>
-                </button>
-              ))}
+                    <div>
+                      <div className="small strong">{m.name}</div>
+                      <div className="tiny muted mt4">{m.d}</div>
+                    </div>
+                    <span className="grow" />
+                    <Ic n="chevR" s={14} />
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -464,10 +524,33 @@ function ReportsInner() {
                   Nothing to report - there are no records matching this report in your scope.
                   For the overdue and delay reports that is good news.
                 </div></div>
+              ) : isMetricRows ? (
+                <div className="grid g-3 stagger-in stagger-1">
+                  {data.rows.map((r, i) => {
+                    const metric = String(r.Metric);
+                    const { icon, gradient } = metricTileMeta(metric);
+                    const split = splitMetricValue(r.Value);
+                    return (
+                      <div className="vkpi" style={{ background: gradient }} key={i}>
+                        <div className="vkpi-decor" />
+                        <div className="vkpi-top">
+                          <span className="vkpi-label">{metric}</span>
+                          <span className="vkpi-ic"><Ic n={icon} s={17} c="#fff" /></span>
+                        </div>
+                        <div className="vkpi-val">
+                          {split
+                            ? <><AnimatedNumber value={split.numeric} decimals={split.decimals} />{split.suffix}</>
+                            : String(r.Value)}
+                        </div>
+                        {r.Basis != null && <div className="vkpi-sub">{String(r.Basis)}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
               ) : (
-                <div className="card">
+                <div className="card rpt-table-card stagger-in stagger-1">
                   <div className="tw">
-                    <table className="dt">
+                    <table className="dt rpt-table">
                       <thead><tr>{cols.map(c => (
                         <th key={c} className={isNumericCol(data.rows, c) ? 'center' : ''}>{c}</th>
                       ))}</tr></thead>
@@ -488,11 +571,11 @@ function ReportsInner() {
               )}
 
               {data.extraSheets?.map(s => (
-                <div className="card mt16" key={s.name}>
+                <div className="card mt16 rpt-table-card" key={s.name}>
                   <div className="card-h"><h3>{s.name}</h3>
                     <span className="tiny muted">{s.rows.length} rows</span></div>
                   <div className="tw">
-                    <table className="dt">
+                    <table className="dt rpt-table">
                       <thead><tr>
                         {(s.rows[0] ? Object.keys(s.rows[0]) : []).map(c => (
                           <th key={c} className={isNumericCol(s.rows, c) ? 'center' : ''}>{c}</th>
