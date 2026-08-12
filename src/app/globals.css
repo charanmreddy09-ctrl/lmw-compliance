@@ -103,7 +103,10 @@
   --ink-4:    #8B95A6;
   --line:     #DFE4EC;
   --line-2:   #EDF0F5;
-  --canvas:   #F5F4FB;
+  /* Flourishing Fawn - the brand's own third primary colour (see
+     MCA_Brand_Guidelines.pdf, "Primary Colours"), used here as the app's
+     canvas instead of a generic light grey/lavender. */
+  --canvas:   #E3DED8;
   --surface:  #FFFFFF;
   --surface-2:#F8FAFC;
 
@@ -115,8 +118,12 @@
      Figures use the same family. Inter's tabular numerals line up column to
      column, which is what a register of dates and amounts needs - the old
      stack fell back to whatever the system offered and columns drifted. */
-  --font-sans: var(--font-inter), "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-num:  var(--font-inter), "Segoe UI", Roboto, Arial, sans-serif;
+  --font-sans: var(--font-worksans), "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-num:  var(--font-worksans), "Segoe UI", Roboto, Arial, sans-serif;
+  /* EB Garamond - the brand's secondary typeface, for italic sub-headings,
+     dividers and accent copy only (see MCA_Brand_Guidelines.pdf). Never the
+     base UI font: a dense form/table interface needs the sans throughout. */
+  --font-accent: var(--font-garamond), Georgia, serif;
   --font-code: var(--font-plex-mono), Consolas, "SF Mono", Menlo, monospace;
 
   /* 8-point spacing scale */
@@ -208,7 +215,8 @@ img { display: block; max-width: 100%; }
    it dark, and the dark rail is what anchors the page — the work surface is
    almost entirely white, so without it the interface has no edge. */
 .side {
-  background: linear-gradient(180deg, var(--navy-900) 0%, #14120E 100%);
+  /* Thorough Timber - the brand's own dark secondary colour. */
+  background: linear-gradient(180deg, var(--navy-900) 0%, #112424 100%);
   display: flex; flex-direction: column;
   position: sticky; top: 0; height: 100vh; overflow-y: auto;
 }
