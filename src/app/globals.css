@@ -60,14 +60,21 @@
      existing ok/warn/bad status tokens, which stay reserved for status
      pills and tables), pink is used
      only as a gradient terminus, never as a fill on its own. */
-  --indigo-700: #4338CA;
-  --indigo-600: #4F46E5;
-  --indigo-500: #6366F1;
-  --indigo-100: #E0E7FF;
-  --purple-700: #7E22CE;
-  --purple-600: #9333EA;
-  --purple-500: #A855F7;
-  --purple-100: #F3E8FF;
+  /* Brand palette aligned to mcaconsulting.com: gold (#C29537) and deep teal
+     (#025B6A). The indigo/purple token names stay (renaming every call site
+     that reads var(--indigo-*) for the brand accent would be pure churn) -
+     only the hex values underneath move, so every button, active nav item,
+     glow and decorative mesh that reads the brand colour picks this up in
+     one place. Status tones (ok/warn/bad, further below) are untouched -
+     those mean something and aren't part of the brand. */
+  --indigo-700: #8A6B1F;
+  --indigo-600: #C29537;
+  --indigo-500: #D4AC5C;
+  --indigo-100: #F5EBD8;
+  --purple-700: #013F49;
+  --purple-600: #025B6A;
+  --purple-500: #1D7A8C;
+  --purple-100: #DCEEF0;
   --teal-700:   #0F766E;
   --teal-600:   #0D9488;
   --teal-500:   #14B8A6;
@@ -82,12 +89,12 @@
   --pink-300:   #F9A8D4;
 
   --grad-primary:   linear-gradient(135deg, var(--indigo-600) 0%, var(--purple-600) 100%);
-  --grad-teal:      linear-gradient(135deg, var(--teal-600) 0%, var(--indigo-500) 100%);
+  --grad-teal:      linear-gradient(135deg, var(--teal-600) 0%, var(--teal-700) 100%);
   --grad-emerald:   linear-gradient(135deg, var(--emerald-600) 0%, var(--teal-600) 100%);
   --grad-amber:     linear-gradient(135deg, var(--amber-500) 0%, #EA580C 100%);
   --grad-coral:     linear-gradient(135deg, var(--coral-600) 0%, var(--pink-500) 100%);
-  --grad-violet:    linear-gradient(135deg, var(--purple-600) 0%, var(--pink-500) 100%);
-  --shadow-glow-indigo: 0 0 0 1px rgba(79,70,229,.18), 0 8px 24px rgba(79,70,229,.22);
+  --grad-violet:    linear-gradient(135deg, var(--indigo-500) 0%, var(--indigo-700) 100%);
+  --shadow-glow-indigo: 0 0 0 1px rgba(194,149,55,.18), 0 8px 24px rgba(194,149,55,.22);
 
   /* neutrals */
   --ink:      #161F2E;
@@ -201,7 +208,7 @@ img { display: block; max-width: 100%; }
    it dark, and the dark rail is what anchors the page — the work surface is
    almost entirely white, so without it the interface has no edge. */
 .side {
-  background: linear-gradient(180deg, var(--navy-900) 0%, #1E1B4B 100%);
+  background: linear-gradient(180deg, var(--navy-900) 0%, #14120E 100%);
   display: flex; flex-direction: column;
   position: sticky; top: 0; height: 100vh; overflow-y: auto;
 }
@@ -239,7 +246,7 @@ img { display: block; max-width: 100%; }
 .nav-a:hover { background: rgba(255,255,255,.08); color: #fff; text-decoration: none; }
 .nav-a.on {
   background: var(--grad-primary); color: #fff; font-weight: 600;
-  box-shadow: 0 4px 14px rgba(79,70,229,.4);
+  box-shadow: 0 4px 14px rgba(194,149,55,.4);
 }
 .nav-a.on:hover { filter: brightness(1.08); color: #fff; }
 .nav-a .ct {
@@ -530,9 +537,9 @@ tr:hover .rowact { color: var(--ink-3); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn-p {
   background: var(--grad-primary); border-color: transparent; color: #fff;
-  box-shadow: 0 2px 8px rgba(79,70,229,.28);
+  box-shadow: 0 2px 8px rgba(194,149,55,.28);
 }
-.btn-p:hover { filter: brightness(1.08); border-color: transparent; color: #fff; box-shadow: 0 4px 14px rgba(79,70,229,.36); }
+.btn-p:hover { filter: brightness(1.08); border-color: transparent; color: #fff; box-shadow: 0 4px 14px rgba(194,149,55,.36); }
 .btn-p:not(:disabled):hover { box-shadow: var(--shadow-glow-indigo); }
 .btn-ok { background: var(--ok-600); border-color: var(--ok-600); color: #fff; }
 .btn-ok:hover { background: var(--ok-700); border-color: var(--ok-700); color: #fff; }
@@ -554,7 +561,7 @@ tr:hover .rowact { color: var(--ink-3); }
 }
 .seg button:last-child { border-right: none; }
 .seg button:hover { background: var(--canvas); color: var(--ink); }
-.seg button.on { background: var(--grad-primary); color: #fff; box-shadow: 0 2px 8px rgba(79,70,229,.3); }
+.seg button.on { background: var(--grad-primary); color: #fff; box-shadow: 0 2px 8px rgba(194,149,55,.3); }
 .seg button { transition: background .12s ease, color .12s ease, transform .12s var(--ease-out); }
 .seg button:active { transform: scale(.96); }
 
@@ -1424,7 +1431,7 @@ input[type="file"] { padding: 6px; }
     radial-gradient(38% 55% at 8% 15%, var(--indigo-500), transparent 70%),
     radial-gradient(32% 50% at 32% 85%, var(--purple-500), transparent 70%),
     radial-gradient(30% 45% at 78% 20%, var(--teal-500), transparent 70%),
-    radial-gradient(26% 40% at 92% 80%, var(--pink-500), transparent 70%);
+    radial-gradient(26% 40% at 92% 80%, var(--indigo-700), transparent 70%);
   filter: blur(6px);
   animation: mesh-drift 22s ease-in-out infinite alternate;
 }
@@ -1436,7 +1443,7 @@ input[type="file"] { padding: 6px; }
 .dash-hero-greet { display: flex; flex-direction: column; gap: 6px; min-width: 240px; }
 .dash-hero-greet h2 { font-size: 19px; }
 .dash-hero-line { font-size: 13.5px; color: var(--ink-2); max-width: 480px; margin: 0; }
-.dash-hero-ring { display: flex; flex-direction: column; align-items: center; gap: 8px; flex-shrink: 0; filter: drop-shadow(0 8px 20px rgba(79,70,229,.16)); }
+.dash-hero-ring { display: flex; flex-direction: column; align-items: center; gap: 8px; flex-shrink: 0; filter: drop-shadow(0 8px 20px rgba(194,149,55,.16)); }
 .dash-hero-legend { min-height: 18px; }
 .dash-hero-body { position: relative; z-index: 1; background: var(--surface); border-radius: var(--r-2) var(--r-2) 0 0; margin-top: var(--s5); color: var(--ink); }
 @media (max-width: 720px) {
