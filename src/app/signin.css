@@ -33,8 +33,8 @@
 .lg-bg::before {
   content: ''; position: absolute; inset: 0;
   background:
-    radial-gradient(38% 55% at 85% 12%, rgba(99,102,241,.38), transparent 70%),
-    radial-gradient(32% 50% at 68% 88%, rgba(147,51,234,.3), transparent 70%),
+    radial-gradient(38% 55% at 85% 12%, rgba(212,172,92,.38), transparent 70%),
+    radial-gradient(32% 50% at 68% 88%, rgba(2,91,106,.4), transparent 70%),
     radial-gradient(30% 45% at 96% 55%, rgba(20,184,166,.24), transparent 70%);
   filter: blur(50px);
   animation: mesh-drift 24s ease-in-out infinite alternate;
@@ -49,26 +49,28 @@
 
 /* -------------------------------------------------------------------- left */
 .lg-brand { display: flex; align-items: center; gap: 16px; margin-bottom: clamp(20px, 3.5vh, 40px); }
-/* A generic mark rather than a customer's logo - this screen is shared by
-   every company on the platform, signed in or not. */
+/* A dark chip rather than a colour-matched one - the mark's own artwork is
+   light-on-transparent, so it needs a dark ground wherever it sits, not a
+   brand-coloured one that would fight it for contrast. */
 .lg-mark {
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  width: 40px; height: 40px; border-radius: 10px; background: var(--grad-primary);
-  box-shadow: 0 4px 14px rgba(79,70,229,.35);
+  width: 40px; height: 40px; border-radius: 10px; background: #14120E; padding: 5px;
+  box-shadow: 0 4px 14px rgba(194,149,55,.35);
 }
+.lg-mark img { width: 100%; height: 100%; object-fit: contain; }
 .lg-mark-form { width: 42px; height: 42px; border-radius: 11px; margin-bottom: 20px; box-shadow: none; }
 .lg-brand .bar { width: 1px; height: 26px; background: rgba(255,255,255,.3); }
 .lg-brand .tag { font-size: 13px; color: rgba(255,255,255,.8); }
 
 .lg-eyebrow {
   font-size: 12px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase;
-  color: #6FA8DC; margin-bottom: 16px;
+  color: #E8C979; margin-bottom: 16px;
 }
 .lg-h1 {
   font-size: clamp(30px, 3.3vw, 46px); line-height: 1.14; letter-spacing: -.022em;
   color: #fff; font-weight: 700; max-width: 620px; margin: 0;
 }
-.lg-rule { width: 54px; height: 3px; border-radius: 2px; background: #3E7BC4; margin: 16px 0 14px; }
+.lg-rule { width: 54px; height: 3px; border-radius: 2px; background: var(--indigo-600); margin: 16px 0 14px; }
 .lg-sub { font-size: 16px; line-height: 1.5; color: rgba(255,255,255,.74); max-width: 520px; margin: 0; }
 
 .lg-cards {
@@ -81,7 +83,7 @@
 }
 .lg-card .ic {
   width: 40px; height: 40px; border-radius: 11px; margin-bottom: 11px;
-  background: rgba(90,150,225,.18); color: #7FB4F5;
+  background: rgba(194,149,55,.18); color: #D9B872;
   display: flex; align-items: center; justify-content: center;
 }
 .lg-card .t { font-size: 14px; font-weight: 700; color: #fff; line-height: 1.3; }
@@ -95,7 +97,7 @@
 }
 .lg-stat { display: flex; gap: 11px; padding: 14px 14px; border-right: 1px solid rgba(255,255,255,.1); }
 .lg-stat:last-child { border-right: none; }
-.lg-stat .si { color: #7FB4F5; flex-shrink: 0; margin-top: 2px; }
+.lg-stat .si { color: #D9B872; flex-shrink: 0; margin-top: 2px; }
 .lg-stat .sv { font-size: 22px; font-weight: 700; color: #fff; line-height: 1.05; letter-spacing: -.02em; }
 .lg-stat .sl { font-size: 12px; font-weight: 700; color: #fff; margin-top: 3px; line-height: 1.25; }
 .lg-stat .ss { font-size: 11px; color: rgba(255,255,255,.55); margin-top: 3px; line-height: 1.3; }
@@ -104,7 +106,7 @@
   margin-top: clamp(14px, 2vh, 22px); display: flex; align-items: center; gap: 9px;
   font-size: 12.5px; color: rgba(255,255,255,.66);
 }
-.lg-trust svg { color: #7FB4F5; }
+.lg-trust svg { color: #D9B872; }
 
 /* -------------------------------------------------------------------- card */
 .lg-panel { display: flex; justify-content: flex-end; min-width: 0; }
@@ -146,10 +148,10 @@
 
 .lg-submit {
   width: 100%; padding: 14px; border-radius: 9px; border: none; cursor: pointer;
-  background: var(--navy-800); color: #fff; font-size: 15px; font-weight: 600;
-  transition: background .12s ease;
+  background: var(--grad-primary); color: #fff; font-size: 15px; font-weight: 600;
+  transition: filter .12s ease;
 }
-.lg-submit:hover:not(:disabled) { background: var(--navy-900); }
+.lg-submit:hover:not(:disabled) { filter: brightness(1.08); }
 .lg-submit:disabled { opacity: .5; cursor: not-allowed; }
 
 .lg-notice {

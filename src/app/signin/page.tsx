@@ -69,7 +69,10 @@ export default function SignInPage() {
       <div className="lg-inner">
         <div>
           <div className="lg-brand">
-            <span className="lg-mark"><Ic n="shield" s={20} c="#fff" /></span>
+            <span className="lg-mark">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/mca-logo.png" alt="MCA Compliance 360" />
+            </span>
             <span className="bar" />
             <span className="tag">Evidence-backed. Audit-ready.</span>
           </div>
@@ -109,7 +112,10 @@ export default function SignInPage() {
 
         <div className="lg-panel">
           <div className="lg-form">
-            <span className="lg-mark lg-mark-form"><Ic n="shield" s={20} c="#fff" /></span>
+            <span className="lg-mark lg-mark-form">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/mca-logo.png" alt="MCA Compliance 360" />
+            </span>
 
             <h2>Welcome back</h2>
             <p className="lead">Sign in to continue to your account.</p>

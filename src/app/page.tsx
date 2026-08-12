@@ -63,9 +63,10 @@ export default function Landing() {
         <div className="row g12">
           <span style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: 30, height: 30, borderRadius: 8, background: 'var(--grad-primary)', flexShrink: 0,
+            width: 34, height: 34, borderRadius: 8, background: '#14120E', flexShrink: 0, padding: 4,
           }}>
-            <Ic n="shield" s={16} c="#fff" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/mca-logo.png" alt="MCA Compliance 360" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </span>
           <div style={{ borderLeft: '1px solid var(--line)', paddingLeft: 12 }}>
             <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--navy-900)' }}>
