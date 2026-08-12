@@ -61,12 +61,15 @@ export default function Landing() {
     <div className="land">
       <header className="land-nav">
         <div className="row g12">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="https://www.lmwglobal.com/images/lmw-logo.png" alt="LMW"
-               style={{ height: 27, width: 'auto' }} />
+          <span style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 30, height: 30, borderRadius: 8, background: 'var(--grad-primary)', flexShrink: 0,
+          }}>
+            <Ic n="shield" s={16} c="#fff" />
+          </span>
           <div style={{ borderLeft: '1px solid var(--line)', paddingLeft: 12 }}>
             <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--navy-900)' }}>
-              LMW Compliance Management Platform
+              MCA Compliance 360
             </div>
             <div className="cap" style={{ fontSize: 9.5 }}>Statutory compliance control tower</div>
           </div>
@@ -106,7 +109,7 @@ export default function Landing() {
       <div className="land-hero" style={{ paddingTop: 0 }}>
         <div className="grid g-4 stagger-in stagger-2">
           {[
-            ['Entities in scope', '2', 'LMW Limited (India) and LMW Global FZE (UAE)'],
+            ['Entities supported', 'Unlimited', 'Every legal entity, in every country you operate in'],
             ['Statutory obligations', '95+', 'National plus Tamil Nadu / UAE free-zone level'],
             ['Evidence held', 'Every filing', 'Versioned, checksummed, downloadable'],
             ['Score basis', 'Approved only', 'Self-declaration does not count'],
@@ -204,7 +207,7 @@ export default function Landing() {
       <footer style={{ borderTop: '1px solid var(--line)', padding: '18px 26px' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto' }} className="row between wrap g12">
           <span className="tiny muted">
-            LMW Compliance Management Platform · Version 1.3 · Internal use only
+            MCA Compliance 360 · Version 1.3 · Internal use only
           </span>
           <Link href="/signin" className="tiny strong">Sign in</Link>
         </div>

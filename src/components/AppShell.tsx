@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Ic, ToastHost, Modal, initials, fmtDateTime, Spinner } from '@/components/ui';
 import { PageTransition } from '@/components/ui2';
 import type { SessionUser } from '@/lib/rbac';
+import { brandFromEmail } from '@/lib/brand';
 
 type Notif = {
   id: number; country_code: string | null; entity_id: string | null; kind: string;
@@ -230,6 +231,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
   if (!user) return null;
 
+  /* The platform is shared across companies - the logo, brand name and
+     copyright line in this chrome belong to whichever company the signed-in
+     user's own email domain identifies, not to a customer baked into the
+     build. */
+  const brand = brandFromEmail(user.email);
   const crumb = NAV.flatMap(s => s.items).find(i => pathname.startsWith(i.href));
 
   /* group the popup notifications by country, which is how the requirement reads */
@@ -244,11 +250,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className={`app${collapsed ? ' collapsed' : ''}`}>
         <aside className={`side${sideOpen ? ' open' : ''}${collapsed ? ' collapsed' : ''}`}>
           <Link href="/dashboard" className="brand" style={{ textDecoration: 'none' }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://www.lmwglobal.com/images/lmw-logo.png" alt="LMW" />
+            {brand.logo
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={brand.logo} alt={brand.name} />
+              : <span className="brand-mark">{brand.name.slice(0, 2).toUpperCase()}</span>}
             {!collapsed && (
               <div style={{ minWidth: 0 }}>
-                <div className="bt">LMW Compliance Platform</div>
+                <div className="bt">{brand.name} Compliance Platform</div>
                 <div className="bs">Control Tower</div>
               </div>
             )}
@@ -332,7 +340,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     <b>{crumb?.label ?? 'Platform'}</b>
                   </>
                 ) : (
-                  <>LMW Limited <span style={{ opacity: .5 }}>/</span> <b>{crumb?.label ?? 'Platform'}</b></>
+                  <>{brand.name} <span style={{ opacity: .5 }}>/</span> <b>{crumb?.label ?? 'Platform'}</b></>
                 )}
               </div>
               <h1>{crumb?.label ?? 'Compliance Platform'}</h1>
@@ -367,7 +375,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <main className="content">
             <PageTransition pathKey={pathname}>{children}</PageTransition>
             <footer className="foot no-print">
-              <span>© {new Date().getFullYear()} LMW Limited. All rights reserved.</span>
+              <span>© {new Date().getFullYear()} {brand.name}. All rights reserved.</span>
               <span>Version 1.3 · Internal use only</span>
             </footer>
           </main>

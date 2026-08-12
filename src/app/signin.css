@@ -17,20 +17,27 @@
   background: #0A1A33; isolation: isolate;
 }
 
+/* A generic abstract ground rather than a customer's photograph - this
+   screen is shared by every company on the platform, signed in or not. The
+   dotted map texture and dark navy wash stay; the photo is replaced with the
+   same soft colour mesh used behind the dashboard's own hero panel. */
 .lg-bg {
-  position: absolute; inset: 0; z-index: -1;
+  position: absolute; inset: 0; z-index: -1; overflow: hidden;
   background-image:
     radial-gradient(1.5px 1.5px at 50% 50%, rgba(120,170,235,.28) 50%, transparent 52%),
-    linear-gradient(100deg,
-      rgba(10,26,51,.97) 0%,
-      rgba(10,26,51,.93) 34%,
-      rgba(11,32,64,.80) 52%,
-      rgba(12,38,74,.60) 74%,
-      rgba(12,38,74,.52) 100%),
-    url('/auth-background.jpg');
-  background-size: 22px 22px, cover, cover;
-  background-position: 0 0, center, center right;
-  background-repeat: repeat, no-repeat, no-repeat;
+    linear-gradient(135deg, #0A1A33 0%, #0F1B3D 45%, #0B2246 100%);
+  background-size: 22px 22px, cover;
+  background-position: 0 0, center;
+  background-repeat: repeat, no-repeat;
+}
+.lg-bg::before {
+  content: ''; position: absolute; inset: 0;
+  background:
+    radial-gradient(38% 55% at 85% 12%, rgba(99,102,241,.38), transparent 70%),
+    radial-gradient(32% 50% at 68% 88%, rgba(147,51,234,.3), transparent 70%),
+    radial-gradient(30% 45% at 96% 55%, rgba(20,184,166,.24), transparent 70%);
+  filter: blur(50px);
+  animation: mesh-drift 24s ease-in-out infinite alternate;
 }
 
 .lg-inner {
@@ -42,9 +49,14 @@
 
 /* -------------------------------------------------------------------- left */
 .lg-brand { display: flex; align-items: center; gap: 16px; margin-bottom: clamp(20px, 3.5vh, 40px); }
-.lg-brand img { height: 40px; width: auto; object-fit: contain; }
-/* Navy single-colour artwork knocked out to white for the dark ground. */
-.lg-brand img.knockout { filter: brightness(0) invert(1); }
+/* A generic mark rather than a customer's logo - this screen is shared by
+   every company on the platform, signed in or not. */
+.lg-mark {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 40px; height: 40px; border-radius: 10px; background: var(--grad-primary);
+  box-shadow: 0 4px 14px rgba(79,70,229,.35);
+}
+.lg-mark-form { width: 42px; height: 42px; border-radius: 11px; margin-bottom: 20px; box-shadow: none; }
 .lg-brand .bar { width: 1px; height: 26px; background: rgba(255,255,255,.3); }
 .lg-brand .tag { font-size: 13px; color: rgba(255,255,255,.8); }
 
@@ -101,7 +113,6 @@
   box-shadow: 0 24px 64px rgba(3,10,24,.45), 0 2px 8px rgba(3,10,24,.2);
   padding: 34px 34px 28px;
 }
-.lg-form > img { height: 42px; width: auto; object-fit: contain; display: block; margin-bottom: 20px; }
 .lg-form h2 { font-size: 28px; font-weight: 700; letter-spacing: -.02em; color: var(--navy-900); }
 .lg-form .lead { font-size: 14px; color: var(--ink-3); margin: 6px 0 22px; }
 

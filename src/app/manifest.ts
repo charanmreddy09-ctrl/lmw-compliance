@@ -2,10 +2,10 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'LMW Compliance Management Platform',
-    short_name: 'LMW Compliance',
+    name: 'MCA Compliance 360',
+    short_name: 'Compliance 360',
     description:
-      'LMW Limited group-wide statutory compliance control tower: evidence-backed compliance scores for every entity, in every country.',
+      'Statutory compliance control tower: evidence-backed compliance scores for every entity, in every country.',
     start_url: '/',
     display: 'standalone',
     background_color: '#ffffff',
