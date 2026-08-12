@@ -14,18 +14,18 @@
 .lg {
   position: relative; min-height: 100vh;
   display: grid; grid-template-rows: minmax(0, 1fr) auto;
-  background: #0A1A33; isolation: isolate;
+  background: #0B2426; isolation: isolate;
 }
 
 /* A generic abstract ground rather than a customer's photograph - this
    screen is shared by every company on the platform, signed in or not. The
-   dotted map texture and dark navy wash stay; the photo is replaced with the
-   same soft colour mesh used behind the dashboard's own hero panel. */
+   dotted map texture stays, now teal-tinted rather than blue; the dark wash
+   is Thorough Timber, the brand's own dark secondary colour. */
 .lg-bg {
   position: absolute; inset: 0; z-index: -1; overflow: hidden;
   background-image:
-    radial-gradient(1.5px 1.5px at 50% 50%, rgba(120,170,235,.28) 50%, transparent 52%),
-    linear-gradient(135deg, #0A1A33 0%, #0F1B3D 45%, #0B2246 100%);
+    radial-gradient(1.5px 1.5px at 50% 50%, rgba(120,200,205,.28) 50%, transparent 52%),
+    linear-gradient(135deg, #0B2426 0%, #0D2F32 45%, #0A2A33 100%);
   background-size: 22px 22px, cover;
   background-position: 0 0, center;
   background-repeat: repeat, no-repeat;
