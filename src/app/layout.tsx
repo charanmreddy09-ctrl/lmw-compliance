@@ -29,9 +29,9 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'LMW Compliance Management Platform',
+  title: 'MCA Compliance 360',
   description:
-    'LMW Limited group-wide statutory compliance control tower: evidence-backed compliance scores for every entity, in every country.',
+    'Statutory compliance control tower: evidence-backed compliance scores for every entity, in every country.',
   robots: { index: false, follow: false },
   manifest: '/manifest.webmanifest',
   icons: {

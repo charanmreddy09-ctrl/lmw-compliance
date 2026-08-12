@@ -5,14 +5,15 @@ import { useRouter } from 'next/navigation';
 import { Ic } from '@/components/ui';
 import '../signin.css';
 
-/* The scope bar carries this deployment's actual figures. LMW is two legal
-   entities in two countries; a login screen claiming "25+ countries, 500+
-   entities" would be contradicted by the register on the other side of it,
-   and that is the first thing a CFO checks. "Approved only" is a statement
-   about how the score is derived, not a metric dressed up as one. */
+/* This screen is shared by every company on the platform, signed in or not -
+   it cannot claim one customer's country/entity count as if it were the
+   platform's own. These read as capabilities rather than a live figure, so
+   the page stays accurate for a one-entity company and a fifty-entity group
+   alike. "Approved only" is a statement about how the score is derived, not
+   a metric dressed up as one. */
 const SCOPE = [
-  { icon: 'building', value: '2', label: 'Countries', sub: 'Active presence' },
-  { icon: 'users', value: '2', label: 'Legal entities', sub: 'Registered' },
+  { icon: 'building', value: 'Global', label: 'Coverage', sub: 'Every country you operate in' },
+  { icon: 'users', value: 'Unlimited', label: 'Legal entities', sub: 'One record for the whole group' },
   { icon: 'doc', value: '95+', label: 'Statutory obligations', sub: 'Tracked and managed' },
   { icon: 'shield', value: 'Approved only', label: '', sub: 'Activity through defined workflow' },
 ] as const;
@@ -68,18 +69,13 @@ export default function SignInPage() {
       <div className="lg-inner">
         <div>
           <div className="lg-brand">
-            {/* The mark is a single-colour navy artwork, so it is knocked out
-                to white in CSS rather than shipping a second file - there is
-                no white variant in public/, and an onError fallback can miss
-                if the load fails before hydration attaches the handler. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/lmw-logo-official.png" alt="LMW" className="knockout" />
+            <span className="lg-mark"><Ic n="shield" s={20} c="#fff" /></span>
             <span className="bar" />
-            <span className="tag">Engineering a Better Tomorrow</span>
+            <span className="tag">Evidence-backed. Audit-ready.</span>
           </div>
 
           <div className="lg-eyebrow">Welcome to</div>
-          <h1 className="lg-h1">LMW Global Compliance<br />Management Platform</h1>
+          <h1 className="lg-h1">MCA Compliance 360</h1>
           <div className="lg-rule" />
           <p className="lg-sub">One platform. Complete compliance visibility.</p>
 
@@ -113,8 +109,7 @@ export default function SignInPage() {
 
         <div className="lg-panel">
           <div className="lg-form">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/lmw-logo-official.png" alt="LMW" />
+            <span className="lg-mark lg-mark-form"><Ic n="shield" s={20} c="#fff" /></span>
 
             <h2>Welcome back</h2>
             <p className="lead">Sign in to continue to your account.</p>
@@ -178,7 +173,7 @@ export default function SignInPage() {
       </div>
 
       <div className="lg-foot">
-        <span>© {new Date().getFullYear()} LMW Global Compliance Management Platform. All rights reserved.</span>
+        <span>© {new Date().getFullYear()} MCA Compliance 360. All rights reserved.</span>
         <span className="lg-foot-links">
           <span className="row g6"><Ic n="globe" s={15} /> English</span>
           <span className="sep" />
