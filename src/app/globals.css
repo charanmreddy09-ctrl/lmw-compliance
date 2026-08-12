@@ -19,20 +19,28 @@
    =========================================================================== */
 
 :root {
-  /* structural navy */
-  --navy-900: #142138;
-  --navy-800: #1B2C49;
-  --navy-700: #24406E;
-  --navy-600: #33578E;
-  --navy-500: #4E75AE;
-  --navy-200: #C3D2E8;
-  --navy-100: #DEE7F3;
-  --navy-050: #F1F5FA;
+  /* structural "navy" - the token name stays (it's read for every heading,
+     link, border and focus ring in the app; renaming every call site would
+     be pure churn), but the hue underneath is now Trusted Teal (#025B6A,
+     navy-700) rather than blue. This is the fix for headings/links/borders
+     still reading as a blue SaaS app after only the accent gradients had
+     been rebranded - the structural ink colour is what actually dominates
+     the screen. */
+  --navy-900: #0B2E33;
+  --navy-800: #123F46;
+  --navy-700: #025B6A;
+  --navy-600: #0D7A8C;
+  --navy-500: #3E96A3;
+  --navy-200: #BFE0E3;
+  --navy-100: #DCEEF0;
+  --navy-050: #EFF8F8;
 
-  /* LMW brand red — mark, danger, destructive only */
-  --red-700:  #6E1119;
-  --red-600:  #8E1B26;
-  --red-100:  #F9E3E5;
+  /* Booming Brick — the brand's own terracotta secondary colour, used only
+     for the landing page's decorative accents (version tag, flow numbers,
+     hero mark) where the previous build had an unrelated red. */
+  --red-700:  #7A4A2B;
+  --red-600:  #BA7243;
+  --red-100:  #F1E4DA;
 
   /* status */
   --ok-700:   #0F6B41;
@@ -41,9 +49,11 @@
   --warn-700: #8A5406;
   --warn-600: #B27208;
   --warn-100: #FBF0DA;
-  --info-700: #1B4B96;
-  --info-600: #2563B0;
-  --info-100: #E6EDF9;
+  /* "Info" reuses the brand teal rather than a leftover blue, so nothing on
+     a status pill or note reads as a colour outside the brand palette. */
+  --info-700: #013F49;
+  --info-600: #025B6A;
+  --info-100: #DCEEF0;
   --bad-700:  #98202B;
   --bad-600:  #BE2A36;
   --bad-100:  #FBE6E8;
@@ -529,7 +539,7 @@ tr:hover .rowact { color: var(--ink-3); }
 .p-warn::before { background: var(--warn-600); }
 .p-bad  { background: var(--bad-100);  color: var(--bad-700);  border-color: #F2C8CD; }
 .p-bad::before  { background: var(--bad-600); }
-.p-info { background: var(--info-100); color: var(--info-700); border-color: #C9D8EE; }
+.p-info { background: var(--info-100); color: var(--info-700); border-color: #B8DEE1; }
 .p-info::before { background: var(--info-600); }
 .p-mute { background: #EEF1F6; color: var(--ink-2); border-color: var(--line); }
 .p-mute::before { background: var(--ink-4); }
@@ -619,7 +629,7 @@ input[type="file"] { padding: 6px; }
 
 /* ------------------------------------------------------------------ notice */
 .note { display: flex; gap: var(--s3); padding: var(--s3) var(--s4); border-radius: var(--r); font-size: 12.5px; border: 1px solid; line-height: 1.5; }
-.note-i { background: var(--info-100); border-color: #C9D8EE; color: #1E3E71; }
+.note-i { background: var(--info-100); border-color: #B8DEE1; color: #013F49; }
 .note-w { background: var(--warn-100); border-color: #F0DDB4; color: var(--warn-700); }
 .note-b { background: var(--bad-100); border-color: #F2C8CD; color: var(--bad-700); }
 .note-o { background: var(--ok-100); border-color: #CDE7D9; color: var(--ok-700); }
@@ -1300,7 +1310,7 @@ input[type="file"] { padding: 6px; }
 .badge2-ok   { background: var(--ok-100);   color: var(--ok-700);   border-color: rgba(15,107,65,.18); }
 .badge2-warn { background: var(--warn-100); color: var(--warn-700); border-color: rgba(138,84,6,.18); }
 .badge2-bad  { background: var(--bad-100);  color: var(--bad-700);  border-color: rgba(152,32,43,.18); }
-.badge2-info { background: var(--info-100); color: var(--info-700); border-color: rgba(27,75,150,.18); }
+.badge2-info { background: var(--info-100); color: var(--info-700); border-color: rgba(2,91,106,.18); }
 .badge2-mute { background: var(--navy-050); color: var(--ink-3);    border-color: var(--line); }
 
 /* ---------------------------------------------------------------- ring seg
