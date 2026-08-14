@@ -276,7 +276,7 @@ export default function Calendar() {
           </div>
           <div className="legend">
             <span><i style={{ background: 'var(--emerald-500)' }} />Approved</span>
-            <span><i style={{ background: 'var(--indigo-500)' }} />In review</span>
+            <span><i style={{ background: 'var(--purple-500)' }} />In review</span>
             <span><i style={{ background: 'var(--amber-500)' }} />Open</span>
             <span><i style={{ background: 'var(--coral-500)' }} />Overdue or rejected</span>
             <span>• marks a revised due date</span>

@@ -182,6 +182,42 @@ export function SkeletonTable({ rows = 5, cols = 4 }: { rows?: number; cols?: nu
   );
 }
 
+/* ------------------------------------------------------------------ law trivia
+   A "did you know" rotator for the one screen that genuinely waits on a
+   heavy aggregation query (the dashboard) - general, well-established
+   compliance facts, not anything about the signed-in company's own data,
+   so there's nothing here that can be wrong for a given tenant. */
+const LAW_FACTS = [
+  'The Companies Act, 2013 replaced the Companies Act, 1956, and introduced mandatory CSR spending for qualifying companies.',
+  'GST, introduced in July 2017, subsumed over a dozen central and state indirect taxes into a single tax regime.',
+  'Every company (other than a One Person Company) must hold at least one Annual General Meeting each financial year.',
+  'Financial statements adopted at an AGM must be filed with the Registrar of Companies within 30 days of the meeting.',
+  'A private limited company in India needs a minimum of two directors; a public company needs at least three.',
+  'GSTR-1 and GSTR-3B are typically filed monthly, though smaller taxpayers can opt for a quarterly filing scheme.',
+  'The Income-tax Act allows most business losses to be carried forward for up to eight assessment years.',
+  'Provident Fund contributions are split between employer and employee, each contributing a percentage of basic wages.',
+  'UAE free-zone entities can qualify for Corporate Tax incentives, subject to meeting the conditions for Qualifying Free Zone status.',
+  'A statutory due date missed without evidence on file is treated differently from one missed and later corrected - timing is part of the record, not just the outcome.',
+];
+
+export function LawTrivia() {
+  const [i, setI] = useState(() => Math.floor(Math.random() * LAW_FACTS.length));
+  useEffect(() => {
+    if (prefersReducedMotion()) return;
+    const t = setInterval(() => setI(n => (n + 1) % LAW_FACTS.length), 4500);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="law-trivia">
+      <span className="law-trivia-ic"><Ic n="book" s={16} /></span>
+      <div className="grow">
+        <div className="law-trivia-label">While this loads, did you know?</div>
+        <div className="law-trivia-fact" key={i}>{LAW_FACTS[i]}</div>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ empty state */
 export function EmptyState({ icon, title, body, action }: {
   icon?: React.ReactNode; title: string; body?: string; action?: React.ReactNode;
@@ -357,6 +393,36 @@ export function MiniProportion({ value, of, color = 'rgba(255,255,255,.9)' }: { 
   return (
     <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,.25)', overflow: 'hidden', width: '100%' }}>
       <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 2, transition: 'width .8s var(--ease-out)' }} />
+    </div>
+  );
+}
+
+/** A multi-segment horizontal proportion bar for breaking a total down into
+    its real parts (e.g. approved / awaiting / query / not started) - built
+    only from counts already computed by the caller, with a legend row of
+    the same segments underneath. Zero-value segments are skipped so the
+    legend doesn't pad itself out with parts that don't apply. */
+export function StackedBar({ segments, total }: {
+  segments: { key: string; value: number; color: string; label: string }[];
+  total: number;
+}) {
+  const shown = segments.filter(s => s.value > 0);
+  return (
+    <div>
+      <div className="sbar">
+        {shown.map(s => (
+          <div key={s.key} className="sbar-seg" style={{ width: `${total ? (s.value / total) * 100 : 0}%`, background: s.color }}
+               title={`${s.label}: ${s.value}`} />
+        ))}
+      </div>
+      <div className="sbar-legend">
+        {shown.map(s => (
+          <span key={s.key} className="sbar-item">
+            <i style={{ background: s.color }} />{s.label}
+            <b>{s.value}</b>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
