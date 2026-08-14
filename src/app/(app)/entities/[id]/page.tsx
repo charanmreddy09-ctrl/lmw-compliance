@@ -7,7 +7,7 @@ import {
   Ic, Kpi, Modal, Note, Spinner, StatusPill, DataTable, type Col,
   scoreColor, fmtDate, fmtDateTime, daysFromToday, RISK_TONE, useToast, downloadFile,
 } from '@/components/ui';
-import { ProgressRing, AnimatedNumber, BadgeV2, SkeletonCard } from '@/components/ui2';
+import { ProgressRing, AnimatedNumber, BadgeV2, SkeletonCard, LawTrivia } from '@/components/ui2';
 import type { ScoreBreakdown } from '@/lib/score';
 import type { SessionUser } from '@/lib/rbac';
 import { NOT_APPLICABLE_REASONS } from '@/lib/constants';
@@ -125,6 +125,7 @@ export default function EntityDetail() {
   if (err) return <Note kind="b">{err}</Note>;
   if (!d) return (
     <>
+      <LawTrivia big />
       <SkeletonCard height={64} />
       <div className="mt16"><SkeletonCard height={220} /></div>
     </>

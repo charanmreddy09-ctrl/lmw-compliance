@@ -5,7 +5,7 @@ import {
   Ic, Modal, Note, Spinner, DataTable, type Col,
   fmtDate, fmtDateTime, useToast, initials,
 } from '@/components/ui';
-import { VividKpiCard, BadgeV2, SkeletonCard } from '@/components/ui2';
+import { VividKpiCard, BadgeV2, SkeletonCard, LawTrivia } from '@/components/ui2';
 import type { SessionUser } from '@/lib/rbac';
 
 type User = {
@@ -244,9 +244,12 @@ export default function Admin() {
 
   if (err) return <Note kind="b">{err}</Note>;
   if (loading) return (
-    <div className="grid g-3">
-      {Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} height={140} />)}
-    </div>
+    <>
+      <LawTrivia big />
+      <div className="grid g-3">
+        {Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} height={140} />)}
+      </div>
+    </>
   );
 
   const TABS = [

@@ -6,7 +6,7 @@ import {
   fmtDate, RISK_TONE, useToast, downloadFile,
 } from '@/components/ui';
 import ImportModal from '@/components/ImportModal';
-import { VividKpiCard, BadgeV2 } from '@/components/ui2';
+import { VividKpiCard, BadgeV2, LawTrivia } from '@/components/ui2';
 import type { SessionUser } from '@/lib/rbac';
 
 type Pending = {
@@ -460,14 +460,17 @@ export default function Library() {
           </div>
         </div>
         {loading
-          ? <div className="card-b" style={{ display: 'grid', gap: 10 }}>
-              {Array.from({ length: 10 }, (_, r) => (
-                <div key={r} style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
-                  {Array.from({ length: 5 }, (_, c) => (
-                    <div key={c} className="skel skel-text" style={{ width: c === 0 ? '80%' : '60%' }} />
-                  ))}
-                </div>
-              ))}
+          ? <div className="card-b">
+              {rows.length === 0 && <LawTrivia big />}
+              <div style={{ display: 'grid', gap: 10 }}>
+                {Array.from({ length: 10 }, (_, r) => (
+                  <div key={r} style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+                    {Array.from({ length: 5 }, (_, c) => (
+                      <div key={c} className="skel skel-text" style={{ width: c === 0 ? '80%' : '60%' }} />
+                    ))}
+                  </div>
+                ))}
+              </div>
             </div>
           : <DataTable<Comp & Record<string, unknown>>
               rows={rows as (Comp & Record<string, unknown>)[]}

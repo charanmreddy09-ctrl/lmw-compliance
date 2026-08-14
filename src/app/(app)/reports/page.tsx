@@ -2,8 +2,8 @@
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Ic, Note, Spinner, useToast, downloadFile, fmtDateTime, scoreColor } from '@/components/ui';
-import { AnimatedNumber } from '@/components/ui2';
+import { Ic, Note, useToast, downloadFile, fmtDateTime, scoreColor } from '@/components/ui';
+import { AnimatedNumber, LawTrivia } from '@/components/ui2';
 import {
   OUTCOME_POINTS, DEDUCTIONS, CRITICALITY_WEIGHT, EVIDENCE_TIERS,
   EVIDENCE_UNCLASSIFIED, EVIDENCE_FLOOR,
@@ -500,6 +500,7 @@ function ReportsInner() {
           )}
 
           {showGenericTable && err && <Note kind="b">{err}</Note>}
+          {showGenericTable && loading && !data && <LawTrivia big />}
           {showGenericTable && loading && (
             <div className="card"><div className="card-b" style={{ display: 'grid', gap: 10 }}>
               {Array.from({ length: 8 }, (_, r) => (
@@ -608,7 +609,7 @@ function ReportsInner() {
    instead of the whole route opting out of static rendering. */
 export default function ReportsPage() {
   return (
-    <Suspense fallback={<Spinner label="Preparing reports…" />}>
+    <Suspense fallback={<LawTrivia big />}>
       <ReportsInner />
     </Suspense>
   );

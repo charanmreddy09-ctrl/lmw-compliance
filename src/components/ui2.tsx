@@ -198,20 +198,28 @@ const LAW_FACTS = [
   'Provident Fund contributions are split between employer and employee, each contributing a percentage of basic wages.',
   'UAE free-zone entities can qualify for Corporate Tax incentives, subject to meeting the conditions for Qualifying Free Zone status.',
   'A statutory due date missed without evidence on file is treated differently from one missed and later corrected - timing is part of the record, not just the outcome.',
+  'A company’s registered office determines which Registrar of Companies it must file with, regardless of where it actually operates.',
+  'Under FEMA, most cross-border transactions must be reported to the RBI through an authorised bank within a prescribed window.',
+  'ESI coverage in India generally applies to employees earning below a notified wage ceiling, working at covered establishments.',
+  'A statutory auditor cannot serve more than one term of five consecutive years at the same company without a mandatory cooling-off period.',
+  'Board meetings for most companies must be held at least once every 120 days, with a minimum of four in a calendar year.',
+  'An e-way bill is required for the movement of goods above a threshold value, even between branches of the same business.',
 ];
 
-export function LawTrivia() {
+export function LawTrivia({ big = false }: { big?: boolean }) {
   const [i, setI] = useState(() => Math.floor(Math.random() * LAW_FACTS.length));
   useEffect(() => {
     if (prefersReducedMotion()) return;
-    const t = setInterval(() => setI(n => (n + 1) % LAW_FACTS.length), 4500);
+    const t = setInterval(() => setI(n => (n + 1) % LAW_FACTS.length), 5000);
     return () => clearInterval(t);
   }, []);
   return (
-    <div className="law-trivia">
-      <span className="law-trivia-ic"><Ic n="book" s={16} /></span>
+    <div className={`law-trivia${big ? ' law-trivia-lg' : ''}`}>
+      <span className="law-trivia-ic"><Ic n="book" s={big ? 24 : 16} /></span>
       <div className="grow">
-        <div className="law-trivia-label">While this loads, did you know?</div>
+        <div className="law-trivia-label">
+          <span className="law-trivia-dot" />While this loads, did you know?
+        </div>
         <div className="law-trivia-fact" key={i}>{LAW_FACTS[i]}</div>
       </div>
     </div>

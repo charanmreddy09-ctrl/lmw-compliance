@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, Note, Spinner, fmtDate, useToast } from '@/components/ui';
-import { BadgeV2, EmptyState } from '@/components/ui2';
+import { BadgeV2, EmptyState, LawTrivia } from '@/components/ui2';
 import { NOT_APPLICABLE_REASONS } from '@/lib/constants';
 
 type EntityRow = { id: string; name: string; short_name: string; country_name: string };
@@ -115,14 +115,17 @@ export default function Exclusions() {
           </span>
         </div>
         {loading
-          ? <div className="card-b" style={{ display: 'grid', gap: 10 }}>
-              {Array.from({ length: 6 }, (_, r) => (
-                <div key={r} style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-                  {Array.from({ length: 4 }, (_, c) => (
-                    <div key={c} className="skel skel-text" style={{ width: c === 0 ? '80%' : '60%' }} />
-                  ))}
-                </div>
-              ))}
+          ? <div className="card-b">
+              {rows.length === 0 && <LawTrivia big />}
+              <div style={{ display: 'grid', gap: 10 }}>
+                {Array.from({ length: 6 }, (_, r) => (
+                  <div key={r} style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                    {Array.from({ length: 4 }, (_, c) => (
+                      <div key={c} className="skel skel-text" style={{ width: c === 0 ? '80%' : '60%' }} />
+                    ))}
+                  </div>
+                ))}
+              </div>
             </div>
           : shown.length === 0 ? (
             <div className="card-b">
