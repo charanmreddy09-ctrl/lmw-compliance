@@ -5,7 +5,7 @@ import {
   Ic, Modal, Note, StatusPill, useToast, downloadFile,
   fmtDate, fmtDateTime, RISK_TONE,
 } from '@/components/ui';
-import { VividKpiCard, SkeletonCard } from '@/components/ui2';
+import { VividKpiCard, SkeletonCard, LawTrivia } from '@/components/ui2';
 import ImportModal from '@/components/ImportModal';
 import type { SessionUser } from '@/lib/rbac';
 
@@ -240,11 +240,14 @@ export default function Calendar() {
       )}
 
       {loading && (
-        <div className="card"><div className="card-b">
-          <div className="grid" style={{ gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
-            {Array.from({ length: 35 }, (_, i) => <div key={i} className="skel skel-card" style={{ height: 112 }} />)}
-          </div>
-        </div></div>
+        <>
+          <LawTrivia big />
+          <div className="card"><div className="card-b">
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+              {Array.from({ length: 35 }, (_, i) => <div key={i} className="skel skel-card" style={{ height: 112 }} />)}
+            </div>
+          </div></div>
+        </>
       )}
 
       {!loading && view === 'month' && (

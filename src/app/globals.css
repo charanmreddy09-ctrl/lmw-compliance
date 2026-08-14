@@ -1534,25 +1534,13 @@ input[type="file"] { padding: 6px; }
    A multi-part proportion bar (see ui2.tsx StackedBar) - segments sit flush
    against each other in one rounded track, with a coloured-dot legend row
    giving each segment its real count underneath. */
-.sbar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--surface-2); }
+.sbar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line-2); }
 .sbar-seg { transition: width .8s var(--ease-out); }
 .sbar-seg:not(:last-child) { border-right: 2px solid var(--surface); }
 .sbar-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
 .sbar-item { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-3); }
 .sbar-item i { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .sbar-item b { color: var(--ink); font-family: var(--font-num); font-variant-numeric: tabular-nums; }
-
-/* ---------------------------------------------------------------- mini stat
-   A lighter alternative to the full VividKpiCard gradient tile, for a dense
-   secondary area (the dashboard's Score breakdown) that shouldn't repeat a
-   whole second row of bright gradients right under the hero KPIs - a
-   coloured top accent plus a count-up number instead of a full fill. */
-.mstat { position: relative; padding: 12px 14px 13px; border-radius: var(--r-2); background: var(--surface-2); overflow: hidden; }
-.mstat::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--mstat-color, var(--navy-600)); }
-.mstat .kl { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); }
-.mstat .kv-num { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 21px; font-weight: 700; color: var(--navy-900); margin-top: 4px; line-height: 1.1; }
-.mstat .ks { font-size: 11px; color: var(--ink-4); margin-top: 2px; }
-.mstat .bar { margin-top: 8px; }
 
 /* -------------------------------------------------------------- law trivia */
 .law-trivia {
@@ -1564,6 +1552,19 @@ input[type="file"] { padding: 6px; }
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   width: 32px; height: 32px; border-radius: 9px; background: var(--grad-primary); color: #fff;
 }
-.law-trivia-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); margin-bottom: 4px; }
+.law-trivia-label { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); margin-bottom: 4px; }
+.law-trivia-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--indigo-600); flex-shrink: 0; animation: law-pulse 1.4s ease-in-out infinite; }
 .law-trivia-fact { font-size: 13px; line-height: 1.5; color: var(--ink-2); animation: law-fade .5s ease; }
 @keyframes law-fade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@keyframes law-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .4; transform: scale(.7); } }
+
+/* Full-page loading centrepiece rather than a small accessory strip - the
+   version every page other than the dashboard's own dense skeleton uses. */
+.law-trivia-lg {
+  flex-direction: column; align-items: center; text-align: center; gap: 16px;
+  padding: 48px 32px; max-width: 560px; margin: 40px auto;
+  box-shadow: var(--shadow-2);
+}
+.law-trivia-lg .law-trivia-ic { width: 56px; height: 56px; border-radius: 16px; box-shadow: var(--shadow-glow-indigo); }
+.law-trivia-lg .law-trivia-label { justify-content: center; font-size: 11.5px; margin-bottom: 8px; }
+.law-trivia-lg .law-trivia-fact { font-size: 16px; line-height: 1.6; color: var(--navy-900); font-weight: 500; max-width: 460px; }

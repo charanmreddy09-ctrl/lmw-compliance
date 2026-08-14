@@ -583,30 +583,15 @@ export default function Dashboard() {
           <div style={{ minWidth: 280 }}>
             <div className="cap mb8">{activeCat.label} - filing quality</div>
             <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div className="mstat" style={{ '--mstat-color': 'var(--emerald-600)' } as React.CSSProperties}>
-                <div className="kl">Evidence coverage</div>
-                <div className="kv-num"><AnimatedNumber value={catScore.evidenceCoverage} decimals={1} />%</div>
-                <div className="ks">Obligations with a document</div>
-                <div className="bar"><i style={{ width: `${catScore.evidenceCoverage}%`, background: 'var(--emerald-600)' }} /></div>
-              </div>
-              <div className="mstat" style={{ '--mstat-color': 'var(--purple-600)' } as React.CSSProperties}>
-                <div className="kl">On-time filing</div>
-                <div className="kv-num"><AnimatedNumber value={catScore.onTimeRate} decimals={1} />%</div>
-                <div className="ks">Filed by the due date</div>
-                <div className="bar"><i style={{ width: `${catScore.onTimeRate}%`, background: 'var(--purple-600)' }} /></div>
-              </div>
-              <div className="mstat" style={{ '--mstat-color': 'var(--indigo-500)' } as React.CSSProperties}>
-                <div className="kl">Awaiting review</div>
-                <div className="kv-num"><AnimatedNumber value={catScore.submitted + catScore.underReview} /></div>
-                <div className="ks">{isCfo ? 'Across all reviewers' : 'In the review queue'}</div>
-                <div className="bar"><i style={{ width: `${catScore.total ? ((catScore.submitted + catScore.underReview) / catScore.total) * 100 : 0}%`, background: 'var(--indigo-500)' }} /></div>
-              </div>
-              <div className="mstat" style={{ '--mstat-color': 'var(--warn-600)' } as React.CSSProperties}>
-                <div className="kl">Average delay</div>
-                <div className="kv-num"><AnimatedNumber value={catScore.avgDelayDays} decimals={1} /><span style={{ fontSize: 13, fontFamily: 'var(--font-sans)', marginLeft: 2 }}>d</span></div>
-                <div className="ks">Where filed after due date</div>
-                <div className="bar"><i style={{ width: `${Math.min(100, catScore.avgDelayDays * 4)}%`, background: 'var(--warn-600)' }} /></div>
-              </div>
+              <VividKpiCard label="Evidence coverage" value={catScore.evidenceCoverage} decimals={1} unit="%"
+                            icon="shield" gradient="var(--grad-emerald)" sub="Obligations with a document" />
+              <VividKpiCard label="On-time filing" value={catScore.onTimeRate} decimals={1} unit="%"
+                            icon="check2" gradient="var(--grad-teal)" sub="Filed by the due date" />
+              <VividKpiCard label="Awaiting review" value={catScore.submitted + catScore.underReview}
+                            icon="review" gradient="var(--grad-violet)"
+                            sub={isCfo ? 'Across all reviewers' : 'In the review queue'} />
+              <VividKpiCard label="Average delay" value={catScore.avgDelayDays} decimals={1} unit=" d"
+                            icon="clock" gradient="var(--grad-amber)" sub="Where filed after due date" />
             </div>
           </div>
         </div>

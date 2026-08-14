@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Ic, Note, Spinner, scoreColor, downloadFile, useToast } from '@/components/ui';
-import { ProgressRing, BadgeV2, SkeletonCard } from '@/components/ui2';
+import { ProgressRing, BadgeV2, SkeletonCard, LawTrivia } from '@/components/ui2';
 import type { ScoreBreakdown } from '@/lib/score';
 
 const ENTITY_ACCENTS = ['var(--grad-primary)', 'var(--grad-teal)', 'var(--grad-violet)'];
@@ -50,9 +50,12 @@ export default function Entities() {
 
   if (err) return <Note kind="b">{err}</Note>;
   if (loading) return (
-    <div className="grid g-3">
-      {Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} height={220} />)}
-    </div>
+    <>
+      <LawTrivia big />
+      <div className="grid g-3">
+        {Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} height={220} />)}
+      </div>
+    </>
   );
 
   return (

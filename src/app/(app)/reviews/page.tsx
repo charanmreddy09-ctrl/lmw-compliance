@@ -7,7 +7,7 @@ import {
   fmtDate, fmtDateTime, fmtBytes, daysFromToday, RISK_TONE, useToast, downloadFile,
   Lifecycle, scoreColor,
 } from '@/components/ui';
-import { VividKpiCard, AnimatedNumber, Stepper, type StepperStep } from '@/components/ui2';
+import { VividKpiCard, AnimatedNumber, Stepper, LawTrivia, type StepperStep } from '@/components/ui2';
 import { MIN_REMARK_LENGTH } from '@/lib/constants';
 
 /* Same pure derivation as the register drawer's stepper - visual only, no
@@ -310,14 +310,17 @@ function ReviewsInner() {
           </div>
         </div>
         {loading
-          ? <div className="card-b" style={{ display: 'grid', gap: 10 }}>
-              {Array.from({ length: 8 }, (_, r) => (
-                <div key={r} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 12 }}>
-                  {Array.from({ length: 7 }, (_, c) => (
-                    <div key={c} className="skel skel-text" style={{ width: c === 0 ? '80%' : '60%' }} />
-                  ))}
-                </div>
-              ))}
+          ? <div className="card-b">
+              {rows.length === 0 && <LawTrivia big />}
+              <div style={{ display: 'grid', gap: 10 }}>
+                {Array.from({ length: 8 }, (_, r) => (
+                  <div key={r} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 12 }}>
+                    {Array.from({ length: 7 }, (_, c) => (
+                      <div key={c} className="skel skel-text" style={{ width: c === 0 ? '80%' : '60%' }} />
+                    ))}
+                  </div>
+                ))}
+              </div>
             </div>
           : <DataTable<QRow & Record<string, unknown>>
               rows={shown as (QRow & Record<string, unknown>)[]}
@@ -635,7 +638,7 @@ function ReviewDrawer({ id, onClose, onDone }: { id: string; onClose: () => void
    instead of the whole route opting out of static rendering. */
 export default function ReviewsPage() {
   return (
-    <Suspense fallback={<Spinner label="Loading the review queue…" />}>
+    <Suspense fallback={<LawTrivia big />}>
       <ReviewsInner />
     </Suspense>
   );

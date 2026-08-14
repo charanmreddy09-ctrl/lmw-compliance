@@ -7,7 +7,7 @@ import {
   Ic, Modal, Note, Spinner, StatusPill, DataTable, ValidationChecks, type Col,
   fmtDate, fmtDateTime, fmtBytes, daysFromToday, RISK_TONE, useToast, downloadFile,
 } from '@/components/ui';
-import { Stepper, BadgeV2, type StepperStep } from '@/components/ui2';
+import { Stepper, BadgeV2, LawTrivia, type StepperStep } from '@/components/ui2';
 import type { SessionUser } from '@/lib/rbac';
 import { fyStartYearOf, fyLabel, today } from '@/lib/dates';
 import { MIN_REMARK_LENGTH } from '@/lib/constants';
@@ -274,14 +274,17 @@ function RegisterInner() {
           </span>
         </div>
         {loading
-          ? <div className="card-b" style={{ display: 'grid', gap: 10 }}>
-              {Array.from({ length: 8 }, (_, r) => (
-                <div key={r} style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12 }}>
-                  {Array.from({ length: 6 }, (_, c) => (
-                    <div key={c} className="skel skel-text" style={{ width: c === 0 ? '80%' : '60%' }} />
-                  ))}
-                </div>
-              ))}
+          ? <div className="card-b">
+              {rows.length === 0 && <LawTrivia big />}
+              <div style={{ display: 'grid', gap: 10 }}>
+                {Array.from({ length: 8 }, (_, r) => (
+                  <div key={r} style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12 }}>
+                    {Array.from({ length: 6 }, (_, c) => (
+                      <div key={c} className="skel skel-text" style={{ width: c === 0 ? '80%' : '60%' }} />
+                    ))}
+                  </div>
+                ))}
+              </div>
             </div>
           : <DataTable<Obl & Record<string, unknown>>
               rows={shown as (Obl & Record<string, unknown>)[]}
@@ -903,7 +906,7 @@ function ObligationDrawer({ id, user, onClose, onChanged }: {
    instead of the whole route opting out of static rendering. */
 export default function RegisterPage() {
   return (
-    <Suspense fallback={<Spinner label="Loading the register…" />}>
+    <Suspense fallback={<LawTrivia big />}>
       <RegisterInner />
     </Suspense>
   );
