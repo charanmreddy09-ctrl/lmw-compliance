@@ -8,7 +8,7 @@ import {
 } from '@/components/ui';
 import {
   ProgressRing, AnimatedNumber, BadgeV2, QuickTile, SkeletonCard, SkeletonTable,
-  EmptyState, IllustrationAllClear, VividKpiCard, MiniProportion, Sparkline,
+  EmptyState, IllustrationAllClear, VividKpiCard, MiniProportion, Sparkline, StackedBar, LawTrivia,
 } from '@/components/ui2';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -147,6 +147,7 @@ function ytdMonths(fy: number): number {
 function DashboardSkeleton() {
   return (
     <>
+      <div className="mb16"><LawTrivia /></div>
       <SkeletonCard height={150} />
       <div className="grid g-4 mt16 mb16">
         {Array.from({ length: 4 }, (_, i) => <SkeletonCard key={i} height={110} />)}
@@ -553,38 +554,59 @@ export default function Dashboard() {
             </button>
           </div>
         </div>
-        <div className="card-b row g24 wrap">          <div className="grow" style={{ minWidth: 260 }}>
+        <div className="card-b row g24 wrap">          <div className="grow" style={{ minWidth: 280 }}>
             <div className="stack">
               <div><span className="k">{countryFilter ? 'Total Obligations Applicable' : 'Applicable obligations'}</span><span className="v num">{o.total}</span></div>
-              <div><span className="k">Approved with evidence</span><span className="v num">{o.approved}<Pct n={o.approved} of={o.total} /></span></div>
-              <div><span className="k">Awaiting reviewer</span><span className="v num">{awaitingReviewer}</span></div>
-              <div><span className="k">Query raised / rejected</span><span className="v num">{o.queryRaised + o.rejected}</span></div>
-              <div><span className="k">Not started</span><span className="v num">{o.notStarted + o.evidencePending}</span></div>
+              <div><span className="k"><i className="k-dot" style={{ background: 'var(--emerald-500)' }} />Approved with evidence</span><span className="v num">{o.approved}<Pct n={o.approved} of={o.total} /></span></div>
+              <div><span className="k"><i className="k-dot" style={{ background: 'var(--purple-500)' }} />Awaiting reviewer</span><span className="v num">{awaitingReviewer}</span></div>
+              <div><span className="k"><i className="k-dot" style={{ background: 'var(--coral-500)' }} />Query raised / rejected</span><span className="v num">{o.queryRaised + o.rejected}</span></div>
+              <div><span className="k"><i className="k-dot" style={{ background: 'var(--ink-4)' }} />Not started</span><span className="v num">{o.notStarted + o.evidencePending}</span></div>
               {o.overdue > 0 && (
                 <div className="tiny" style={{ borderTop: '1px solid var(--line-2)', paddingTop: 6, marginTop: -1, color: 'var(--bad-600)' }}>
                   {o.overdue} of them are past the due date with no evidence uploaded.
                 </div>
               )}
             </div>
-            <div className="row between g12" style={{ marginTop: 10, padding: '8px 10px', background: 'var(--surface-2)', borderRadius: 'var(--r)' }}>
+            <div className="mt12">
+              <StackedBar total={o.total} segments={[
+                { key: 'approved', value: o.approved, color: 'var(--emerald-500)', label: 'Approved' },
+                { key: 'awaiting', value: awaitingReviewer, color: 'var(--purple-500)', label: 'Awaiting reviewer' },
+                { key: 'query', value: o.queryRaised + o.rejected, color: 'var(--coral-500)', label: 'Query / rejected' },
+                { key: 'notstarted', value: o.notStarted + o.evidencePending, color: 'var(--ink-4)', label: 'Not started' },
+              ]} />
+            </div>
+            <div className="row between g12" style={{ marginTop: 12, padding: '8px 10px', background: 'var(--surface-2)', borderRadius: 'var(--r)' }}>
               <span className="small muted">Future obligations <span className="dim">(not yet due - excluded from the figures above)</span></span>
               <span className="v num">{futureCount}</span>
             </div>
           </div>
-          <div style={{ minWidth: 260 }}>
+          <div style={{ minWidth: 280 }}>
             <div className="cap mb8">{activeCat.label} - filing quality</div>
-            <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <Kpi label="Evidence coverage" value={<>{catScore.evidenceCoverage}<Pctu /></>}
-                   sub="Obligations with a document" bar={catScore.evidenceCoverage} />
-              <Kpi label="On-time filing" value={<>{catScore.onTimeRate}<Pctu /></>}
-                   sub="Filed by the due date" bar={catScore.onTimeRate} />
-              <Kpi label="Awaiting review" value={catScore.submitted + catScore.underReview}
-                   sub={isCfo ? 'Across all reviewers' : 'In the review queue'}
-                   bar={catScore.total ? ((catScore.submitted + catScore.underReview) / catScore.total) * 100 : 0}
-                   barColor="var(--navy-600)" />
-              <Kpi label="Average delay" value={<>{catScore.avgDelayDays}<span style={{ fontSize: 13, fontFamily: 'var(--font-sans)', marginLeft: 2 }}>d</span></>}
-                   sub="Where filed after due date"
-                   bar={Math.min(100, catScore.avgDelayDays * 4)} barColor="var(--warn-600)" />
+            <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="mstat" style={{ '--mstat-color': 'var(--emerald-600)' } as React.CSSProperties}>
+                <div className="kl">Evidence coverage</div>
+                <div className="kv-num"><AnimatedNumber value={catScore.evidenceCoverage} decimals={1} />%</div>
+                <div className="ks">Obligations with a document</div>
+                <div className="bar"><i style={{ width: `${catScore.evidenceCoverage}%`, background: 'var(--emerald-600)' }} /></div>
+              </div>
+              <div className="mstat" style={{ '--mstat-color': 'var(--purple-600)' } as React.CSSProperties}>
+                <div className="kl">On-time filing</div>
+                <div className="kv-num"><AnimatedNumber value={catScore.onTimeRate} decimals={1} />%</div>
+                <div className="ks">Filed by the due date</div>
+                <div className="bar"><i style={{ width: `${catScore.onTimeRate}%`, background: 'var(--purple-600)' }} /></div>
+              </div>
+              <div className="mstat" style={{ '--mstat-color': 'var(--indigo-500)' } as React.CSSProperties}>
+                <div className="kl">Awaiting review</div>
+                <div className="kv-num"><AnimatedNumber value={catScore.submitted + catScore.underReview} /></div>
+                <div className="ks">{isCfo ? 'Across all reviewers' : 'In the review queue'}</div>
+                <div className="bar"><i style={{ width: `${catScore.total ? ((catScore.submitted + catScore.underReview) / catScore.total) * 100 : 0}%`, background: 'var(--indigo-500)' }} /></div>
+              </div>
+              <div className="mstat" style={{ '--mstat-color': 'var(--warn-600)' } as React.CSSProperties}>
+                <div className="kl">Average delay</div>
+                <div className="kv-num"><AnimatedNumber value={catScore.avgDelayDays} decimals={1} /><span style={{ fontSize: 13, fontFamily: 'var(--font-sans)', marginLeft: 2 }}>d</span></div>
+                <div className="ks">Where filed after due date</div>
+                <div className="bar"><i style={{ width: `${Math.min(100, catScore.avgDelayDays * 4)}%`, background: 'var(--warn-600)' }} /></div>
+              </div>
             </div>
           </div>
         </div>

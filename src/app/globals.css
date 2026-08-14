@@ -641,8 +641,9 @@ input[type="file"] { padding: 6px; }
 .stack { display: flex; flex-direction: column; }
 .stack > div { display: flex; justify-content: space-between; gap: var(--s3); padding: 8px 0; border-bottom: 1px solid var(--line-2); font-size: 12.5px; }
 .stack > div:last-child { border-bottom: none; }
-.stack .k { color: var(--ink-3); }
+.stack .k { color: var(--ink-3); display: inline-flex; align-items: center; }
 .stack .v { font-weight: 600; }
+.k-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-right: 7px; }
 
 /* ------------------------------------------------------------------ modal
    Shared by every dialog in the app (register/reviews drawers, compliance
@@ -689,12 +690,15 @@ input[type="file"] { padding: 6px; }
   padding: 7px 8px; background: var(--surface); overflow: hidden;
   transition: box-shadow var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out), border-color var(--dur-1) ease;
 }
-.cday:not(.out):hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); border-color: var(--indigo-200, var(--indigo-100)); z-index: 1; }
+.cday:not(.out):hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); border-color: var(--purple-100); z-index: 1; }
 .cday.out { background: var(--surface-2); opacity: .5; }
-.cday.wknd { background: var(--canvas); }
+.cday.wknd { background: var(--surface-2); }
 .cday.now {
-  border-color: var(--indigo-500); box-shadow: 0 0 0 2px var(--indigo-100), var(--shadow-glow-indigo);
-  background: linear-gradient(180deg, var(--indigo-100) 0%, var(--surface) 38%);
+  /* Teal, not gold - gold is reserved for buttons/actions, and a gold ring
+     here sat one hue away from the amber "open" event pills in the same
+     cell, reading as an inconsistency rather than a deliberate colour. */
+  border-color: var(--purple-500); box-shadow: 0 0 0 2px var(--purple-100), 0 8px 24px rgba(2,91,106,.18);
+  background: linear-gradient(180deg, var(--purple-100) 0%, var(--surface) 38%);
 }
 .cn { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 11px; color: var(--ink-3); margin-bottom: var(--s1); line-height: 1; }
 .cday.now .cn {
@@ -711,7 +715,7 @@ input[type="file"] { padding: 6px; }
 .cev.ok { background: var(--emerald-500); color: #fff; border-left-color: var(--emerald-600); }
 .cev.warn { background: var(--amber-500); color: #fff; border-left-color: var(--amber-600); }
 .cev.bad { background: var(--coral-500); color: #fff; border-left-color: var(--coral-600); }
-.cev.info { background: var(--indigo-500); color: #fff; border-left-color: var(--indigo-600); }
+.cev.info { background: var(--purple-500); color: #fff; border-left-color: var(--purple-600); }
 .cal.reveal-cal { animation: stagger-in .4s var(--ease-out) both; }
 
 /* -------------------------------------------------------------- timeline */
@@ -1388,7 +1392,8 @@ input[type="file"] { padding: 6px; }
   color: var(--ink); transition: background var(--dur-1) ease, border-color var(--dur-1) ease, transform var(--dur-1) var(--ease-out);
   cursor: pointer;
 }
-.qa-tile:hover { background: var(--navy-050); border-color: var(--navy-200); transform: translateY(-1px); }
+.qa-tile { text-decoration: none; }
+.qa-tile:hover { background: var(--navy-050); border-color: var(--navy-200); transform: translateY(-1px); text-decoration: none; }
 .qa-tile .qi {
   width: 34px; height: 34px; border-radius: 10px; background: var(--navy-100); color: var(--navy-700);
   display: flex; align-items: center; justify-content: center; transition: transform var(--dur-1) var(--ease-out);
@@ -1483,6 +1488,7 @@ input[type="file"] { padding: 6px; }
   box-shadow: 0 6px 18px rgba(20,33,56,.14);
   transition: transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
 }
+.vkpi-link:hover { text-decoration: none; }
 .vkpi-link:hover .vkpi { transform: translateY(-3px) scale(1.015); box-shadow: 0 12px 28px rgba(20,33,56,.22); }
 .vkpi-link:active .vkpi { transform: translateY(-1px) scale(1.005); }
 .vkpi-decor {
@@ -1523,3 +1529,41 @@ input[type="file"] { padding: 6px; }
 .rpt-table tbody tr:nth-child(even) td { background: var(--surface-2); }
 .rpt-table tbody tr:hover td { background: var(--indigo-100) !important; }
 .tl2-node { background: var(--indigo-100); color: var(--indigo-700); }
+
+/* ------------------------------------------------------------------ stacked bar
+   A multi-part proportion bar (see ui2.tsx StackedBar) - segments sit flush
+   against each other in one rounded track, with a coloured-dot legend row
+   giving each segment its real count underneath. */
+.sbar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--surface-2); }
+.sbar-seg { transition: width .8s var(--ease-out); }
+.sbar-seg:not(:last-child) { border-right: 2px solid var(--surface); }
+.sbar-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+.sbar-item { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-3); }
+.sbar-item i { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.sbar-item b { color: var(--ink); font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- mini stat
+   A lighter alternative to the full VividKpiCard gradient tile, for a dense
+   secondary area (the dashboard's Score breakdown) that shouldn't repeat a
+   whole second row of bright gradients right under the hero KPIs - a
+   coloured top accent plus a count-up number instead of a full fill. */
+.mstat { position: relative; padding: 12px 14px 13px; border-radius: var(--r-2); background: var(--surface-2); overflow: hidden; }
+.mstat::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--mstat-color, var(--navy-600)); }
+.mstat .kl { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); }
+.mstat .kv-num { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 21px; font-weight: 700; color: var(--navy-900); margin-top: 4px; line-height: 1.1; }
+.mstat .ks { font-size: 11px; color: var(--ink-4); margin-top: 2px; }
+.mstat .bar { margin-top: 8px; }
+
+/* -------------------------------------------------------------- law trivia */
+.law-trivia {
+  display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: var(--r-2);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--indigo-500) 8%, var(--surface)), color-mix(in srgb, var(--purple-500) 8%, var(--surface)));
+  border: 1px solid var(--line-2);
+}
+.law-trivia-ic {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 32px; height: 32px; border-radius: 9px; background: var(--grad-primary); color: #fff;
+}
+.law-trivia-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); margin-bottom: 4px; }
+.law-trivia-fact { font-size: 13px; line-height: 1.5; color: var(--ink-2); animation: law-fade .5s ease; }
+@keyframes law-fade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
