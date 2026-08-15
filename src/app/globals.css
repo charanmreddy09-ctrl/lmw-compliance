@@ -873,6 +873,29 @@ input[type="file"] { padding: 6px; }
 .land-nav { height: 64px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 var(--s6); position: sticky; top: 0; background: var(--surface); z-index: 20; }
 .land-hero { padding: 64px var(--s6) 48px; max-width: 1160px; margin: 0 auto; width: 100%; }
 
+/* --------------------------------------------------------- hero-slides
+   Auto-rotating "how it works / why it matters" card in the landing hero. */
+.hero-slides {
+  width: 300px; max-width: 100%; padding: 32px 26px; text-align: center;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-3);
+  box-shadow: var(--shadow-2);
+}
+.hero-slide { animation: hero-slide-in .45s var(--ease-out) both; min-height: 148px; }
+.hero-slide-ic {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 56px; height: 56px; border-radius: 16px;
+}
+.hero-slide-dots { display: flex; justify-content: center; gap: 7px; margin-top: 22px; }
+.hero-slide-dots button {
+  width: 7px; height: 7px; padding: 0; border: none; border-radius: 50%;
+  background: var(--line-2); cursor: pointer; transition: background var(--dur-2) ease, width var(--dur-2) var(--ease-out);
+}
+.hero-slide-dots button.on { background: var(--navy-700); width: 18px; border-radius: 4px; }
+@keyframes hero-slide-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .hero-slide { animation: none; }
+}
+
 /* ------------------------------------------------------------------ print */
 @media print {
   .side, .topbar, .no-print, .toasts { display: none !important; }
