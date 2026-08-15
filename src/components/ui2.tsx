@@ -14,7 +14,7 @@ import Link from 'next/link';
 import { Ic, scoreColor, initials, type TrailEntry } from './ui';
 
 /* ------------------------------------------------------------- reduced motion */
-function prefersReducedMotion(): boolean {
+export function prefersReducedMotion(): boolean {
   if (typeof window === 'undefined') return false;
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 }

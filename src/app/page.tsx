@@ -1,5 +1,9 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Ic } from '@/components/ui';
+import { prefersReducedMotion } from '@/components/ui2';
 
 /* The landing page deliberately carries no credential fields. Signing in is a
    separate route so the front door stays a plain description of the platform. */
@@ -37,22 +41,46 @@ const FLOW = [
   { n: '05', t: 'Scored', d: 'Only approved filings, each backed by evidence, count toward the compliance score - the number cannot be self-declared.' },
 ];
 
-/* A restrained, brand-coloured abstract mark for the hero - a shield of
-   compliance built from the same document/checkmark motifs used through the
-   product, so the landing page reads as considered rather than bare text. */
-function HeroMark() {
+/* Auto-rotating "how it works / why it matters" slides for the hero, replacing
+   a single static graphic so a first-time visitor sees the platform's key
+   ideas without having to scroll - advances on its own, pauses under
+   prefers-reduced-motion (dots remain clickable either way). */
+const HERO_SLIDES = [
+  { icon: 'report', tint: 'navy', t: 'A live compliance score', d: 'Every entity carries a real-time score derived from actual filings, not a self-declared checklist.' },
+  { icon: 'book', tint: 'info', t: 'Evidence-backed, always', d: 'Each obligation is only marked filed once the supporting document is attached and versioned.' },
+  { icon: 'review', tint: 'red', t: 'Independent review', d: 'A filing only counts toward the score after a reviewer approves it - queries and rejections are recorded.' },
+  { icon: 'cal', tint: 'warn', t: 'A calendar that knows your entities', d: 'Statutory due dates are scoped to each entity’s actual country, state and free-zone registration.' },
+  { icon: 'sheet', tint: 'ok', t: 'Board-ready reporting', d: 'Country, entity, overdue and delay reports export in one click - built from the underlying record, not a summary email.' },
+] as const;
+
+function HeroSlideshow() {
+  const [i, setI] = useState(0);
+
+  useEffect(() => {
+    if (prefersReducedMotion()) return;
+    const id = setInterval(() => setI(v => (v + 1) % HERO_SLIDES.length), 4200);
+    return () => clearInterval(id);
+  }, []);
+
+  const s = HERO_SLIDES[i];
+  const tint = TINTS[s.tint];
+
   return (
-    <svg width={280} height={280} viewBox="0 0 280 280" fill="none" aria-hidden="true">
-      <circle cx="140" cy="140" r="132" fill="var(--navy-050)" />
-      <circle cx="140" cy="140" r="104" fill="var(--surface)" stroke="var(--line)" />
-      <g transform="translate(72,54)">
-        <rect x="0" y="14" width="92" height="118" rx="6" fill="var(--info-100)" stroke="var(--info-700)" strokeWidth="1.4" />
-        <rect x="18" y="0" width="92" height="118" rx="6" fill="var(--surface)" stroke="var(--navy-700)" strokeWidth="1.6" />
-        <path d="M30 26h68M30 42h68M30 58h44" stroke="var(--line)" strokeWidth="4" strokeLinecap="round" />
-        <circle cx="98" cy="98" r="30" fill="var(--red-600)" />
-        <path d="M85 98l9 9 18-18" stroke="#fff" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      </g>
-    </svg>
+    <div className="hero-slides no-print">
+      <div key={i} className="hero-slide">
+        <span className="hero-slide-ic" style={{ background: tint.bg }}>
+          <Ic n={s.icon} s={30} c={tint.fg} />
+        </span>
+        <h3 className="mt16 mb4">{s.t}</h3>
+        <p className="small muted mt0 mb0" style={{ lineHeight: 1.55 }}>{s.d}</p>
+      </div>
+      <div className="hero-slide-dots">
+        {HERO_SLIDES.map((_, n) => (
+          <button key={n} type="button" aria-label={`Slide ${n + 1}`}
+                  className={n === i ? 'on' : ''} onClick={() => setI(n)} />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -83,7 +111,7 @@ export default function Landing() {
         </nav>
       </header>
 
-      <section className="land-hero row g24 wrap reveal-in" style={{ alignItems: 'center' }}>
+      <section className="land-hero row g24 wrap stagger-in stagger-1" style={{ alignItems: 'center' }}>
         <div style={{ maxWidth: 640, flex: '1 1 480px' }}>
           <div className="cap mb12" style={{ color: 'var(--red-600)' }}>Version 1.3</div>
           <h1 style={{ fontSize: 34, lineHeight: 1.18, letterSpacing: '-0.02em' }}>
@@ -102,8 +130,8 @@ export default function Landing() {
           </div>
         </div>
 
-        <div className="no-print" style={{ flex: '0 0 auto', display: 'flex', justifyContent: 'center', minWidth: 260 }}>
-          <HeroMark />
+        <div style={{ flex: '0 0 auto', display: 'flex', justifyContent: 'center', minWidth: 260 }}>
+          <HeroSlideshow />
         </div>
       </section>
 
@@ -128,7 +156,7 @@ export default function Landing() {
         <div style={{ maxWidth: 1120, margin: '0 auto' }}>
           <div className="cap mb8">How a filing moves through the platform</div>
           <h2 style={{ fontSize: 22, marginBottom: 22 }}>From obligation to Board-level score, with a full audit trail</h2>
-          <div className="grid g-5 reveal-in">
+          <div className="grid g-5 stagger-in stagger-1">
             {FLOW.map(f => (
               <div className="card card-b hoverable" key={f.n}>
                 <div className="num" style={{ fontSize: 20, color: 'var(--red-600)', fontWeight: 500 }}>{f.n}</div>
@@ -144,7 +172,7 @@ export default function Landing() {
         <div style={{ maxWidth: 1120, margin: '0 auto' }}>
           <div className="cap mb8">Platform capabilities</div>
           <h2 style={{ fontSize: 22, marginBottom: 22 }}>Everything the compliance function needs, in one system of record</h2>
-          <div className="grid g-3 reveal-in">
+          <div className="grid g-3 stagger-in stagger-1">
             {MODULES.map(m => {
               const tint = TINTS[m.tint];
               return (
