@@ -108,11 +108,11 @@ function RegisterInner() {
      into the full register. */
   const attentionOnly = search.get('attention') === '1';
   /* attention=1 (the Immediate attention panel, and the Critical risks tile
-     which reuses it) names a small, exact set regardless of period, so the
-     month/year window is bypassed entirely for it - same as before. A plain
-     status/risk deep link (e.g. Pending reviews) is different: the count it
-     came from is itself scoped to a financial year, so that scope must still
-     apply here - carried via the fy param below, not bypassed. */
+     which reuses it) is itself counted per financial year server side, so
+     the deep link carries fy too and the register's month-vs-year toggle
+     is bypassed in favour of that exact year - not bypassed entirely,
+     which used to let a prior FY's backlog inflate the drill-through past
+     the number that was actually clicked. */
   const deepLinked = attentionOnly;
   const [q, setQ] = useState('');
   /* The register opens on the current month, not the whole year's filing
@@ -175,9 +175,13 @@ function RegisterInner() {
   const shown = useMemo(() => rows.filter(r => {
     const due = parseDateSafe(r.due_date);
     /* A deep link from a dashboard tile already names an exact set of
-       obligations — the month/year scope would otherwise hide whichever of
-       them don't fall due this month. */
-    const inScope = deepLinked ? true : viewScope === 'month'
+       obligations — the month scope would otherwise hide whichever of them
+       don't fall due this month. It still respects the financial year the
+       dashboard actually counted from (carried via fy, defaulted server
+       and client side to the current FY) - the tile's own count is itself
+       FY-scoped, so showing every FY here would make the drill-through
+       list a bigger set than the number that was clicked. */
+    const inScope = deepLinked ? r.fy_start_year === fy : viewScope === 'month'
       ? due.getUTCFullYear() === curYear && due.getUTCMonth() === curMonth
       : r.fy_start_year === fy;
     return inScope &&

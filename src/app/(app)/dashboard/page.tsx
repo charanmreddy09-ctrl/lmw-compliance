@@ -315,7 +315,7 @@ export default function Dashboard() {
      the same condition the register's own "Immediate attention" deep link
      already uses, so the count clicked and the rows landed on agree, rather
      than reusing the generic overdue report every other overdue tile opens. */
-  const criticalRisksHref = '/register?risk=Critical,High&attention=1';
+  const criticalRisksHref = `/register?risk=Critical,High&attention=1&fy=${d.selectedFy}`;
   /* Pending reviews has no report of its own and a CFO holds no
      compliance.review, so this used to fall back to the executive summary -
      a different number entirely. The register's own multi-status filter
@@ -429,7 +429,7 @@ export default function Dashboard() {
                 {(['Critical', 'High', 'Medium', 'Low'] as const)
                   .filter(k => b.severity[k] > 0)
                   .map(k => (
-                    <Link key={k} href={`/register?risk=${k}&attention=1`} className="sev-row">
+                    <Link key={k} href={`/register?risk=${k}&attention=1&fy=${d.selectedFy}`} className="sev-row">
                       <span className="num sev-n">{b.severity[k]}</span>
                       <BadgeV2 tone={k === 'Critical' || k === 'High' ? 'bad' : k === 'Medium' ? 'warn' : 'mute'}
                                pulse={b.severityOverdue[k] > 0}>
