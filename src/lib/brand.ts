@@ -2,16 +2,25 @@
     after sign-in (logo, name) belongs to whichever company the signed-in
     user's email domain identifies, not to any one customer baked into the
     build. The landing page, by contrast, is pre-login and always shows the
-    platform's own name (see src/app/page.tsx) - never a tenant's. */
-export type Brand = { name: string; logo: string | null };
+    platform's own name (see src/app/page.tsx) - never a tenant's.
 
-/** Companies with a real logo on file. Anything not listed here still gets
-    a sensible name derived from its domain (see brandFromEmail) - just
-    without a logo image, so a new tenant's chrome is never blank while
-    waiting on branding assets. */
+    dbEnvVar names which Postgres database holds that company's data (see
+    lib/db.ts's runWithDbEnvVar) - each known tenant gets its own database,
+    so one company's filings are never reachable from another's session even
+    for a role with unrestricted entity scope ('*'). */
+export type Brand = { name: string; logo: string | null; dbEnvVar: string };
+
+/** Companies with a real logo on file and their own database. Anything not
+    listed here still gets a sensible name derived from its domain (see
+    brandFromEmail) - just without a logo image, and it falls back to the
+    default database, so a new tenant's chrome is never blank while waiting
+    on branding assets or a dedicated database. */
 const KNOWN_BRANDS: Record<string, Brand> = {
-  'lmw.example': { name: 'LMW', logo: 'https://www.lmwglobal.com/images/lmw-logo.png' },
+  'lmw.example': { name: 'LMW', logo: 'https://www.lmwglobal.com/images/lmw-logo.png', dbEnvVar: 'DATABASE_URL' },
+  'suprajit.example': { name: 'Suprajit', logo: '/suprajit-logo.png', dbEnvVar: 'DATABASE_URL_SUPRAJIT' },
 };
+
+const DEFAULT_DB_ENV_VAR = 'DATABASE_URL';
 
 /** Derives the signed-in company's display name (and logo, where on file)
     from the domain of their email address - e.g. someone@lmw.example ->
@@ -22,7 +31,7 @@ export function brandFromEmail(email: string | null | undefined): Brand {
   if (domain && KNOWN_BRANDS[domain]) return KNOWN_BRANDS[domain];
 
   const label = domain?.split('.')[0] ?? '';
-  if (!label) return { name: 'Compliance 360', logo: null };
+  if (!label) return { name: 'Compliance 360', logo: null, dbEnvVar: DEFAULT_DB_ENV_VAR };
   const name = label.length <= 5 ? label.toUpperCase() : label[0].toUpperCase() + label.slice(1);
-  return { name, logo: null };
+  return { name, logo: null, dbEnvVar: DEFAULT_DB_ENV_VAR };
 }

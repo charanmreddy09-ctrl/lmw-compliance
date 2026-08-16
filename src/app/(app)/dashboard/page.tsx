@@ -95,23 +95,35 @@ const ACTION_TONE: Record<string, string> = {
   approve: 'ok', reject: 'bad', query: 'warn', escalate: 'bad', submit: '', resubmit: '',
 };
 
-/* Every category in the library gets its own tab, mapped to the category
-   names produced by db/library.ts (CATEGORIES) and returned by /api/dashboard. */
-const CAT_TABS = [
-  { id: 'overall', label: 'Overall', matchName: null, icon: 'globe' },
-  { id: 'direct_tax', label: 'Direct Tax', matchName: 'Direct Tax', icon: 'report' },
-  { id: 'vat_gst', label: 'GST', matchName: 'VAT / GST', icon: 'sheet' },
-  { id: 'corporate_law', label: 'Companies Act', matchName: 'Corporate Law', icon: 'building' },
-  { id: 'labour_law', label: 'Labour Laws', matchName: 'Labour Law', icon: 'users' },
-  { id: 'securities_sebi', label: 'Securities / SEBI', matchName: 'Securities / SEBI', icon: 'shield' },
-  { id: 'foreign_exchange', label: 'Foreign Exchange', matchName: 'Foreign Exchange', icon: 'swap' },
-  { id: 'customs_trade', label: 'Customs & Trade', matchName: 'Customs & Trade', icon: 'send' },
-  { id: 'environmental_ehs', label: 'Environmental', matchName: 'Environmental (EHS)', icon: 'book' },
-  { id: 'industry_regulation', label: 'Industry Regulation', matchName: 'Industry Regulation', icon: 'gear' },
-  { id: 'transfer_pricing', label: 'Transfer Pricing', matchName: 'Transfer Pricing', icon: 'dash' },
-  { id: 'data_privacy', label: 'Data Privacy & Cyber', matchName: 'Data Privacy & Cyber', icon: 'eye' },
-  { id: 'competition_law', label: 'Competition Law', matchName: 'Competition Law', icon: 'review' },
-] as const;
+/* Act tabs are built at render time from whichever category names are
+   actually present in this tenant's own data (d.byCategoryScore) - not a
+   fixed list. Different tenants run different compliance libraries (e.g.
+   db/library.ts vs db/library.suprajit.ts) with their own category set, so
+   a hardcoded tab list either showed a false zero for a tab whose name
+   didn't match anything in that tenant's data, or silently had no tab at
+   all for a category the list didn't know about. This map only supplies a
+   friendlier label/icon/preferred order for names it recognises - any
+   other category name still gets a tab, using its own name as the label
+   and a generic icon, so nothing is ever missing. */
+const CAT_META: Record<string, { label: string; icon: string; order: number }> = {
+  'Direct Tax': { label: 'Direct Tax', icon: 'report', order: 1 },
+  'VAT / GST': { label: 'GST', icon: 'sheet', order: 2 },
+  'Corporate Law': { label: 'Companies Act', icon: 'building', order: 3 },
+  'Labour Law': { label: 'Labour Laws', icon: 'users', order: 4 },
+  'Payroll & Employment': { label: 'Payroll & Employment', icon: 'users', order: 4 },
+  'Securities / SEBI': { label: 'Securities / SEBI', icon: 'shield', order: 5 },
+  'Foreign Exchange': { label: 'Foreign Exchange', icon: 'swap', order: 6 },
+  'Customs & Trade': { label: 'Customs & Trade', icon: 'send', order: 7 },
+  'Environmental (EHS)': { label: 'Environmental', icon: 'book', order: 8 },
+  'Industry Regulation': { label: 'Industry Regulation', icon: 'gear', order: 9 },
+  'Transfer Pricing': { label: 'Transfer Pricing', icon: 'dash', order: 10 },
+  'Data Privacy & Cyber': { label: 'Data Privacy & Cyber', icon: 'eye', order: 11 },
+  'Data Privacy': { label: 'Data Privacy', icon: 'eye', order: 11 },
+  'Competition Law': { label: 'Competition Law', icon: 'review', order: 12 },
+  ESG: { label: 'ESG', icon: 'shield', order: 13 },
+  Statistical: { label: 'Statistical', icon: 'report', order: 14 },
+};
+const DEFAULT_CAT_ICON = 'book';
 
 /* The % glyph inherits the monospace tabular-nums number font from its
    parent (.num) if not overridden, which gives it an oversized advance
@@ -231,7 +243,18 @@ export default function Dashboard() {
     .filter(e => e.s)
     .sort((a, b) => (a.s!.score - b.s!.score));
 
-  const activeCat = CAT_TABS.find(t => t.id === catTab) ?? CAT_TABS[0];
+  const catNames = Object.keys(d.byCategoryScore).sort(
+    (a, b) => (CAT_META[a]?.order ?? 999) - (CAT_META[b]?.order ?? 999) || a.localeCompare(b));
+  const catTabs = [
+    { id: 'overall', label: 'Overall', matchName: null as string | null, icon: 'globe' },
+    ...catNames.map(name => ({
+      id: name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+      label: CAT_META[name]?.label ?? name,
+      matchName: name as string | null,
+      icon: CAT_META[name]?.icon ?? DEFAULT_CAT_ICON,
+    })),
+  ];
+  const activeCat = catTabs.find(t => t.id === catTab) ?? catTabs[0];
   const catScore = activeCat.matchName === null ? o : (d.byCategoryScore[activeCat.matchName] || ZERO_SCORE);
   const catRows = d.heat.filter(h =>
     (activeCat.matchName === null || h.category === activeCat.matchName) &&
@@ -614,7 +637,7 @@ export default function Dashboard() {
           in a tab further down the page. */}
       <div className="card act-tabs mb16 stagger-in stagger-5">
         <div className="act-tabs-h">
-          {CAT_TABS.map(t => (
+          {catTabs.map(t => (
             <button key={t.id} className={`act-tab${catTab === t.id ? ' on' : ''}`} onClick={() => setCatTab(t.id)}>
               <Ic n={t.icon} s={15} /> {t.label}
             </button>

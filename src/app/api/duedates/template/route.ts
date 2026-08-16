@@ -21,7 +21,7 @@ export const GET = handler(async (req: Request) => {
       JOIN entities e ON e.id = o.entity_id
      WHERE e.country_code = $1 AND o.deleted_at IS NULL
        AND o.status NOT IN ('Approved','Not Applicable')
-     ORDER BY o.due_date, c.code LIMIT 4000`, [country]);
+     ORDER BY o.due_date, c.code LIMIT 20000`, [country]);
 
   const entities = await q<{ id: string; name: string }>(
     `SELECT id, name FROM entities WHERE country_code = $1 AND deleted_at IS NULL ORDER BY name`, [country]);

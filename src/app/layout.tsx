@@ -37,11 +37,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
   manifest: '/manifest.webmanifest',
   icons: {
-    icon: [
-      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-    ],
-    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+    /* The browser tab icon is the platform's own MCA mark, not any one
+       tenant's logo - it never changes based on who's signed in, same as
+       the landing page (see lib/brand.ts for the post-login, per-tenant
+       chrome that does change). */
+    icon: [{ url: '/mca-logo.png', type: 'image/png' }],
+    apple: [{ url: '/mca-logo.png', type: 'image/png' }],
   },
 };
 
