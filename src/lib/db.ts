@@ -1,16 +1,38 @@
-/* Postgres access. A single pooled client, safe for serverless reuse. */
+/* Postgres access. One pooled client per tenant database, safe for serverless
+   reuse. Which tenant a request talks to is carried via AsyncLocalStorage
+   (see runWithDbEnvVar) rather than threaded through every call site - it's
+   set once, at the edge of a request (see lib/api.ts's handler() and the
+   login route), and every q()/one()/tx() call below it automatically picks
+   up the right pool. Falls back to DATABASE_URL when no tenant context is
+   active (scripts, cron jobs, and any request that hasn't set one). */
 import { Pool, type QueryResultRow } from 'pg';
+import { AsyncLocalStorage } from 'async_hooks';
+
+export const DEFAULT_DB_ENV_VAR = 'DATABASE_URL';
+
+const tenantAls = new AsyncLocalStorage<string>();
+
+/** Run fn with a specific tenant database active for its entire duration
+    (including everything it awaits). Nested calls override the outer tenant
+    only for their own extent, then it reverts - safe to nest. */
+export function runWithDbEnvVar<T>(envVar: string, fn: () => Promise<T>): Promise<T> {
+  return tenantAls.run(envVar, fn);
+}
+
+export function currentDbEnvVar(): string {
+  return tenantAls.getStore() ?? DEFAULT_DB_ENV_VAR;
+}
 
 declare global {
   // eslint-disable-next-line no-var
-  var __sgcmpPool: Pool | undefined;
+  var __sgcmpPools: Map<string, Pool> | undefined;
 }
 
-function makePool(): Pool {
-  const connectionString = process.env.DATABASE_URL;
+function makePool(envVar: string): Pool {
+  const connectionString = process.env[envVar];
   if (!connectionString) {
     throw new Error(
-      'DATABASE_URL is not set. Copy .env.example to .env.local and add your Postgres connection string.'
+      `${envVar} is not set. Copy .env.example to .env.local and add your Postgres connection string.`
     );
   }
   const needsSsl = !/localhost|127\.0\.0\.1/.test(connectionString);
@@ -24,8 +46,14 @@ function makePool(): Pool {
 }
 
 export function pool(): Pool {
-  if (!global.__sgcmpPool) global.__sgcmpPool = makePool();
-  return global.__sgcmpPool;
+  if (!global.__sgcmpPools) global.__sgcmpPools = new Map();
+  const envVar = currentDbEnvVar();
+  let p = global.__sgcmpPools.get(envVar);
+  if (!p) {
+    p = makePool(envVar);
+    global.__sgcmpPools.set(envVar, p);
+  }
+  return p;
 }
 
 export async function q<T extends QueryResultRow = QueryResultRow>(

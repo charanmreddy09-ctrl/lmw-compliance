@@ -9,6 +9,8 @@
     "start": "next start",
     "db:setup": "tsx scripts/setup-db.ts",
     "db:reset": "tsx scripts/setup-db.ts --reset",
+    "db:setup:suprajit": "tsx scripts/setup-db-suprajit.ts",
+    "db:reset:suprajit": "tsx scripts/setup-db-suprajit.ts --reset",
     "db:purge-library": "tsx scripts/purge-library.ts",
     "lint": "next lint",
     "smoke": "node scripts/smoke.mjs"

@@ -7,7 +7,8 @@
 import { cookies } from 'next/headers';
 import { SignJWT, jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
-import { q, one } from './db';
+import { q, one, runWithDbEnvVar, DEFAULT_DB_ENV_VAR } from './db';
+import { brandFromEmail } from './brand';
 import type { Permission, SessionUser } from './rbac';
 
 const COOKIE = 'sgcmp_session';
@@ -33,18 +34,26 @@ export async function verifyPassword(plain: string, hash: string | null): Promis
   return bcrypt.compare(plain, hash);
 }
 
-export async function createSessionCookie(userId: string): Promise<string> {
-  return new SignJWT({ sub: userId })
+export async function createSessionCookie(userId: string, dbEnvVar: string): Promise<string> {
+  return new SignJWT({ sub: userId, db: dbEnvVar })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(`${MAX_AGE}s`)
     .sign(secret());
 }
 
-export async function readToken(token: string): Promise<string | null> {
+type DecodedSession = { userId: string; dbEnvVar: string };
+
+/** Decodes the session JWT into both the user id and which tenant database
+    that session belongs to. The db claim is trusted only because the JWT is
+    signed - a tampered claim fails verification entirely, it can't be
+    swapped to point at a different tenant. */
+export async function decodeSessionToken(token: string): Promise<DecodedSession | null> {
   try {
     const { payload } = await jwtVerify(token, secret());
-    return typeof payload.sub === 'string' ? payload.sub : null;
+    if (typeof payload.sub !== 'string') return null;
+    const dbEnvVar = typeof payload.db === 'string' ? payload.db : DEFAULT_DB_ENV_VAR;
+    return { userId: payload.sub, dbEnvVar };
   } catch {
     return null;
   }
@@ -58,13 +67,20 @@ type UserRow = {
   role_name: string; permissions: Permission[]; status: string;
 };
 
-/** Load the signed-in user together with permissions and entity scope. */
+/** Load the signed-in user together with permissions and entity scope.
+    Resolves its own tenant database from the session token rather than
+    trusting ambient context, so it is correct even on the very first
+    request after login (see the login route, which sets the tenant
+    context from the submitted email before any cookie exists). */
 export async function getSession(): Promise<SessionUser | null> {
   const token = cookies().get(COOKIE)?.value;
   if (!token) return null;
-  const userId = await readToken(token);
-  if (!userId) return null;
+  const decoded = await decodeSessionToken(token);
+  if (!decoded) return null;
+  return runWithDbEnvVar(decoded.dbEnvVar, () => loadSession(decoded.userId));
+}
 
+async function loadSession(userId: string): Promise<SessionUser | null> {
   const row = await one<UserRow>(
     `SELECT u.id, u.email, u.full_name, u.role_id, u.status,
             r.name AS role_name, r.permissions
@@ -175,23 +191,30 @@ export class HttpError extends Error {
 }
 
 export async function authenticate(email: string, password: string): Promise<
-  { ok: true; userId: string } | { ok: false; reason: string }
+  { ok: true; userId: string; dbEnvVar: string } | { ok: false; reason: string }
 > {
-  const row = await one<{ id: string; password_hash: string | null; status: string }>(
-    `SELECT id, password_hash, status FROM users
-      WHERE lower(email) = lower($1) AND deleted_at IS NULL`,
-    [email.trim()]
-  );
-  if (!row) return { ok: false, reason: 'No account exists for that email address.' };
-  if (row.status === 'pending')
-    return { ok: false, reason: 'This account is awaiting approval by the CFO or an administrator.' };
-  if (row.status === 'disabled')
-    return { ok: false, reason: 'This account has been disabled. Contact your administrator.' };
-  if (!(await verifyPassword(password, row.password_hash)))
-    return { ok: false, reason: 'The email address or password is incorrect.' };
+  // Which company's database to check is decided by the domain of the
+  // submitted email, before we know who the user is - there is no session
+  // token yet to read it from (see decodeSessionToken/getSession, which
+  // handle every later request once one exists).
+  const dbEnvVar = brandFromEmail(email).dbEnvVar;
+  return runWithDbEnvVar(dbEnvVar, async () => {
+    const row = await one<{ id: string; password_hash: string | null; status: string }>(
+      `SELECT id, password_hash, status FROM users
+        WHERE lower(email) = lower($1) AND deleted_at IS NULL`,
+      [email.trim()]
+    );
+    if (!row) return { ok: false, reason: 'No account exists for that email address.' };
+    if (row.status === 'pending')
+      return { ok: false, reason: 'This account is awaiting approval by the CFO or an administrator.' };
+    if (row.status === 'disabled')
+      return { ok: false, reason: 'This account has been disabled. Contact your administrator.' };
+    if (!(await verifyPassword(password, row.password_hash)))
+      return { ok: false, reason: 'The email address or password is incorrect.' };
 
-  await q(`UPDATE users SET last_login_at = now() WHERE id = $1`, [row.id]);
-  return { ok: true, userId: row.id };
+    await q(`UPDATE users SET last_login_at = now() WHERE id = $1`, [row.id]);
+    return { ok: true, userId: row.id, dbEnvVar };
+  });
 }
 
 export async function writeAudit(opts: {

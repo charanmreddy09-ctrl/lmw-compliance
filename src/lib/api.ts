@@ -1,6 +1,8 @@
 /* Shared API plumbing: consistent JSON errors, session guards, body parsing. */
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { HttpError, getSession, writeAudit } from './auth';
+import { HttpError, getSession, writeAudit, decodeSessionToken, SESSION_COOKIE } from './auth';
+import { runWithDbEnvVar, DEFAULT_DB_ENV_VAR } from './db';
 import { can, type Permission, type SessionUser } from './rbac';
 
 export function ok(data: unknown, init?: ResponseInit) {
@@ -11,13 +13,22 @@ export function fail(status: number, error: string) {
   return NextResponse.json({ error }, { status });
 }
 
-/** Wrap a handler so an unexpected throw never returns an HTML error page. */
+/** Wrap a handler so an unexpected throw never returns an HTML error page,
+    and so every query the handler makes runs against the signed-in user's
+    own tenant database. The login route is the one exception - it has no
+    session cookie yet, so it resolves and sets its own tenant context from
+    the submitted email (see authenticate() in lib/auth.ts) and this falls
+    back to the default database for the outer request, which is fine since
+    that route makes no other queries outside of its own explicit scope. */
 export function handler<T extends unknown[]>(
   fn: (...args: T) => Promise<Response>
 ): (...args: T) => Promise<Response> {
   return async (...args: T) => {
+    const token = cookies().get(SESSION_COOKIE)?.value;
+    const decoded = token ? await decodeSessionToken(token) : null;
+    const dbEnvVar = decoded?.dbEnvVar ?? DEFAULT_DB_ENV_VAR;
     try {
-      return await fn(...args);
+      return await runWithDbEnvVar(dbEnvVar, () => fn(...args));
     } catch (err) {
       if (err instanceof HttpError) return fail(err.status, err.message);
       const msg = err instanceof Error ? err.message : 'Unexpected server error';
