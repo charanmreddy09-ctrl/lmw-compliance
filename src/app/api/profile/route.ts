@@ -1,4 +1,4 @@
-import { auth, handler, ok, fail, body } from '@/lib/api';
+import { authAllowReset, handler, ok, fail, body } from '@/lib/api';
 import { q, one } from '@/lib/db';
 import { hashPassword, verifyPassword, writeAudit } from '@/lib/auth';
 
@@ -8,9 +8,13 @@ export const dynamic = 'force-dynamic';
    Email is deliberately not editable here - it is both the sign-in identity
    and, via its domain, which tenant database and brand a session resolves
    to (see lib/brand.ts) - changing it is an administrative act, not a
-   profile edit, and stays in Administration -> Users. */
+   profile edit, and stays in Administration -> Users.
+
+   Uses authAllowReset() rather than auth() - this is the one endpoint a
+   must-reset session is still allowed to call, since it's the only way to
+   clear that flag (see reset-password/page.tsx). */
 export const PATCH = handler(async (req: Request) => {
-  const u = await auth();
+  const u = await authAllowReset();
   const b = await body<{ name?: string; currentPassword?: string; newPassword?: string }>(req);
 
   const name = b.name?.trim();
@@ -27,9 +31,11 @@ export const PATCH = handler(async (req: Request) => {
 
     const newHash = await hashPassword(b.newPassword);
     await q(
-      `UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1`,
+      `UPDATE users SET password_hash = $2, must_reset = FALSE, updated_at = now() WHERE id = $1`,
       [u.id, newHash]);
     await writeAudit({ actor: u, action: 'profile.password_change', objectType: 'user', objectId: u.id });
+  } else if (u.mustReset) {
+    return fail(400, 'You must set a new password before continuing.');
   }
 
   if (name !== undefined && name !== u.name) {

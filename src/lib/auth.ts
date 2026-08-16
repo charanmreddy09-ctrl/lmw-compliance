@@ -64,7 +64,7 @@ export const SESSION_MAX_AGE = MAX_AGE;
 
 type UserRow = {
   id: string; email: string; full_name: string; role_id: string;
-  role_name: string; permissions: Permission[]; status: string;
+  role_name: string; permissions: Permission[]; status: string; must_reset: boolean;
 };
 
 /** Load the signed-in user together with permissions and entity scope.
@@ -82,7 +82,7 @@ export async function getSession(): Promise<SessionUser | null> {
 
 async function loadSession(userId: string): Promise<SessionUser | null> {
   const row = await one<UserRow>(
-    `SELECT u.id, u.email, u.full_name, u.role_id, u.status,
+    `SELECT u.id, u.email, u.full_name, u.role_id, u.status, u.must_reset,
             r.name AS role_name, r.permissions
        FROM users u
        JOIN roles r ON r.id = u.role_id
@@ -135,6 +135,7 @@ async function loadSession(userId: string): Promise<SessionUser | null> {
     canFile: scope.filter(s => s.can_file).map(s => s.entity_id),
     canReview: [...canReview],
     allowedCategories: categoryRows.length ? categoryRows.map(c => c.category_id) : null,
+    mustReset: row.must_reset,
   };
 }
 

@@ -32,6 +32,7 @@ export const POST = handler(async (req: Request) => {
 
     const s = await getSession();
     await writeAudit({ actor: s, action: 'login', objectType: 'user', objectId: res.userId, detail: 'Signed in' });
-    return ok({ user: s, redirect: s ? (ROLE_LANDING[s.role] ?? '/dashboard') : '/dashboard' });
+    const redirect = s?.mustReset ? '/reset-password' : s ? (ROLE_LANDING[s.role] ?? '/dashboard') : '/dashboard';
+    return ok({ user: s, redirect });
   });
 });
