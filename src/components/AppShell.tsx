@@ -361,6 +361,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               {unread > 0 && <span className="pip" />}
             </button>
 
+            <button className="iconbtn no-print" onClick={() => router.push('/profile')}
+                    aria-label="Your profile" title="Your profile">
+              <Ic n="gear" s={17} />
+            </button>
+
             <div className="who no-print" onClick={signOut} title="Sign out" role="button" tabIndex={0}
                  onKeyDown={e => { if (e.key === 'Enter') signOut(); }}>
               <span className="av">{initials(user.name)}</span>
