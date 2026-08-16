@@ -76,6 +76,17 @@ export function handler<T extends unknown[]>(
 export async function auth(): Promise<SessionUser> {
   const s = await getSession();
   if (!s) throw new HttpError(401, 'Not signed in.');
+  if (s.mustReset) throw new HttpError(403, 'You must set a new password before continuing.');
+  return s;
+}
+
+/** Like auth(), but lets a session that still must reset its password
+    through - used only by the profile route's own password change, which
+    is the one action that's allowed to clear that flag. Every other
+    endpoint stays blocked via auth() until it's cleared. */
+export async function authAllowReset(): Promise<SessionUser> {
+  const s = await getSession();
+  if (!s) throw new HttpError(401, 'Not signed in.');
   return s;
 }
 

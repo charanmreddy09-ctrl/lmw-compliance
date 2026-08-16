@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Ic, ToastHost, Modal, initials, fmtDateTime, Spinner } from '@/components/ui';
 import { PageTransition } from '@/components/ui2';
 import type { SessionUser } from '@/lib/rbac';
+import { ROLE_LANDING } from '@/lib/rbac';
 import { brandFromEmail } from '@/lib/brand';
 
 type Notif = {
@@ -152,6 +153,30 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     })();
     return () => { live = false; };
   }, [router]);
+
+  /* A freshly created or admin-reset account must set its own password
+     before anything else - every API route already blocks it server side
+     (see lib/api.ts's auth()), and this keeps the client from just sitting
+     on a page that can't actually do anything. Depends on pathname, not
+     just on mount, since AppShell persists across client-side navigation -
+     without it, clicking a nav item after landing here would never bounce
+     back. */
+  useEffect(() => {
+    if (user?.mustReset && pathname !== '/reset-password') router.replace('/reset-password');
+  }, [user, pathname, router]);
+
+  /* A page hidden from a role's sidebar (e.g. Reviews for a CFO, who
+     deliberately holds no review authority) was still reachable by typing
+     its URL directly - the page itself rendered fine, just permanently
+     empty, which reads as broken rather than as "not for your role." Any
+     page listed in NAV that this user's own show() rule hides is now
+     bounced to their normal landing page instead. Pages outside NAV
+     (Profile, reset-password) are never covered by this and need no guard. */
+  useEffect(() => {
+    if (!user) return;
+    const navItem = NAV.flatMap(s => s.items).find(i => i.href === pathname);
+    if (navItem && !navItem.show(user)) router.replace(ROLE_LANDING[user.role] ?? '/dashboard');
+  }, [user, pathname, router]);
 
   /* -------------------------------------------------- notifications + popup */
   const loadNotifs = useCallback(async () => {

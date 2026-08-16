@@ -19,6 +19,11 @@ export type SessionUser = {
       unrestricted (every category). Assigned by an Admin when creating or
       editing a preparer; every other role is unrestricted by default. */
   allowedCategories: string[] | null;
+  /** Set on account creation and on an admin-triggered password reset - the
+      account is usable immediately but every route except the password
+      change itself (see lib/api.ts's auth()) is blocked until it's cleared,
+      so a freshly issued or reset password can't quietly persist forever. */
+  mustReset: boolean;
 };
 
 export function can(user: SessionUser | null, perm: Permission): boolean {
