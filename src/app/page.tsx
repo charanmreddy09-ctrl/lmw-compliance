@@ -106,7 +106,6 @@ export default function Landing() {
         <nav className="row g16">
           <a href="#how" className="small strong" style={{ color: 'var(--ink-2)' }}>How it works</a>
           <a href="#modules" className="small strong" style={{ color: 'var(--ink-2)' }}>Modules</a>
-          <a href="#coverage" className="small strong" style={{ color: 'var(--ink-2)' }}>Coverage</a>
           <Link href="/signin" className="btn btn-p btn-s">Sign in</Link>
         </nav>
       </header>
@@ -139,7 +138,7 @@ export default function Landing() {
         <div className="grid g-4 stagger-in stagger-2">
           {[
             ['Entities supported', 'Unlimited', 'Every legal entity, in every country you operate in'],
-            ['Statutory obligations', '95+', 'National plus Tamil Nadu / UAE free-zone level'],
+            ['Statutory obligations', 'Multi-country', 'National, state and free-zone level, wherever you operate'],
             ['Evidence held', 'Every filing', 'Versioned, checksummed, downloadable'],
             ['Score basis', 'Approved only', 'Self-declaration does not count'],
           ].map(([l, v, s]) => (
@@ -191,45 +190,6 @@ export default function Landing() {
               );
             })}
           </div>
-        </div>
-      </section>
-
-      <section id="coverage" style={{ background: 'var(--canvas)', borderTop: '1px solid var(--line)', padding: '44px 26px' }}>
-        <div style={{ maxWidth: 1120, margin: '0 auto' }}>
-          <div className="cap mb8">Coverage</div>
-          <h2 style={{ fontSize: 22, marginBottom: 8 }}>Two countries today, with sub-national depth where it matters</h2>
-          <p className="small muted mb16" style={{ maxWidth: 720 }}>
-            A state or free-zone obligation applies to an entity only where that entity is
-            actually registered, so a Tamil Nadu filing never appears against an entity that
-            does not operate there. Additional countries, states or entities can be added as
-            the group’s footprint grows.
-          </p>
-          <div className="card">
-            <div className="tw">
-              <table className="dt">
-                <thead>
-                  <tr><th>Country</th><th>Sub-national levels maintained</th><th>Typical scope</th></tr>
-                </thead>
-                <tbody>
-                  {[
-                    ['India', 'Tamil Nadu', 'Central corporate law, tax, GST, SEBI/LODR and FEMA, plus state professional tax, labour welfare, factory licence, boiler certificate and pollution control'],
-                    ['United Arab Emirates', 'Dubai free zone', 'Federal VAT, Corporate Tax, Economic Substance and UBO filings, plus free-zone trade licence, immigration and financial statement filings'],
-                  ].map(r => (
-                    <tr key={r[0]}>
-                      <td className="strong nowrap">{r[0]}</td>
-                      <td className="small">{r[1]}</td>
-                      <td className="small muted w">{r[2]}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <p className="tiny muted mt12" style={{ maxWidth: 760 }}>
-            Every statutory reference is reviewed and signed off by a qualified local adviser
-            before it is relied upon. This platform supports, and does not replace,
-            professional legal and tax advice.
-          </p>
         </div>
       </section>
 
