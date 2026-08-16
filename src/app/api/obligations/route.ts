@@ -61,7 +61,7 @@ export const GET = handler(async (req: Request) => {
       LEFT JOIN users rv ON rv.id = o.reviewer_id
      WHERE ${where.join(' AND ')}
      ORDER BY o.due_date DESC
-     LIMIT ${Math.min(3000, parseInt(p.get('limit') ?? '1500', 10) || 1500)}`, vals);
+     LIMIT ${Math.min(20000, parseInt(p.get('limit') ?? '1500', 10) || 1500)}`, vals);
 
   return ok({ obligations: rows, count: rows.length });
 });

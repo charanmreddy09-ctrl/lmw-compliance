@@ -129,7 +129,13 @@ function RegisterInner() {
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const res = await fetch('/api/obligations?limit=2000');
+      /* Every obligation the user can see, in one request - the register
+         filters/sorts/counts entirely client-side. The API orders by
+         due_date DESC, so a limit smaller than the tenant's true total
+         silently drops the OLDEST rows (the ones actually due or overdue) -
+         exactly the ones "needs attention" filters and counts depend on.
+         20000 comfortably covers a multi-country, multi-year register. */
+      const res = await fetch('/api/obligations?limit=20000');
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? 'Unable to load the register.');
       setRows(d.obligations);
