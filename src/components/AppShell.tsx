@@ -165,15 +165,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (user?.mustReset && pathname !== '/reset-password') router.replace('/reset-password');
   }, [user, pathname, router]);
 
-  /* A page hidden from a role's sidebar (e.g. Reviews for a CFO, who
-     deliberately holds no review authority) was still reachable by typing
-     its URL directly - the page itself rendered fine, just permanently
-     empty, which reads as broken rather than as "not for your role." Any
-     page listed in NAV that this user's own show() rule hides is now
-     bounced to their normal landing page instead. Pages outside NAV
-     (Profile, reset-password) are never covered by this and need no guard. */
+  /* A page hidden from a role's sidebar because it truly doesn't apply to
+     that role (e.g. Reviews for a CFO, who holds no review authority at
+     all) was still reachable by typing its URL directly - the page
+     rendered fine, just permanently empty, which reads as broken rather
+     than as "not for your role." Any page listed in NAV that this user's
+     own show() rule hides is now bounced to their normal landing page
+     instead - except Register for a CFO specifically: it's hidden from
+     the CFO's sidebar only to keep their nav focused on monitoring rather
+     than filing, but the dashboard's own "What needs your attention" and
+     severity tiles deliberately deep-link a CFO straight into it, and the
+     page itself already renders read-only for them (every file/review
+     action there is gated behind permissions a CFO doesn't hold). Pages
+     outside NAV (Profile, reset-password) are never covered by this and
+     need no guard. */
   useEffect(() => {
     if (!user) return;
+    if (user.role === 'CFO' && pathname === '/register') return;
     const navItem = NAV.flatMap(s => s.items).find(i => i.href === pathname);
     if (navItem && !navItem.show(user)) router.replace(ROLE_LANDING[user.role] ?? '/dashboard');
   }, [user, pathname, router]);
