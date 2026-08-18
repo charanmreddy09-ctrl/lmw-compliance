@@ -33,7 +33,13 @@ export const GET = handler(async (req: Request) => {
   /* "In use" counts obligations for the selected financial year only, once
      one is chosen — otherwise a compliance running since before this FY
      shows every FY's instances added together, which reads as "the full
-     history" rather than "how many times this applies this year". */
+     history" rather than "how many times this applies this year".
+
+     Not Applicable obligations are excluded too — a reviewer excluding a
+     compliance for an entity should be reflected here the moment anyone
+     else loads this page (this route is force-dynamic, no caching in the
+     way), not leave "Open obligations" showing a count that still includes
+     the ones just marked not applicable. */
   let fyPlaceholder = '';
   const fyParam = p.get('fy') ? parseInt(p.get('fy')!, 10) : null;
   if (fyParam != null && !Number.isNaN(fyParam)) {
@@ -59,7 +65,8 @@ export const GET = handler(async (req: Request) => {
            c.applies_if_listed, c.applies_if_factory, c.applies_if_importer,
            c.verified, c.verified_by, c.verified_on, c.is_archived, c.updated_at,
            (SELECT count(*) FROM obligations o
-              WHERE o.compliance_id = c.id AND o.deleted_at IS NULL ${fyPlaceholder}) AS instances
+              WHERE o.compliance_id = c.id AND o.deleted_at IS NULL
+                AND o.status <> 'Not Applicable' ${fyPlaceholder}) AS instances
       FROM compliances c
       JOIN countries co ON co.code = c.country_code
       JOIN categories cat ON cat.id = c.category_id
