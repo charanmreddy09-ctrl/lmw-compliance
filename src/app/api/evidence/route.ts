@@ -354,10 +354,62 @@ export const DELETE = handler(async (req: Request) => {
   if (row.status === 'Approved' && !canReviewEntity(u, row.entity_id))
     return fail(403, 'An approved document cannot be withdrawn. Ask the reviewer to reopen the item first.');
 
-  await q(`UPDATE evidence SET deleted_at = now() WHERE id = $1`, [id]);
-  await q(`INSERT INTO review_actions (obligation_id, action, actor_id, actor_role, comment)
-           VALUES ($1,'comment',$2,$3,$4)`,
-    [row.obligation_id, u.id, u.role, `Withdrew document "${row.file_name}".`]);
+  await tx(async c => {
+    await c.query(`UPDATE evidence SET deleted_at = now() WHERE id = $1`, [id]);
+
+    /* Withdrawing evidence only ever removed the evidence row - the
+       obligation itself kept whatever filed_date, status, delay and penalty
+       figures that upload had written, so a withdrawn filing still looked
+       filed (and on time, or on whatever delay it had) everywhere else in
+       the app. The obligation's derived fields must reflect whichever
+       evidence, if any, still actually exists on it. */
+    const remaining = await c.query<{ filed_date: string | null }>(
+      `SELECT filed_date FROM evidence
+        WHERE obligation_id = $1 AND deleted_at IS NULL
+        ORDER BY version DESC LIMIT 1`,
+      [row.obligation_id]);
+
+    if (remaining.rowCount) {
+      /* Another version is still on file (e.g. an earlier upload that this
+         one doesn't happen to have superseded) - re-derive the date-driven
+         figures from it, but leave status/workflow_stage alone: that
+         evidence's own status already reflects where it stands. */
+      await c.query(
+        `UPDATE obligations
+            SET filed_date = $2,
+                delay_days = CASE WHEN $2::date IS NOT NULL AND $2::date > due_date
+                                  THEN ($2::date - due_date) ELSE 0 END
+          WHERE id = $1`,
+        [row.obligation_id, remaining.rows[0].filed_date]);
+    } else {
+      /* Nothing is filed against this obligation any more - put it back
+         exactly where it was before anything was ever uploaded. The computed
+         penalty columns are a later, optional migration (see
+         lib/schema-features.ts) - naming them on a database that hasn't run
+         it yet doesn't fail softly, it 500s the whole request, so they're
+         only touched once confirmed present. */
+      await c.query(
+        `UPDATE obligations
+            SET status = 'Not Started', workflow_stage = 'preparer',
+                filed_date = NULL, delay_days = 0, delay_reason = NULL,
+                penalty_exposure = NULL
+          WHERE id = $1`,
+        [row.obligation_id]);
+      if (await hasPenaltyEngine()) {
+        await c.query(
+          `UPDATE obligations
+              SET penalty_base_amount = NULL, penalty_base_source = NULL,
+                  penalty_amount = NULL, penalty_breakdown = NULL
+            WHERE id = $1`,
+          [row.obligation_id]);
+      }
+    }
+
+    await c.query(`INSERT INTO review_actions (obligation_id, action, actor_id, actor_role, comment)
+             VALUES ($1,'comment',$2,$3,$4)`,
+      [row.obligation_id, u.id, u.role, `Withdrew document "${row.file_name}".`]);
+  });
+
   await writeAudit({ actor: u, action: 'evidence.delete', objectType: 'evidence', objectId: id, detail: row.file_name });
   return ok({ ok: true });
 });
