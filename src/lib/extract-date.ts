@@ -22,18 +22,55 @@ export type FiledDateResult = {
 
 type Candidate = { day: number; month: number; year: number; nearKeyword: boolean };
 
+/* Real filing/acknowledgement receipts don't all use the same words - a GST
+   ARN receipt says "ARN Date" or "Date of ARN", not "acknowledgement date".
+   Keep widening this list as new portals' actual wording turns up rather
+   than guessing once and leaving it - a phrase this misses falls straight
+   through to ANY_DATE below, which has no idea what a date near this
+   keyword list. */
 const NEAR_KEYWORD =
-  /(filed on|filing date|date of filing|acknowledg\w*\s*date|ack\.?\s*date|submission date)[^0-9]{0,24}(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/gi;
+  /(filed on|e-?filed on|filing date|date of filing|acknowledg\w*\s*date|ack\.?\s*date|arn\s*(?:generation)?\s*date|date of arn|submission date|submitted on|generated on|payment date|paid on)[^0-9]{0,24}(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/gi;
 const ANY_DATE = /\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})\b/g;
 
+/* A return/tax period is a range ("Return period 01/07/2026 to 31/07/2026",
+   "Tax period: 01-04-2026 to 30-06-2026") - neither end of it is the day
+   anything was actually filed, but it is almost always the first date-shaped
+   text in a filing receipt, right at the top describing what the filing
+   covers. Left unhandled, that's exactly what ANY_DATE grabs once no
+   keyword above matches the document's own wording for the real filing
+   date - the return period, not the filing date, ends up on the record.
+   Both keyworded ("period ... X to Y") and bare ("X to Y"/"X - Y") ranges
+   are excluded from the fallback entirely, keyword match or not: a date
+   that is one side of a stated range is never a stand-alone filing date. */
+const PERIOD_RANGE =
+  /(return period|tax period|period|for the (?:month|quarter|year) of)[^0-9]{0,20}(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\s*(?:to|through|[-–])\s*(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/gi;
+const BARE_RANGE =
+  /(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\s*(?:to|through|[-–])\s*(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/gi;
+
 function normYear(y: number): number { return y < 100 ? 2000 + y : y; }
+
+/** Character spans covered by a stated date range. matchAll on ANY_DATE runs
+    independently of PERIOD_RANGE/BARE_RANGE - it has no idea they matched
+    anything, and finds each side of "X to Y" as two ordinary, unrelated
+    dates on its own. Any ANY_DATE hit inside one of these spans is one side
+    of a range, not a stand-alone date, and is dropped before it ever
+    becomes a candidate. */
+function rangeSpans(text: string): [number, number][] {
+  const spans: [number, number][] = [];
+  for (const re of [PERIOD_RANGE, BARE_RANGE]) {
+    for (const m of text.matchAll(re)) spans.push([m.index!, m.index! + m[0].length]);
+  }
+  return spans;
+}
 
 function findCandidates(text: string): Candidate[] {
   const out: Candidate[] = [];
   for (const m of text.matchAll(NEAR_KEYWORD)) {
     out.push({ day: +m[2], month: +m[3], year: normYear(+m[4]), nearKeyword: true });
   }
+  const spans = rangeSpans(text);
   for (const m of text.matchAll(ANY_DATE)) {
+    if (spans.some(([start, end]) => m.index! >= start && m.index! < end)) continue;
     out.push({ day: +m[1], month: +m[2], year: +m[3], nearKeyword: false });
   }
   return out.filter(c => c.day >= 1 && c.day <= 31 && c.month >= 1 && c.month <= 12 && c.year >= 2000);
