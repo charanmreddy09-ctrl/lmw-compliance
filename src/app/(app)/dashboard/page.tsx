@@ -263,7 +263,6 @@ export default function Dashboard() {
     total: acc.total + Number(h.total), approved: acc.approved + Number(h.approved),
     overdue: acc.overdue + Number(h.overdue),
   }), { total: 0, approved: 0, overdue: 0 });
-  const catPct = catTotals.total ? Math.round((catTotals.approved / catTotals.total) * 1000) / 10 : 0;
   /* Everything applicable that is neither approved nor overdue — still with
      the preparer, in review, or queried. Filling the composition ring's
      third segment with this keeps the ring's total honest without a fourth
@@ -581,7 +580,13 @@ export default function Dashboard() {
             <div className="stack">
               <div><span className="k">{countryFilter ? 'Total Obligations Applicable' : 'Applicable obligations'}</span><span className="v num">{o.total}</span></div>
               <div><span className="k"><i className="k-dot" style={{ background: 'var(--emerald-500)' }} />Approved with evidence</span><span className="v num">{o.approved}<Pct n={o.approved} of={o.total} /></span></div>
-              <div><span className="k"><i className="k-dot" style={{ background: 'var(--purple-500)' }} />Awaiting reviewer</span><span className="v num">{awaitingReviewer}</span></div>
+              {/* o.submitted + o.underReview here, not the wider awaitingReviewer
+                  KPI (which also counts submissions filed ahead of their due
+                  date, deliberately outside o.total) — every figure in this
+                  breakdown must come from the same o so the parts foot to
+                  Applicable above. awaitingReviewer is still used on its own
+                  KPI tiles elsewhere, where that broader count is the point. */}
+              <div><span className="k"><i className="k-dot" style={{ background: 'var(--purple-500)' }} />Awaiting reviewer</span><span className="v num">{o.submitted + o.underReview}</span></div>
               <div><span className="k"><i className="k-dot" style={{ background: 'var(--coral-500)' }} />Query raised / rejected</span><span className="v num">{o.queryRaised + o.rejected}</span></div>
               <div><span className="k"><i className="k-dot" style={{ background: 'var(--ink-4)' }} />Not started</span><span className="v num">{o.notStarted + o.evidencePending}</span></div>
               {o.overdue > 0 && (
@@ -593,7 +598,7 @@ export default function Dashboard() {
             <div className="mt12">
               <StackedBar total={o.total} segments={[
                 { key: 'approved', value: o.approved, color: 'var(--emerald-500)', label: 'Approved' },
-                { key: 'awaiting', value: awaitingReviewer, color: 'var(--purple-500)', label: 'Awaiting reviewer' },
+                { key: 'awaiting', value: o.submitted + o.underReview, color: 'var(--purple-500)', label: 'Awaiting reviewer' },
                 { key: 'query', value: o.queryRaised + o.rejected, color: 'var(--coral-500)', label: 'Query / rejected' },
                 { key: 'notstarted', value: o.notStarted + o.evidencePending, color: 'var(--ink-4)', label: 'Not started' },
               ]} />
@@ -649,10 +654,14 @@ export default function Dashboard() {
         </div>
         <div className="card-b row g24 wrap">
           <div className="center" style={{ minWidth: 90 }}>
-            <div className="num strong" style={{ fontSize: 30, color: scoreColor(catPct), lineHeight: 1 }}>
-              {catPct}<span style={{ fontSize: 15, fontFamily: 'var(--font-sans)', marginLeft: 1 }}>%</span>
+            {/* Same weighted compliance-score engine as the hero ring above —
+                for the Overall tab catScore is literally the same object as
+                o, so this always agrees with the headline figure instead of
+                showing a second, differently-computed "overall" number. */}
+            <div className="num strong" style={{ fontSize: 30, color: scoreColor(catScore.score), lineHeight: 1 }}>
+              {catScore.score.toFixed(1)}<span style={{ fontSize: 15, fontFamily: 'var(--font-sans)', marginLeft: 1 }}>%</span>
             </div>
-            <div className="tiny dim mt4">followed</div>
+            <div className="tiny dim mt4">score</div>
           </div>
           <div className="stack" style={{ width: 300, flexShrink: 0 }}>
             <div><span className="k">Applicable</span><span className="v num">{catTotals.total}</span></div>
