@@ -156,6 +156,12 @@ export const GET = handler(async (req: Request, ctx: { params: { type: string } 
         Applicable: s?.total ?? 0, Approved: s?.approved ?? 0,
         'Awaiting review': (s?.submitted ?? 0) + (s?.underReview ?? 0),
         'Query raised': s?.queryRaised ?? 0, Rejected: s?.rejected ?? 0,
+        /* Not started + Evidence pending — together with Approved/Awaiting
+           review/Query raised/Rejected above, this is the full status
+           partition of Applicable, so those five columns always foot to it.
+           Overdue below is a subset of this column (unfiled and past due),
+           shown for disclosure — it double-counts if added into that sum. */
+        'Not started': (s?.notStarted ?? 0) + (s?.evidencePending ?? 0),
         Overdue: s?.overdue ?? 0,
         'Compliance score': s?.score ?? 0,
         'Future obligations (disclosure only, excluded from score)': futureByEntity.get(e.id) ?? 0,
