@@ -205,8 +205,12 @@ export default function EntityDetail() {
                 <div><span className="k">Approved</span><span className="v num">{s?.approved ?? 0}</span></div>
                 <div><span className="k">Awaiting reviewer</span><span className="v num">{(s?.submitted ?? 0) + (s?.underReview ?? 0)}</span></div>
                 <div><span className="k">Query / rejected</span><span className="v num">{(s?.queryRaised ?? 0) + (s?.rejected ?? 0)}</span></div>
-                <div><span className="k">Overdue and unfiled</span>
-                  <span className="v num" style={{ color: s?.overdue ? 'var(--bad-600)' : undefined }}>{s?.overdue ?? 0}</span></div>
+                <div><span className="k">Not started</span><span className="v num">{(s?.notStarted ?? 0) + (s?.evidencePending ?? 0)}</span></div>
+                {(s?.overdue ?? 0) > 0 && (
+                  <div className="tiny" style={{ color: 'var(--bad-600)' }}>
+                    {s?.overdue} of them are past the due date with no evidence uploaded.
+                  </div>
+                )}
               </div>
             </div>
             <div style={{ minWidth: 190 }}>
