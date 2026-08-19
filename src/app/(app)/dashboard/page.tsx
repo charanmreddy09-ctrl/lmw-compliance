@@ -16,6 +16,17 @@ import {
 import type { SessionUser } from '@/lib/rbac';
 import type { ScoreBreakdown, CountryRow } from '@/lib/score';
 
+/** Plain-text hover explainer for the weighted score — kept short since it
+    renders in the browser's native title tooltip, no rich markup available. */
+const SCORE_METHOD_TIP =
+  'How this is calculated:\n' +
+  'Each obligation earns points for its outcome (approved on time scores highest, ' +
+  'then approved late, awaiting review, queried, rejected, not started lowest), ' +
+  'weighted by the compliance’s risk level (Critical and High count for more) ' +
+  'and scaled by the quality of the evidence on file.\n' +
+  'Score = points earned ÷ points possible, × 100.\n' +
+  'Only obligations already due are counted — one not yet due cannot be scored.';
+
 type EntityRow = {
   id: string; name: string; short_name: string; country_code: string; country_name: string;
   entity_type: string; division_name: string | null; city: string; employees: number;
@@ -255,19 +266,16 @@ export default function Dashboard() {
     })),
   ];
   const activeCat = catTabs.find(t => t.id === catTab) ?? catTabs[0];
+  /* Only the "filing quality" tiles (evidence coverage, on-time rate, etc.)
+     drill into the selected category — the score, ring and Applicable/
+     Approved/Overdue breakdown next to the tabs deliberately stay on `o`
+     (every entity, every category, this country filter only) regardless of
+     which tab is active. A user clicking through Direct Tax / GST / ... was
+     watching the headline score jump around with them, which reads as "the
+     main number" changing on a click that's meant to be a drill-down, not a
+     rescope — the country selector above is the only control meant to move
+     the headline figure. */
   const catScore = activeCat.matchName === null ? o : (d.byCategoryScore[activeCat.matchName] || ZERO_SCORE);
-  const catRows = d.heat.filter(h =>
-    (activeCat.matchName === null || h.category === activeCat.matchName) &&
-    (!countryFilter || h.country_code === countryFilter));
-  const catTotals = catRows.reduce((acc, h) => ({
-    total: acc.total + Number(h.total), approved: acc.approved + Number(h.approved),
-    overdue: acc.overdue + Number(h.overdue),
-  }), { total: 0, approved: 0, overdue: 0 });
-  /* Everything applicable that is neither approved nor overdue — still with
-     the preparer, in review, or queried. Filling the composition ring's
-     third segment with this keeps the ring's total honest without a fourth
-     colour to explain. */
-  const catInProgress = Math.max(0, catTotals.total - catTotals.approved - catTotals.overdue);
 
   /* Yesterday, today and tomorrow mean exactly that one day. The 15 and 30
      day windows keep their existing behaviour of also carrying anything
@@ -387,7 +395,12 @@ export default function Dashboard() {
                                <div className="num" style={{ fontSize: 30, fontWeight: 700, color: 'var(--navy-900)', lineHeight: 1 }}>
                                  <AnimatedNumber value={o.score} decimals={1} />
                                </div>
-                               <div className="tiny dim" style={{ marginTop: 2 }}>Compliance Health</div>
+                               <div className="tiny dim row g4" style={{ marginTop: 2, justifyContent: 'center', alignItems: 'center' }}>
+                                 Compliance Health
+                                 <span title={SCORE_METHOD_TIP} style={{ cursor: 'help', display: 'inline-flex' }}>
+                                   <Ic n="info" s={11} />
+                                 </span>
+                               </div>
                              </>
                            } />
             <div className="dash-hero-legend">
@@ -553,7 +566,12 @@ export default function Dashboard() {
       <div className="card mb16 stagger-in stagger-4">
         <div className="card-h">
           <div>
-            <h3>Score breakdown</h3>
+            <h3 className="row g4" style={{ alignItems: 'center' }}>
+              Score breakdown
+              <span title={SCORE_METHOD_TIP} style={{ cursor: 'help', display: 'inline-flex' }}>
+                <Ic n="info" s={13} />
+              </span>
+            </h3>
             <div className="tiny muted mt4">
               Derived only from obligations carrying reviewer-approved evidence · {d.scopeLabel}
             </div>
@@ -654,36 +672,41 @@ export default function Dashboard() {
         </div>
         <div className="card-b row g24 wrap">
           <div className="center" style={{ minWidth: 90 }}>
-            {/* Same weighted compliance-score engine as the hero ring above —
-                for the Overall tab catScore is literally the same object as
-                o, so this always agrees with the headline figure instead of
-                showing a second, differently-computed "overall" number. */}
-            <div className="num strong" style={{ fontSize: 30, color: scoreColor(catScore.score), lineHeight: 1 }}>
-              {catScore.score.toFixed(1)}<span style={{ fontSize: 15, fontFamily: 'var(--font-sans)', marginLeft: 1 }}>%</span>
+            {/* Same weighted compliance-score engine as the hero ring above,
+                and always on `o` (see the note by catScore's declaration) —
+                this agrees with the headline figure no matter which category
+                tab is active, and only the country selector ever moves it. */}
+            <div className="num strong" style={{ fontSize: 30, color: scoreColor(o.score), lineHeight: 1 }}>
+              {o.score.toFixed(1)}<span style={{ fontSize: 15, fontFamily: 'var(--font-sans)', marginLeft: 1 }}>%</span>
             </div>
-            <div className="tiny dim mt4">score</div>
+            <div className="tiny dim mt4 row g4" style={{ justifyContent: 'center', alignItems: 'center' }}>
+              score
+              <span title={SCORE_METHOD_TIP} style={{ cursor: 'help', display: 'inline-flex' }}>
+                <Ic n="info" s={11} />
+              </span>
+            </div>
           </div>
           <div className="stack" style={{ width: 300, flexShrink: 0 }}>
-            <div><span className="k">Applicable</span><span className="v num">{catTotals.total}</span></div>
-            <div><span className="k">Approved with evidence</span><span className="v num">{catTotals.approved}</span></div>
+            <div><span className="k">Applicable</span><span className="v num">{o.total}</span></div>
+            <div><span className="k">Approved with evidence</span><span className="v num">{o.approved}</span></div>
             <div><span className="k">Overdue and unfiled</span>
-              <span className="v num" style={{ color: catTotals.overdue ? 'var(--bad-600)' : undefined }}>{catTotals.overdue}</span></div>
+              <span className="v num" style={{ color: o.overdue ? 'var(--bad-600)' : undefined }}>{o.overdue}</span></div>
           </div>
-          {catTotals.total > 0 ? (
+          {o.total > 0 ? (
             <div className="row g16" style={{ alignItems: 'center' }}>
               {(() => {
                 const r = 40, C = 2 * Math.PI * r;
                 const segs = [
-                  { n: catTotals.approved, color: 'var(--emerald-500)' },
-                  { n: catInProgress, color: 'var(--amber-500)' },
-                  { n: catTotals.overdue, color: 'var(--coral-500)' },
+                  { n: o.approved, color: 'var(--emerald-500)' },
+                  { n: heroInProgress, color: 'var(--amber-500)' },
+                  { n: o.overdue, color: 'var(--coral-500)' },
                 ];
                 let acc = 0;
                 return (
                   <svg width={104} height={104} viewBox="0 0 104 104" style={{ flexShrink: 0 }}>
                     <circle cx={52} cy={52} r={r} fill="none" stroke="var(--line-2)" strokeWidth={12} />
                     {segs.filter(s => s.n > 0).map((s, i) => {
-                      const frac = s.n / catTotals.total;
+                      const frac = s.n / o.total;
                       const dash = `${frac * C} ${C - frac * C}`;
                       const offset = -acc * C;
                       acc += frac;
@@ -700,22 +723,22 @@ export default function Dashboard() {
                 <div className="row g8" style={{ alignItems: 'center' }}>
                   <span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--emerald-500)', flexShrink: 0 }} />
                   <span className="tiny muted grow">Approved</span>
-                  <span className="tiny num strong">{catTotals.approved}</span>
+                  <span className="tiny num strong">{o.approved}</span>
                 </div>
                 <div className="row g8" style={{ alignItems: 'center' }}>
                   <span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--amber-500)', flexShrink: 0 }} />
                   <span className="tiny muted grow">In progress</span>
-                  <span className="tiny num strong">{catInProgress}</span>
+                  <span className="tiny num strong">{heroInProgress}</span>
                 </div>
                 <div className="row g8" style={{ alignItems: 'center' }}>
                   <span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--coral-500)', flexShrink: 0 }} />
                   <span className="tiny muted grow">Overdue</span>
-                  <span className="tiny num strong">{catTotals.overdue}</span>
+                  <span className="tiny num strong">{o.overdue}</span>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="grow small muted">No applicable obligations in this category for the current filter.</div>
+            <div className="grow small muted">No applicable obligations for the current filter.</div>
           )}
         </div>
       </div>
